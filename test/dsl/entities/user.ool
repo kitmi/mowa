@@ -1,0 +1,20 @@
+use 'types/core'
+
+entity user
+  with
+    auto_increment_id(_, 10000) # field name, start from
+    create_timestamp
+    update_timestamp
+
+  has
+    email
+    password
+    salt
+    aclRoles: ->acl.role|*
+    status
+
+  keys
+    [ email ]: uk
+
+  indexes
+    [ status ]

@@ -1,0 +1,58 @@
+# This file defines common types with basic types: int, float, bool, text, bin, date, time, datetime, timestamp
+
+# type prefix
+# -> reference field
+
+# | modifier
+
+# default value generator modifier
+# |=<numeric value>, e.g. |=10, |=1
+# |=<string>, e.g. |='ok'
+# |=<function>, e.g. |=rand, |=rand(8), function(type, ...)
+# |=<symbol>, e.g. |=*now
+
+# constraint modifier
+# |< numeric type: less than, text type: maximum number of characters (excl.)
+# |<= numeric type: less than or equal to, text type: maximum number of characters (incl.)
+# |> numeric type: larger than, text type: minimum number of characters (excl.)
+# |>= numeric type: lerger than or equal to, text type: minimum number of characters (incl.)
+# |%<number> decimal type: number of digits, text type: fixed number of characters
+# |%.<number> float type: number of float digits
+# |~/<regexp>/ regexp
+# |~<regexp value>
+
+# |? ocurrence modifier, 0 or 1
+# |+ ocurrence modifier, at least one
+# |* ocurrence modifier, any
+
+#basic types
+# int
+# float
+# bool
+# text
+# binary
+# datetime
+# enum
+
+types
+  name: text|<=40
+  shortName: text|<=20
+  description: text|<=1000
+
+  idname: name|~/^[A-Za-z_]\w{2,39}$/
+  password: text|<=200
+  salt: binary|%8|=rand(8)
+  email: text|<=200|~/^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+  digits: text|~/^\d+$/
+  phone: text|~/^((\+|00)\d+)?\d+(-\d+)?$/
+  money: float|%.3
+
+  url: text|<=2000|~$urlRegExp
+  path: text|<=2000|~$pathRegExp
+
+  json: text
+  xml: text
+  uuid: text|%36|~/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  ip: text|%39|~/^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$|^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$|^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$/
+
+  status: enum('inactive', 'active', 'disabled', 'deleted')

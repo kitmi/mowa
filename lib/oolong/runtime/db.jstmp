@@ -1,0 +1,129 @@
+"use strict";
+
+require('debug')('tracing')(__filename);
+
+const path = require('path');
+const Util = require('../../util.js');
+const _ = Util._;
+
+class Database {
+    /**
+     * Database access object
+     * @constructs Database
+     * @example <caption>Example usage of method1.</caption>
+     * 
+     */
+    constructor(appModule, dbModel, serviceId) {
+        /**
+         * Owner app module
+         * @type {AppModule}
+         * @protected
+         **/
+        this._appModule = appModule;
+
+        /**
+         * Database structure model
+         * @type {Object}
+         * @protected
+         **/
+        this._dbModel = dbModel;
+
+        /**
+         * Db service id
+         * @type {Object}
+         * @protected
+         */
+        this._serviceId = serviceId;
+
+        /**
+         * Db service instance
+         * @type {Object}
+         * @protected
+         */
+        this._dbService = appModule.getService(serviceId);
+
+        let partNodes = serviceId.split('.');
+        let modelsPath = path.join(appModule.modelsPath, ...partNodes);
+
+        
+        let modelPath = this.toAbsolutePath(this.options.backendPath, 'models', ...partNodes) + '.js';
+    }
+
+    /**
+     * Create a new data record.
+     * @param {object} entity
+     */
+    *save(entity) {
+        let dataModel = entity.model;
+
+        let validateAll = dataModel.flags.validateAllFieldsOnCreation;
+        let errors = [], warnings = [];
+        let newData = {}, dbFunctionCalls = [];
+
+        _.forOwn(dataModel.fields,
+
+        for (let name in dataModel.fields) {
+            let info = dataModel.fields[name];
+            if (name in rawData) {
+                if (info.readOnly) {
+                    if (webModule.env === 'development') {
+                        warnings.push(new ModelOperationError(ModelOperationError.UPDATE_READ_ONLY_FIELD, name));
+                    }
+                } else {
+                    let validation = yield Validators.validateAndSanitize(info, rawData[name]);
+                    if (validation.error) {
+                        errors.push(new ModelValidationError(ModelValidationError.INVALID_VALUE, name, validation.error));
+
+                        if (!validateAll)
+                            return {errors};
+                    }
+                    newData[name] = validation.sanitized;
+                    continue;
+                }
+            }
+
+            if (!info.defaultByDb) {
+                if ('default' in info) {
+                    if (_.isPlainObject(info.default)) {
+                        if (info.default.type === 'Generator') {
+                            newData[name] = yield Generators.generate(info);
+                        } else if (info.default.type === 'DbFunction') {
+                            dbFunctionCalls.push({
+                                field: name,
+                                dbFunction: info.default
+                            });
+                        }
+                    } else {
+                        newData[name] = info.default;
+                    }
+                } else if (!info.optional) {
+                    errors.push(new ModelValidationError(ModelValidationError.MISSING_REQUIRED_VALUE, name));
+
+                    if (!validateAll)
+                        return {errors};
+                }
+            }
+        }
+
+        if (errors.length > 0) {
+            return {
+                errors,
+                warnings
+            };
+        }
+
+        return { warnings, newData, dbFunctionCalls };
+
+
+        if (errors) {
+            throw ModelValidationError.fromErrors(errors, warnings, ModelMeta.modelName + '.create');
+        }
+        if (warnings.length > 0) {
+            this.webModule.log('warn', Mowa.Util._.map(warnings, w => w.message).join('\n'));
+        }
+        return yield Oolong.mysqlModelCreate(this.webModule, ModelMeta, rawData, newData, dbFunctionCalls);
+    }
+
+}
+
+module.exports = Database;
