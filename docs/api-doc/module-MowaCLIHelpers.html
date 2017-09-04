@@ -33,21 +33,21 @@
 			<li class="dropdown">
 				<a href="modules.list.html" class="dropdown-toggle" data-toggle="dropdown">Modules<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="module-Errors.html">Errors</a></li><li><a href="module-FeatureLevels.html">FeatureLevels</a></li><li><a href="module-HttpCodes.html">HttpCodes</a></li><li><a href="module-Literals.html">Literals</a></li><li><a href="module-MowaCLIHelpers.html">MowaCLIHelpers</a></li><li><a href="module-Patterns.html">Patterns</a></li><li><a href="module-Utilities.html">Utilities</a></li>
+					<li><a href="module-MowaCLI_App.html">MowaCLI_App</a></li><li><a href="module-MowaCLI_Db.html">MowaCLI_Db</a></li><li><a href="module-MowaCLI_Default.html">MowaCLI_Default</a></li><li><a href="module-MowaCLI_Docker.html">MowaCLI_Docker</a></li><li><a href="module-MowaCLI_Oolong.html">MowaCLI_Oolong</a></li><li><a href="module-MowaCLI_Webpack.html">MowaCLI_Webpack</a></li><li><a href="module-MowaCLIHelpers.html">MowaCLIHelpers</a></li><li><a href="module-Oolong.html">Oolong</a></li><li><a href="module-OolongEntityFeature_AtLeastOneNotNull.html">OolongEntityFeature_AtLeastOneNotNull</a></li><li><a href="module-OolongEntityFeature_AutoId.html">OolongEntityFeature_AutoId</a></li><li><a href="module-OolongEntityFeature_CreateTimestamp.html">OolongEntityFeature_CreateTimestamp</a></li><li><a href="module-OolongEntityFeature_LogicalDeletion.html">OolongEntityFeature_LogicalDeletion</a></li><li><a href="module-OolongEntityFeature_StateTracking.html">OolongEntityFeature_StateTracking</a></li><li><a href="module-OolongEntityFeature_UpdateTimestamp.html">OolongEntityFeature_UpdateTimestamp</a></li><li><a href="module-Utilities.html">Utilities</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="AppModule.html">AppModule</a></li><li><a href="Errors_BreakContractError.html">Errors:BreakContractError</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlDAO.html">MysqlDAO</a></li>
+					<li><a href="AppModule.html">AppModule</a></li><li><a href="Entity.html">Entity</a></li><li><a href="Errors_BreakContractError.html">Errors:BreakContractError</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlSchema.html">MysqlSchema</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="Schema.html">Schema</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="global.html#build">build</a></li>
+					<li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#Patterns">Patterns</a></li>
 				</ul>
 			</li>
 			
@@ -387,6 +387,262 @@
             
                 
 <span class="param-type"><a href="MowaServer.html">MowaServer</a></span>
+
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+    
+
+    
+<dl class="details">
+    
+
+	
+
+	
+
+	
+
+    
+
+    
+
+    
+
+    
+
+	
+
+	
+
+	
+
+	
+
+	
+
+
+
+	
+	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
+	<dd class="tag-source">
+		cli/mowa-helper.js
+	</dd>
+	
+
+	
+
+	
+
+	
+</dl>
+
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <h5>Returns:</h5>
+    
+            
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array</span>
+
+
+
+    </dd>
+</dl>
+
+
+        
+
+    
+</dd>
+
+        
+            
+<hr>
+<dt>
+    <h4 class="name" id=".getAppNames"><span class="type-signature">&lt;static> </span>getAppNames()</h4>
+    
+    
+</dt>
+<dd>
+
+    
+    <div class="description">
+        <p>Get a list of available app names</p>
+    </div>
+    
+
+    
+
+    
+
+    
+    
+
+    
+<dl class="details">
+    
+
+	
+
+	
+
+	
+
+    
+
+    
+
+    
+
+    
+
+	
+
+	
+
+	
+
+	
+
+	
+
+
+
+	
+	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
+	<dd class="tag-source">
+		cli/mowa-helper.js
+	</dd>
+	
+
+	
+
+	
+
+	
+</dl>
+
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <h5>Returns:</h5>
+    
+            
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array</span>
+
+
+
+    </dd>
+</dl>
+
+
+        
+
+    
+</dd>
+
+        
+            
+<hr>
+<dt>
+    <h4 class="name" id=".getDbConnectionList"><span class="type-signature">&lt;static> </span>getDbConnectionList(api)</h4>
+    
+    
+</dt>
+<dd>
+
+    
+    <div class="description">
+        <p>Get a list of DBMS connection string.</p>
+    </div>
+    
+
+    
+
+    
+
+    
+    
+        <h5>Parameters:</h5>
+        
+
+<table class="params table table-striped">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>api</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><a href="MowaAPI.html">MowaAPI</a></span>
 
 
 

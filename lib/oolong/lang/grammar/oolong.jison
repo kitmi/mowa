@@ -108,32 +108,10 @@
             this.parsed.schema[schema] = def;
         },
 
-        isDatabaseExist(name) {
-            return this.parsed.database && (name in this.parsed.database);
-        },
-
-        defDatabase(db, type, opt, lineInfo) {
-            if (!this.parsed.database) {
-                this.parsed.database = {};
-            }
-
-            this.parsed.database[db] = { type, options: opt };
-        },
-
         validate() {
             var errors = [];
 
-            if (this.parsed.schema) {
-                Object.keys(this.parsed.schema).forEach(sn => {
-                    let schema = this.parsed.schema[sn];
-
-                    schema.deployments.forEach(deploy => {
-                        if (!(deploy in this.parsed.database)) {
-                            errors.push('Invalid schema deploy clause. Database reference "' + deploy + '" not found.');
-                        }
-                    });
-                });
-            }
+            //add validations here
 
             if (errors.length > 0) {
                 throw new Error(errors.join("\n"));
@@ -451,7 +429,6 @@ stmt
     | type_stmt
     | entity_stmt
     | schema_stmt
-    | database_stmt
     | relation_stmt
     ;
 
@@ -687,7 +664,7 @@ has_stmt_itm
 
 field_default_value
     : "default" "(" "auto" ")"
-        { $$ = { generator: true }; }
+        { $$ = { auto: true }; }
     | "default" "(" literal ")"
         { $$ = { 'default': $3 }; }
     ;
@@ -1040,8 +1017,8 @@ schema_stmt_itm
     ;
 
 schema_stmt_blk
-    : "entities" NEWLINE INDENT schema_entities_blk DEDENT deploy_stmt
-        { $$ = { entities: $4, deployments: $6 }; }
+    : "entities" NEWLINE INDENT schema_entities_blk DEDENT
+        { $$ = { entities: $4 }; }
     ;
 
 schema_entities_blk
@@ -1054,34 +1031,6 @@ schema_entities_blk
 entity_qualifier
     : "as" identifier
         { $$ = { alias: $2 }; }
-    ;
-
-database_stmt
-    : "database" identifier_or_string "is" identifier_or_string NEWLINE INDENT database_stmt_blk DEDENT
-        {
-            if (!DB_TYPES.has($4)) throw new Error('Unsupported database type "' + $4 + '" at line ' + @1.first_line + '.');
-            if (state.isDatabaseExist($2)) throw new Error('Duplicate database definition detected at line ' + @1.first_line + '.');
-            state.defDatabase($2, $4, $7);
-        }
-    ;
-
-database_stmt_blk
-    : database_option NEWLINE
-        { $$ =$1; }
-    | database_option NEWLINE database_options
-        { $$ = Object.assign({}, $1, $3); }
-    ;
-
-database_option
-    : 'encoding' value
-        { $$ = { encoding: $2 }; }
-    ;
-
-deploy_stmt
-    : "deploy" "to" identifier_or_string NEWLINE
-        { $$ = [ $3 ]; }
-    | "deploy" "to" identifier_or_str_array NEWLINE
-        { $$ = $3; }
     ;
 
 literal

@@ -33,21 +33,21 @@
 			<li class="dropdown">
 				<a href="modules.list.html" class="dropdown-toggle" data-toggle="dropdown">Modules<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="module-Errors.html">Errors</a></li><li><a href="module-FeatureLevels.html">FeatureLevels</a></li><li><a href="module-HttpCodes.html">HttpCodes</a></li><li><a href="module-Literals.html">Literals</a></li><li><a href="module-MowaCLIHelpers.html">MowaCLIHelpers</a></li><li><a href="module-Patterns.html">Patterns</a></li><li><a href="module-Utilities.html">Utilities</a></li>
+					<li><a href="module-MowaCLI_App.html">MowaCLI_App</a></li><li><a href="module-MowaCLI_Db.html">MowaCLI_Db</a></li><li><a href="module-MowaCLI_Default.html">MowaCLI_Default</a></li><li><a href="module-MowaCLI_Docker.html">MowaCLI_Docker</a></li><li><a href="module-MowaCLI_Oolong.html">MowaCLI_Oolong</a></li><li><a href="module-MowaCLI_Webpack.html">MowaCLI_Webpack</a></li><li><a href="module-MowaCLIHelpers.html">MowaCLIHelpers</a></li><li><a href="module-Oolong.html">Oolong</a></li><li><a href="module-OolongEntityFeature_AtLeastOneNotNull.html">OolongEntityFeature_AtLeastOneNotNull</a></li><li><a href="module-OolongEntityFeature_AutoId.html">OolongEntityFeature_AutoId</a></li><li><a href="module-OolongEntityFeature_CreateTimestamp.html">OolongEntityFeature_CreateTimestamp</a></li><li><a href="module-OolongEntityFeature_LogicalDeletion.html">OolongEntityFeature_LogicalDeletion</a></li><li><a href="module-OolongEntityFeature_StateTracking.html">OolongEntityFeature_StateTracking</a></li><li><a href="module-OolongEntityFeature_UpdateTimestamp.html">OolongEntityFeature_UpdateTimestamp</a></li><li><a href="module-Utilities.html">Utilities</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="AppModule.html">AppModule</a></li><li><a href="Errors_BreakContractError.html">Errors:BreakContractError</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlDAO.html">MysqlDAO</a></li>
+					<li><a href="AppModule.html">AppModule</a></li><li><a href="Entity.html">Entity</a></li><li><a href="Errors_BreakContractError.html">Errors:BreakContractError</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlSchema.html">MysqlSchema</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="Schema.html">Schema</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="global.html#build">build</a></li>
+					<li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#Patterns">Patterns</a></li>
 				</ul>
 			</li>
 			
@@ -152,36 +152,45 @@
     
 
     
-
-    
-        <h3 class="subsection-title">Methods</h3>
+        <h3 class="subsection-title">Members</h3>
 
         <dl>
             
 <hr>
-<dt>
-    <h4 class="name" id="build"><span class="type-signature"></span>build(api)</h4>
-    
+<dt class="name" id="FeatureLevels">
+    <h4 id="FeatureLevels"><span class="type-signature">&lt;constant> </span>FeatureLevels<span class="type-signature"> :string</span></h4>
+
     
 </dt>
 <dd>
-
     
     <div class="description">
-        <p>Create a database schema</p>
+        <p>Feature level tokens.</p>
     </div>
     
 
     
+        <h5>Type:</h5>
+        <ul>
+            <li>
+                
+<span class="param-type">string</span>
 
+
+
+            </li>
+        </ul>
     
 
     
+<dl class="details">
     
-        <h5>Parameters:</h5>
-        
 
-<table class="params table table-striped">
+    <h5 class="subsection-title">Properties:</h5>
+
+    <dl>
+
+<table class="props table table-striped">
     <thead>
     <tr>
         
@@ -193,6 +202,8 @@
         
 
         
+        <th>Default</th>
+        
 
         <th class="last">Description</th>
     </tr>
@@ -203,28 +214,187 @@
 
         <tr>
             
-                <td class="name"><code>api</code></td>
+                <td class="name"><code>INIT</code></td>
             
 
             <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
             
             </td>
 
             
 
             
+                <td class="default">
+                
+                    10-init
+                
+                </td>
+            
 
-            <td class="description last"></td>
+            <td class="description last"><p>Server initialization, e.g. bootstrap, settings</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>DBMS</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    20-dbms
+                
+                </td>
+            
+
+            <td class="description last"><p>Database drivers, e.g. mysql, mongodb</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>SERVICE</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    30-service
+                
+                </td>
+            
+
+            <td class="description last"><p>Services, e.g. loggers, i18n</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>ENGINE</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    40-engine
+                
+                </td>
+            
+
+            <td class="description last"><p>Server engine, e.g. koa</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>MIDDLEWARE</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    50-middleware
+                
+                </td>
+            
+
+            <td class="description last"><p>Middlewares</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>ROUTING</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    60-routing
+                
+                </td>
+            
+
+            <td class="description last"><p>Routing configuration</p></td>
         </tr>
 
     
     </tbody>
 </table>
+</dl>
 
-    
-
-    
-<dl class="details">
     
 
 	
@@ -256,7 +426,7 @@
 	
 	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
 	<dd class="tag-source">
-		cli/modules/db/index.js
+		enum/feature.js
 	</dd>
 	
 
@@ -269,49 +439,1202 @@
 
 
     
+</dd>
+
+        
+            
+<hr>
+<dt class="name" id="HttpCodes">
+    <h4 id="HttpCodes"><span class="type-signature">&lt;constant> </span>HttpCodes<span class="type-signature"> :number</span></h4>
 
     
-
+</dt>
+<dd>
+    
+    <div class="description">
+        <p>HTTP status codes.</p>
+    </div>
     
 
     
+        <h5>Type:</h5>
+        <ul>
+            <li>
+                
+<span class="param-type">number</span>
+
+
+
+            </li>
+        </ul>
+    
 
     
+<dl class="details">
+    
 
+    <h5 class="subsection-title">Properties:</h5>
+
+    <dl>
+
+<table class="props table table-striped">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
     
-    <h5>Returns:</h5>
-    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_OK</code></td>
             
 
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">*</span>
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
 
 
 
-    </dd>
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    200
+                
+                </td>
+            
+
+            <td class="description last"><p>200</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_CREATED</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    201
+                
+                </td>
+            
+
+            <td class="description last"><p>201</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_MOVED_PERMANENTLY</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    301
+                
+                </td>
+            
+
+            <td class="description last"><p>301</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_FOUND</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    302
+                
+                </td>
+            
+
+            <td class="description last"><p>302</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_SEE_OTHER</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    303
+                
+                </td>
+            
+
+            <td class="description last"><p>303</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_TEMPORARY_REDIRECT</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    307
+                
+                </td>
+            
+
+            <td class="description last"><p>307</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_BAD_REQUEST</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    400
+                
+                </td>
+            
+
+            <td class="description last"><p>400</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_UNAUTHORIZED</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    401
+                
+                </td>
+            
+
+            <td class="description last"><p>401</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_FORBIDDEN</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    403
+                
+                </td>
+            
+
+            <td class="description last"><p>403</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_NOT_FOUND</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    404
+                
+                </td>
+            
+
+            <td class="description last"><p>404</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_METHOD_NOT_ALLOWED</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    405
+                
+                </td>
+            
+
+            <td class="description last"><p>405</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_INTERNAL_SERVER_ERROR</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    500
+                
+                </td>
+            
+
+            <td class="description last"><p>500</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>HTTP_SERVICE_UNAVAILABLE</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    503
+                
+                </td>
+            
+
+            <td class="description last"><p>503</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+</dl>
+
+    
+
+	
+
+	
+
+	
+
+    
+
+    
+
+    
+
+    
+
+	
+
+	
+
+	
+
+	
+
+	
+
+
+
+	
+	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
+	<dd class="tag-source">
+		enum/httpcode.js
+	</dd>
+	
+
+	
+
+	
+
+	
 </dl>
 
 
+    
+</dd>
+
         
+            
+<hr>
+<dt class="name" id="Literals">
+    <h4 id="Literals"><span class="type-signature">&lt;constant> </span>Literals<span class="type-signature"> :string</span></h4>
 
     
-        <h5>Example</h5>
+</dt>
+<dd>
+    
+    <div class="description">
+        <p>Common constant definitions.</p>
+    </div>
+    
+
+    
+        <h5>Type:</h5>
+        <ul>
+            <li>
+                
+<span class="param-type">string</span>
+
+
+
+            </li>
+        </ul>
+    
+
+    
+<dl class="details">
+    
+
+    <h5 class="subsection-title">Properties:</h5>
+
+    <dl>
+
+<table class="props table table-striped">
+    <thead>
+    <tr>
         
-    <pre class="sunlight-highlight-javascript">&lt;caption&gt;&lt;/caption&gt;
-// returns 2
-globalNS.method1(5, 10);</pre>
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>APP_MODULES_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    app_modules
+                
+                </td>
+            
+
+            <td class="description last"><p>App modules path</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>ETC_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    etc
+                
+                </td>
+            
+
+            <td class="description last"><p>Config files path</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>BACKEND_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    server
+                
+                </td>
+            
+
+            <td class="description last"><p>Backend files path</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>FRONTEND_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    client
+                
+                </td>
+            
+
+            <td class="description last"><p>Frontend files path</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>MIDDLEWARES_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    middlewares
+                
+                </td>
+            
+
+            <td class="description last"><p>Middleware files path</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>FEATURES_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    features
+                
+                </td>
+            
+
+            <td class="description last"><p>Feature files path</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>SERVER_CFG_NAME</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    server
+                
+                </td>
+            
+
+            <td class="description last"><p>Server-wide config file name</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>APP_CFG_NAME</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    app
+                
+                </td>
+            
+
+            <td class="description last"><p>App config file name</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>CONTROLLERS_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    controllers
+                
+                </td>
+            
+
+            <td class="description last"><p>Controllers files path, under backend folder</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>VIEWS_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    views
+                
+                </td>
+            
+
+            <td class="description last"><p>Views files path, under backend folder</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>MODELS_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    models
+                
+                </td>
+            
+
+            <td class="description last"><p>Models files path, under backend folder</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>OOLONG_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    oolong
+                
+                </td>
+            
+
+            <td class="description last"><p>Oolong files path</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>DB_SCRIPTS_PATH</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    db_scripts
+                
+                </td>
+            
+
+            <td class="description last"><p>Database scripts path</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+</dl>
+
+    
+
+	
+
+	
+
+	
+
+    
+
+    
+
+    
+
+    
+
+	
+
+	
+
+	
+
+	
+
+	
+
+
+
+	
+	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
+	<dd class="tag-source">
+		enum/literal.js
+	</dd>
+	
+
+	
+
+	
+
+	
+</dl>
+
+
+    
+</dd>
+
+        
+            
+<hr>
+<dt class="name" id="Patterns">
+    <h4 id="Patterns"><span class="type-signature">&lt;constant> </span>Patterns<span class="type-signature"> :RegExp</span></h4>
+
+    
+</dt>
+<dd>
+    
+    <div class="description">
+        <p>Common Regex patterns.</p>
+    </div>
+    
+
+    
+        <h5>Type:</h5>
+        <ul>
+            <li>
+                
+<span class="param-type">RegExp</span>
+
+
+
+            </li>
+        </ul>
+    
+
+    
+<dl class="details">
+    
+
+    <h5 class="subsection-title">Properties:</h5>
+
+    <dl>
+
+<table class="props table table-striped">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>EMAIL</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">RegExp</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    /^(([^&lt;>()[\]\\.,;:\s@\"]+(\.[^&lt;>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+                
+                </td>
+            
+
+            <td class="description last"><p>Email</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>MOBILE_CN</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">RegExp</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    /^((\+|00)86)?1\d{10}$/
+                
+                </td>
+            
+
+            <td class="description last"><p>Chinese mobile</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>MOBILE_AU</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">RegExp</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    /^(((\+|00)61)|0)4\d{8}$/
+                
+                </td>
+            
+
+            <td class="description last"><p>Australian mobile</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+</dl>
+
+    
+
+	
+
+	
+
+	
+
+    
+
+    
+
+    
+
+    
+
+	
+
+	
+
+	
+
+	
+
+	
+
+
+
+	
+	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
+	<dd class="tag-source">
+		enum/pattern.js
+	</dd>
+	
+
+	
+
+	
+
+	
+</dl>
 
 
     
 </dd>
 
         </dl>
+    
+
     
 
     
