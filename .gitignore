@@ -23,3 +23,4 @@ Thumbs.db
 ######################
 coverage
 test/temp/*.log
+examples/*.log

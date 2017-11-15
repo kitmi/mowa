@@ -14,7 +14,7 @@ A mowa application is a web module hosted by a mowa server. It mounts controller
 A mowa controller is a plain object exported by a JavaScript module containing several actions to handle web requests and response to the reqeusting client.
 
 ### Action
-A mowa action is a koa-styled action which is a generator and handles one client request at a time. Besides all the koa context, the code in a mowa action can also access the webModule object which represents the instance of the application.
+A mowa action is a koa-styled action which is a generator and handles one client request at a time. Besides all the koa context, the code in a mowa action can also access the appModule object which represents the instance of the application.
 
 ### Feature
 A feature is a configuratin-driven functional module of the server or an application. Built-in features include bootstrap, loggers, middlewares, koa, routing, i18n, and etc. Every feature is a top-level config item in the server configuraiton file or application configuration file.
