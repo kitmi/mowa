@@ -1,19 +1,20 @@
 {
-    "middlewares": {
-        "serveStatic": { "root": "www" }
-    },
     "routing": {
         "/": {
             "rule": {
                 "middlewares": {
                     "swig": {
                         "autoescape": true,
-                        "cache": false,
-                        "ext": "swig"
+                        "cache": "memory",
+                        "ext": "html"
                     }
                 },
                 "rules": {
-                    "get:/test": "test.index"
+                    "/": {
+                        "get": {
+                            "action": "home.index"
+                        }
+                    }
                 }
             }
         }

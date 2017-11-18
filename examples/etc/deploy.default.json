@@ -1,8 +1,8 @@
 {
     "default": {
-        "consoleLogLevel": "info",
+        "consoleLogLevel": "verbose",
         "consoleLogColorize": true,
-        "fileLogLevel": "verbose",
+        "fileLogLevel": "info",
         "fileLogFilename": "mowa-deploy.log",
         "fileLogOptions": { "flag": "w" },
         "mowaVerbose": false
