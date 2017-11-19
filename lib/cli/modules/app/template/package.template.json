@@ -1,0 +1,12 @@
+{
+  "name": "mowa-app-{{name}}",
+  "version": "1.0.0",
+  "description": "",
+  "main": "standalone.js",
+  "scripts": {
+    "start": "node standalone.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
