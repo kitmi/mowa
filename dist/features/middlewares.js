@@ -1,0 +1,1 @@
+'use strict';require('debug')('tracing')(__filename);const Util=require('../util.js');module.exports={type:Util.Feature.MIDDLEWARE,load:function(appModule,middlewares){appModule.useMiddlewares(appModule.router,middlewares);return Promise.resolve()}};

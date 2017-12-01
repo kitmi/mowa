@@ -7,10 +7,10 @@
 const request = require('supertest');
 const should = require('should');
 const util = require('util');
-const Mowa = require('../lib/server.js');
+const Mowa = require('../temp/server.js');
 
 function createMowa() {
-    return new Mowa('MowaBVT', { backendPath: 'test/server', etcPath: 'test/etc-mocha', modulesPath: 'test/app_modules' });
+    return new Mowa('MowaBVT', { backendPath: 'test/server', etcPath: 'test/etc-mocha', childModulesPath: 'test/app_modules' });
 }
 
 describe('mowa-bvt', function () {

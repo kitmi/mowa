@@ -1,6 +1,6 @@
 "use strict";
 
-const Mw = require('../../lib/server.js');
+const Mw = require('../../temp/server.js');
 
 let books = [ { id: 1, title: 'Book 1' }, { id: 2, title: 'Book 2' } ];
 let maxid = 2;

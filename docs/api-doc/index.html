@@ -40,14 +40,14 @@
 			<li class="dropdown">
 				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="AppModule.html">AppModule</a></li><li><a href="Entity.html">Entity</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlSchema.html">MysqlSchema</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="Schema.html">Schema</a></li>
+					<li><a href="AppModule.html">AppModule</a></li><li><a href="Entity.html">Entity</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlSchema.html">MysqlSchema</a></li><li><a href="OolongDaoModeler.html">OolongDaoModeler</a></li><li><a href="OolongDbDeployer.html">OolongDbDeployer</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlDeployer.html">OolongMysqlDeployer</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="Schema.html">Schema</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="global.html#backendPath">backendPath</a></li><li><a href="global.html#etcPath">etcPath</a></li><li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#featuresPath">featuresPath</a></li><li><a href="global.html#frontendPath">frontendPath</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#middlewaresPath">middlewaresPath</a></li><li><a href="global.html#modelsPath">modelsPath</a></li><li><a href="global.html#modulesPath">modulesPath</a></li><li><a href="global.html#oolongPath">oolongPath</a></li><li><a href="global.html#Patterns">Patterns</a></li>
+					<li><a href="global.html#backendPath">backendPath</a></li><li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#frontendPath">frontendPath</a></li><li><a href="global.html#frontendStaticPath">frontendStaticPath</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#oolongPath">oolongPath</a></li><li><a href="global.html#Patterns">Patterns</a></li>
 				</ul>
 			</li>
 			
@@ -105,7 +105,9 @@
 <h3>Application</h3><p>A mowa application is a web module hosted by a mowa server. It mounts controllers or middlewares to configured routes. Currenlty, an application is not running in a totally separate sandbox in the hosting environment.</p>
 <h3>Controller</h3><p>A mowa controller is a plain object exported by a JavaScript module containing several actions to handle web requests and response to the reqeusting client.</p>
 <h3>Action</h3><p>A mowa action is a koa-styled action which is a generator and handles one client request at a time. Besides all the koa context, the code in a mowa action can also access the appModule object which represents the instance of the application.</p>
-<h3>Feature</h3><p>A feature is a configuratin-driven functional module of the server or an application. Built-in features include bootstrap, loggers, middlewares, koa, routing, i18n, and etc. Every feature is a top-level config item in the server configuraiton file or application configuration file.</p>
+<pre class="prettyprint source"><code>function* (next) {
+    ...
+}</code></pre><h3>Feature</h3><p>A feature is a configuratin-driven functional module of the server or an application. Built-in features include bootstrap, loggers, middlewares, koa, routing, i18n, and etc. Every feature is a top-level config item in the server configuraiton file or application configuration file.</p>
 <h3>Starting Phrase</h3><p>The starting of a server or an application include 5 consecutive phrases:<br>1). Initial Phrase<br>2). Service Registration Phrase<br>3). Engine Configuration Phrase<br>4). Middleware Registration Phrase<br>5). Routing Configuration Phrase (The starting process of an application starts within the server's routing configuration phrase)</p>
 <p>A feature mentioned above is designed to be activated in a certain phrase which is specified in the feature definition file.</p>
 <h3>Middleware</h3><p>A mowa middleware actually should be called a middleware factory. It is a function creating a koa-styled middleware. The middleware factory can be configured in the section of &quot;middlewares&quot; feature of the configuration file or as an option in the setting of a certain router.</p>
@@ -151,7 +153,8 @@
 </ul>
 <h2>4. Built-in Features</h2><h3>Bootstrap</h3><p>Specify a path containing scripts to be executed during initial phrase. </p>
 <p>Options:</p>
-<pre class="prettyprint source"><code>[path] - Bootstrap scripts path, default: ./server/bootstrap</code></pre><h2>5. Convention</h2><h3>Async by generator</h3><ul>
+<pre class="prettyprint source"><code>[path] - Bootstrap scripts path, default: ./server/bootstrap</code></pre><h2>5. Convention</h2><h3>Design by contract</h3><p>Refer to: https://github.com/codemix/babel-plugin-contracts</p>
+<h3>Async by generator</h3><ul>
 <li><p>Calling async function with complete callback</p>
 <pre class="prettyprint source"><code>  function callback(error, result)
   function opWithCallback(..., cb) // cb is a callback function
@@ -191,7 +194,7 @@
 </ul>
 </li>
 <li>events<ul>
-<li>actionCompleted - triggered after a controller action is executed</li>
+<li>actionCompleted - triggered after a controller action is executed, usually for db connection pool back</li>
 </ul>
 </li>
 </ul>

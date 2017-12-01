@@ -1,0 +1,59 @@
+{
+    "loggers": {
+        "general": {
+            "transports": [{
+                "type": "console",
+                "options": {
+                    "level": "verbose",
+                    "colorize": true
+                }
+            }, {
+                "type": "file",
+                "options": {
+                    "level": "info",
+                    "filename": "#!es6:file-${now.format('YYYYMMDD')}.log"
+                }
+            }]
+        },
+        "access": {
+            "transports": [{
+                "type": "daily-rotate-file",
+                "options": {
+                    "level": "info",
+                    "json": false,
+                    "formatter": "#!es6:${options => options.message}",
+                    "filename": "access-",
+                    "datePattern": "yyyyMMdd.log"
+                }
+            }]
+        }
+    },
+    "rewriteOptions": {
+        "logger": "general"
+    },
+    "koa": {
+        "httpPort": 3000
+    },
+    "middlewares": {
+        "accessLog": { "logger": "access" },
+        "compress": {},
+        "etag": {},
+        "bodyParser": {},
+        "methodOverride": {}
+    },
+    "routing": {
+        "/": "home.index"
+    },
+    "settings": {
+        "deploy": {
+            "general": {
+                "consoleLogLevel": "info",
+                "consoleLogColorize": true,
+                "fileLogLevel": "verbose",
+                "fileLogFilename": "mowa-deploy.log",
+                "fileLogOptions": { "flag": "w" },
+                "mowaVerbose": false
+            }
+        }
+    }
+}

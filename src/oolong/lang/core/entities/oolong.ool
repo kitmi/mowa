@@ -1,0 +1,64 @@
+# This file defines common types with basic types: int, float, bool, text, bin, date, time, datetime, timestamp
+
+# qualifiers
+
+# default value generator qualifier
+# = <numeric value>, e.g. |=10, |=1
+# = <string>, e.g. |='ok'
+# = <function>, e.g. |=rand, |=rand(8), function(type, ...)
+# = <symbol>, e.g. |=*now
+
+# type qualifier
+# default
+# auto
+# length(fixedLength) text type: fixed number of characters
+# precision float type: number of float digits
+# ~ /<regexp>/ regexp
+# readOnly: can be set only on creation
+# nonTrim
+# writeOnceOnly
+# optional
+# --
+# ->
+
+# relation qualifier
+# ? ocurrence qualifier, 0 or 1
+# + ocurrence qualifier, at least one
+# * ocurrence qualifier, any
+
+#basic types
+# int
+# number [exact]
+# bool
+# text [fixed]
+# binary [fixed]
+# datetime [date only]|[time only]|[year only]|[timestamp]
+# json
+# xml
+# enum
+# csv
+
+type
+  name : text(40)
+  shortName : text(20)
+  title : text(200)
+  description : text
+  tag : csv
+
+  flag : bool
+
+  id : name ~matches(/^[A-Za-z_]\w{2,39}$/)
+  password : text(200)
+  email : text(200) ~isEmail
+  alpha : text ~isAlpha
+  digits : text ~isNumeric
+  alphaNumber : text ~isAlphanumeric
+  phone : text(20) ~matches(/^((\+|00)\d+)?\d+(-\d+)?$/)
+  mobile : text(20) ~isMobilePhone(@locale.dashForm)
+  money : number exact
+
+  url : text(2000) ~isURL
+  path : text(2000) ~isURL({allow_protocol_relative_urls: true})
+
+  uuid : text(36) fixed ~isUUID
+  ip : text(40) ~isIP

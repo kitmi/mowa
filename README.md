@@ -16,6 +16,10 @@ A mowa controller is a plain object exported by a JavaScript module containing s
 ### Action
 A mowa action is a koa-styled action which is a generator and handles one client request at a time. Besides all the koa context, the code in a mowa action can also access the appModule object which represents the instance of the application.
 
+	function* (next) {
+    	...
+    }
+
 ### Feature
 A feature is a configuratin-driven functional module of the server or an application. Built-in features include bootstrap, loggers, middlewares, koa, routing, i18n, and etc. Every feature is a top-level config item in the server configuraiton file or application configuration file.
 
@@ -89,6 +93,10 @@ Options:
 
 ## 5. Convention
 
+### Design by contract
+
+Refer to: https://github.com/codemix/babel-plugin-contracts
+
 ### Async by generator
 
 * Calling async function with complete callback
@@ -126,7 +134,7 @@ Options:
     		* makePath(relativePath, query)
     		* makeUrl(relativePath, query)
 * events
-    * actionCompleted - triggered after a controller action is executed
+    * actionCompleted - triggered after a controller action is executed, usually for db connection pool back
 
 
 

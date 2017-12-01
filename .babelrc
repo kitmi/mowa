@@ -1,0 +1,27 @@
+{
+  "comments": false,
+  "env": {
+    "production": {
+      "minified": true
+    }
+  },
+  "ignore": [
+    "src/oolong/lang/oolong.js"
+  ],
+  "plugins": [
+    ["contracts", {
+      "env": {
+        "production": {
+          "strip": true
+        }
+      },
+      "names": {
+        "assert": "assert",
+        "precondition": "pre",
+        "postcondition": "post",
+        "invariant": "invariant",
+        "return": "it"
+      }
+    }]
+  ]
+}

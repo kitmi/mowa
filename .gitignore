@@ -22,5 +22,6 @@ Thumbs.db
 # test files #
 ######################
 coverage
+temp
 test/temp/*.log
 examples/*.log

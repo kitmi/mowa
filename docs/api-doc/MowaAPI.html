@@ -40,14 +40,14 @@
 			<li class="dropdown">
 				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="AppModule.html">AppModule</a></li><li><a href="Entity.html">Entity</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlSchema.html">MysqlSchema</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="Schema.html">Schema</a></li>
+					<li><a href="AppModule.html">AppModule</a></li><li><a href="Entity.html">Entity</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlSchema.html">MysqlSchema</a></li><li><a href="OolongDaoModeler.html">OolongDaoModeler</a></li><li><a href="OolongDbDeployer.html">OolongDbDeployer</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlDeployer.html">OolongMysqlDeployer</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="Schema.html">Schema</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="global.html#backendPath">backendPath</a></li><li><a href="global.html#etcPath">etcPath</a></li><li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#featuresPath">featuresPath</a></li><li><a href="global.html#frontendPath">frontendPath</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#middlewaresPath">middlewaresPath</a></li><li><a href="global.html#modelsPath">modelsPath</a></li><li><a href="global.html#modulesPath">modulesPath</a></li><li><a href="global.html#oolongPath">oolongPath</a></li><li><a href="global.html#Patterns">Patterns</a></li>
+					<li><a href="global.html#backendPath">backendPath</a></li><li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#frontendPath">frontendPath</a></li><li><a href="global.html#frontendStaticPath">frontendStaticPath</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#oolongPath">oolongPath</a></li><li><a href="global.html#Patterns">Patterns</a></li>
 				</ul>
 			</li>
 			
@@ -200,7 +200,7 @@
 	
 	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
 	<dd class="tag-source">
-		cli/mowa-api.js
+		cli/cli-api.js
 	</dd>
 	
 
@@ -246,109 +246,6 @@
         <h3 class="subsection-title">Methods</h3>
 
         <dl>
-            
-<hr>
-<dt>
-    <h4 class="name" id="checkUpdate"><span class="type-signature"></span>checkUpdate()</h4>
-    
-    
-</dt>
-<dd>
-
-    
-    <div class="description">
-        <p>Check whether it's the latest version</p>
-    </div>
-    
-
-    
-
-    
-
-    
-    
-
-    
-<dl class="details">
-    
-
-	
-
-	
-
-	
-
-    
-
-    
-
-    
-
-    
-
-	
-
-	
-
-	
-
-	
-
-	
-
-
-
-	
-	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
-	<dd class="tag-source">
-		cli/mowa-api.js
-	</dd>
-	
-
-	
-
-	
-
-	
-</dl>
-
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <h5>Returns:</h5>
-    
-            
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">Promise</span>
-
-
-
-    </dd>
-</dl>
-
-
-        
-
-    
-</dd>
-
-        
             
 <hr>
 <dt>
@@ -448,7 +345,7 @@
 	
 	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
 	<dd class="tag-source">
-		cli/mowa-api.js
+		cli/cli-api.js
 	</dd>
 	
 
@@ -595,7 +492,7 @@
 	
 	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
 	<dd class="tag-source">
-		cli/mowa-api.js
+		cli/cli-api.js
 	</dd>
 	
 
@@ -646,7 +543,7 @@
             
 <hr>
 <dt>
-    <h4 class="name" id="init"><span class="type-signature"></span>init()</h4>
+    <h4 class="name" id="init_"><span class="type-signature"></span>init_()</h4>
     
     
 </dt>
@@ -698,7 +595,7 @@
 	
 	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
 	<dd class="tag-source">
-		cli/mowa-api.js
+		cli/cli-api.js
 	</dd>
 	
 
@@ -881,7 +778,7 @@
 	
 	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
 	<dd class="tag-source">
-		cli/mowa-api.js
+		cli/cli-api.js
 	</dd>
 	
 

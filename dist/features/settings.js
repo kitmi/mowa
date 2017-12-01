@@ -1,0 +1,1 @@
+'use strict';require('debug')('tracing')(__filename);const Util=require('../util.js');module.exports={type:Util.Feature.INIT,load:function(appModule,config){appModule.settings=Object.assign({},config);return Promise.resolve()}};

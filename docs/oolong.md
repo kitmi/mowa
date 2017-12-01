@@ -32,9 +32,9 @@
       <fields>
       <indexes>
       <interface>
-      
+
     <features>kmoi
-    	with  
+    	with
           <feature1>
           <feature2>
     
@@ -49,7 +49,10 @@
     
     chain
     	a role may have several permission to several resource
-       
+
+##.Schema
+
+
 
 ## License
 

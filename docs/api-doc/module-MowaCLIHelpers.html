@@ -40,14 +40,14 @@
 			<li class="dropdown">
 				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="AppModule.html">AppModule</a></li><li><a href="Entity.html">Entity</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlSchema.html">MysqlSchema</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="Schema.html">Schema</a></li>
+					<li><a href="AppModule.html">AppModule</a></li><li><a href="Entity.html">Entity</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="I18nStorage.html">I18nStorage</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlSchema.html">MysqlSchema</a></li><li><a href="OolongDaoModeler.html">OolongDaoModeler</a></li><li><a href="OolongDbDeployer.html">OolongDbDeployer</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlDeployer.html">OolongMysqlDeployer</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="Schema.html">Schema</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="global.html#backendPath">backendPath</a></li><li><a href="global.html#etcPath">etcPath</a></li><li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#featuresPath">featuresPath</a></li><li><a href="global.html#frontendPath">frontendPath</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#middlewaresPath">middlewaresPath</a></li><li><a href="global.html#modelsPath">modelsPath</a></li><li><a href="global.html#modulesPath">modulesPath</a></li><li><a href="global.html#oolongPath">oolongPath</a></li><li><a href="global.html#Patterns">Patterns</a></li>
+					<li><a href="global.html#backendPath">backendPath</a></li><li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#frontendPath">frontendPath</a></li><li><a href="global.html#frontendStaticPath">frontendStaticPath</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#oolongPath">oolongPath</a></li><li><a href="global.html#Patterns">Patterns</a></li>
 				</ul>
 			</li>
 			
@@ -313,7 +313,7 @@
             
 <hr>
 <dt>
-    <h4 class="name" id=".getAppModules"><span class="type-signature">&lt;static> </span>getAppModules(api, server)</h4>
+    <h4 class="name" id=".getAvailableAppNames"><span class="type-signature">&lt;static> </span>getAvailableAppNames()</h4>
     
     
 </dt>
@@ -321,7 +321,374 @@
 
     
     <div class="description">
-        <p>Get a list of app module instances by command-line option &quot;app&quot;.</p>
+        <p>Get a list of available app names</p>
+    </div>
+    
+
+    
+
+    
+
+    
+    
+
+    
+<dl class="details">
+    
+
+	
+
+	
+
+	
+
+    
+
+    
+
+    
+
+    
+
+	
+
+	
+
+	
+
+	
+
+	
+
+
+
+	
+	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
+	<dd class="tag-source">
+		cli/mowa-helper.js
+	</dd>
+	
+
+	
+
+	
+
+	
+</dl>
+
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <h5>Returns:</h5>
+    
+            
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array</span>
+
+
+
+    </dd>
+</dl>
+
+
+        
+
+    
+</dd>
+
+        
+            
+<hr>
+<dt>
+    <h4 class="name" id=".getDbConnectionList_"><span class="type-signature">&lt;static> </span>getDbConnectionList_(api)</h4>
+    
+    
+</dt>
+<dd>
+
+    
+    <div class="description">
+        <p>Get a list of DBMS connection string.</p>
+    </div>
+    
+
+    
+
+    
+
+    
+    
+        <h5>Parameters:</h5>
+        
+
+<table class="params table table-striped">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>api</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><a href="MowaAPI.html">MowaAPI</a></span>
+
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+    
+
+    
+<dl class="details">
+    
+
+	
+
+	
+
+	
+
+    
+
+    
+
+    
+
+    
+
+	
+
+	
+
+	
+
+	
+
+	
+
+
+
+	
+	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
+	<dd class="tag-source">
+		cli/mowa-helper.js
+	</dd>
+	
+
+	
+
+	
+
+	
+</dl>
+
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <h5>Returns:</h5>
+    
+            
+<div class="param-desc">
+    <p>Array</p>
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Promise</span>
+
+
+
+    </dd>
+</dl>
+
+
+        
+
+    
+</dd>
+
+        
+            
+<hr>
+<dt>
+    <h4 class="name" id=".getMountedAppNames_"><span class="type-signature">&lt;static> </span>getMountedAppNames_()</h4>
+    
+    
+</dt>
+<dd>
+
+    
+    <div class="description">
+        <p>Get a list of mounted app names</p>
+    </div>
+    
+
+    
+
+    
+
+    
+    
+
+    
+<dl class="details">
+    
+
+	
+
+	
+
+	
+
+    
+
+    
+
+    
+
+    
+
+	
+
+	
+
+	
+
+	
+
+	
+
+
+
+	
+	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
+	<dd class="tag-source">
+		cli/mowa-helper.js
+	</dd>
+	
+
+	
+
+	
+
+	
+</dl>
+
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <h5>Returns:</h5>
+    
+            
+<div class="param-desc">
+    <p>Collection of app route and name pairs</p>
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Promise</span>
+
+
+
+    </dd>
+</dl>
+
+
+        
+
+    
+</dd>
+
+        
+            
+<hr>
+<dt>
+    <h4 class="name" id=".getRunningAppModules"><span class="type-signature">&lt;static> </span>getRunningAppModules(api, server)</h4>
+    
+    
+</dt>
+<dd>
+
+    
+    <div class="description">
+        <p>Get a list of running app module instances</p>
     </div>
     
 
@@ -473,7 +840,7 @@
     </dt>
     <dd>
         
-<span class="param-type">Array</span>
+<span class="param-type">Array.&lt;<a href="AppModule.html">AppModule</a>></span>
 
 
 
@@ -490,7 +857,7 @@
             
 <hr>
 <dt>
-    <h4 class="name" id=".getAppNames"><span class="type-signature">&lt;static> </span>getAppNames()</h4>
+    <h4 class="name" id=".startMowa_"><span class="type-signature">&lt;static> </span>startMowa_(api)</h4>
     
     
 </dt>
@@ -498,110 +865,7 @@
 
     
     <div class="description">
-        <p>Get a list of available app names</p>
-    </div>
-    
-
-    
-
-    
-
-    
-    
-
-    
-<dl class="details">
-    
-
-	
-
-	
-
-	
-
-    
-
-    
-
-    
-
-    
-
-	
-
-	
-
-	
-
-	
-
-	
-
-
-
-	
-	<dt class="tag-source method-doc-label method-doc-details-label">Source:</dt>
-	<dd class="tag-source">
-		cli/mowa-helper.js
-	</dd>
-	
-
-	
-
-	
-
-	
-</dl>
-
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <h5>Returns:</h5>
-    
-            
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">Array</span>
-
-
-
-    </dd>
-</dl>
-
-
-        
-
-    
-</dd>
-
-        
-            
-<hr>
-<dt>
-    <h4 class="name" id=".getDbConnectionList"><span class="type-signature">&lt;static> </span>getDbConnectionList(api)</h4>
-    
-    
-</dt>
-<dd>
-
-    
-    <div class="description">
-        <p>Get a list of DBMS connection string.</p>
+        <p>Start a mowa server instance.</p>
     </div>
     
 
@@ -729,7 +993,7 @@
     </dt>
     <dd>
         
-<span class="param-type">Array</span>
+<span class="param-type">Promise</span>
 
 
 
@@ -746,7 +1010,7 @@
             
 <hr>
 <dt>
-    <h4 class="name" id=".startMowa"><span class="type-signature">&lt;static> </span>startMowa(api)</h4>
+    <h4 class="name" id=".writeConfigBlock_"><span class="type-signature">&lt;static> </span>writeConfigBlock_(loader, key, value)</h4>
     
     
 </dt>
@@ -754,7 +1018,7 @@
 
     
     <div class="description">
-        <p>Start a mowa server instance.</p>
+        <p>Rewrite config.</p>
     </div>
     
 
@@ -789,13 +1053,61 @@
 
         <tr>
             
-                <td class="name"><code>api</code></td>
+                <td class="name"><code>loader</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type"><a href="MowaAPI.html">MowaAPI</a></span>
+<span class="param-type">ConfigLoader</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>key</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>value</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">*</span>
 
 
 

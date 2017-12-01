@@ -1,0 +1,1 @@
+'use strict';const FeatureLevels=module.exports={INIT:'10-init',DBMS:'20-dbms',SERVICE:'30-service',ENGINE:'40-engine',MIDDLEWARE:'50-middleware',ROUTING:'60-routing'};
