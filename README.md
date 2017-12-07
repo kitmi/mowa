@@ -48,11 +48,16 @@ Oolong is an embeded domain specific language (DSL) in mowa. The oolong dsl engi
 * **/etc** - server or application configuration files
 * **/client** - client-side source code
 * **/server** - server-side source code
-	* **/server/boot** - default path of bootstrap scripts (if boot feature is enabled in server or application config)
+	* **/server/bootstrap** - default path of bootstrap scripts (if boot feature is enabled in server or application config)
+	* **/server/models** - backend model files
+	* **/server/controllers** - backend controller files
+	* **/server/views** - backend view files
 * **/app_modules** - child applications
-* **/db** - database initial scripts including test data
+* **/server/db_scripts** - database initial scripts including test data
 * **/oolong** - oolong entity definition files
 * **/public** - default path of static files (if serveStatic middleware is enabled)
+* **/middlewares** - middlewares extension
+* **/features** - features extension
 
 
 ## 3. Get Started
@@ -62,19 +67,16 @@ Oolong is an embeded domain specific language (DSL) in mowa. The oolong dsl engi
 #### 1) Server Configuration
 
 * Environment specific configuration
-	* /etc/server.default.js
-	* /etc/server.development.js - Development specific configuration, overrides server.default.js
-	* /etc/server.production.js - Production specific configuration, overrides server.default.js
-	* /etc/deploy.default.js
-	* /etc/deploy.development.js
-	* /etc/deploy.production.js
+	* /etc/server.default.json
+	* /etc/server.development.json - Development specific configuration, overrides server.default.js
+	* /etc/server.production.json - Production specific configuration, overrides server.default.json
 
 #### 2) App Module Configuration
 
 * Environment specific configuration
-	* /app_modules/`<module name>`/etc/app.default.js
-	* /app_modules/`<module name>`/etc/app.development.js - Development specific configuration, overrides app.default.js
-	* /app_modules/`<module name>`/etc/app.production.js - Production specific configuration, overrides app.default.js
+	* /app_modules/`<module name>`/etc/app.default.json
+	* /app_modules/`<module name>`/etc/app.development.json - Development specific configuration, overrides app.default.json
+	* /app_modules/`<module name>`/etc/app.production.json - Production specific configuration, overrides app.default.json
 
 #### 3) Feature Configuration
 * Each top-level key-value pair in the configuration file is the config of a feature, e.g. loggers, koa, mysql
@@ -97,34 +99,9 @@ Options:
 
 Refer to: https://github.com/codemix/babel-plugin-contracts
 
-### Async by generator
-
-* Calling async function with complete callback
-		function callback(error, result)
-        function opWithCallback(..., cb) // cb is a callback function
-        
-        //recommended usage inside a generator
-        let result = yield (done => opWithCallback(..., done));
-        
-* Async forEach loop
-		yield Util.coEach(collection, function* (item) {
-            ...
-            yield ...;
-        });        
-        
-        Or
-        
-        yield Util.coEachOf(collection, function* (item, key) {
-            ...
-            yield ...;
-        });      
-        
-     
-
-
 ### Action
 * this context
-    * webModule - the webModule instance
+    * appModule - the webModule instance
     * viewState - the default view state for view renderer
     	* _module - module related state
     		* basePath

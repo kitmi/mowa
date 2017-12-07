@@ -1,14 +1,29 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Feature_Middlewares
+ * @summary Enable middlewares
+ */
 
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const Promise = Util.Promise;
 
 module.exports = {
 
-    type: Util.Feature.MIDDLEWARE,
+    /**
+     * This feature is loaded at middlwares-attaching stage
+     * @member {string}
+     */
+    type: Mowa.Feature.MIDDLEWARE,
 
-    load: function (appModule, middlewares) {
+    /**
+     * Load the feature
+     * @param {AppModule} appModule - The app module object
+     * @param {object} middlewares - Middlewares and options
+     * @returns {Promise.<*>}
+     */
+    load_: function (appModule, middlewares) {
 
         appModule.useMiddlewares(appModule.router, middlewares);
 

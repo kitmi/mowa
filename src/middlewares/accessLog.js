@@ -1,6 +1,9 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Middleware_AccessLog
+ * @summary Add access log for every http request
+ */
 
 const Util = require('../util.js');
 
@@ -57,21 +60,23 @@ class EnginePropsReader {
 }
 
 module.exports = (opt, appModule) => {
+    pre: opt, Util.Message.DBC_ARG_REQUIRED;
+    
     let format = opt.format || '{{ip}} [{{timestamp}}] "{{method}} {{url}} {{protocol}}/{{httpVersion}}" {{status}} {{size}} "{{referer}}" "{{userAgent}}" {{duration}} ms';
 
     if (!opt.logger) {
-        appModule.invalidConfig('accessLog.logger', 'Missing logger id.');
+        throw new Mowa.Error.InvalidConfiguration('Missing logger id.', appModule, 'middlewares.accessLog.logger');
     }
 
     let logger = appModule.getService('logger:' + opt.logger);
     if (!logger) {
-        throw new Error('Logger not found. Id: ' + opt.logger);
+        throw new Mowa.Error.InvalidConfiguration('Logger not found. Id: ' + opt.logger, appModule, 'middlewares.accessLog.logger');
     }
 
-    return function* (next) {
-        let reader = new EnginePropsReader(this);
+    return async (ctx, next) => {
+        let reader = new EnginePropsReader(ctx);
 
-        yield next;
+        await next();
 
         let msg = Util.S(format).template(reader).s;
         logger.info(msg);

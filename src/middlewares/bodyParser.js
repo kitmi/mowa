@@ -1,6 +1,9 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Middleware_BodyParser
+ * @summary Http request body parser middleware
+ */
 
 const koaBetterBody = require('koa-better-body');
 

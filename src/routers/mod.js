@@ -1,9 +1,12 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+const path = require('path');
+
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const _ = Util._;
 
 const AppModule = require('../appmodule.js');
-const path = require('path');
 
 /*
  '<base path>': {
@@ -21,9 +24,12 @@ const path = require('path');
  }
  */
 
-module.exports = function loadModRouter(appModule, baseRoute, config) {
+module.exports = function (appModule, baseRoute, config) {
     if (!config.name) {
-        appModule.invalidConfig('routes.*.mod', 'Missing module name.');
+        throw new Mowa.Error.InvalidConfiguration(
+            'Missing module name.',
+            appModule,
+            `routing.${baseRoute}.mod`);
     }
 
     let options = Object.assign({verbose: appModule.options.verbose}, config.options);
@@ -36,7 +42,7 @@ module.exports = function loadModRouter(appModule, baseRoute, config) {
     let relativePath = path.relative(appModule.serverModule.absolutePath, mod.absolutePath);
     appModule.log('verbose', `Loading web module [${mod.name}] from "${relativePath}"`);
 
-    return mod.start(config.features).then(() => {
+    return mod.start_(config.features).then(() => {
         appModule.log('verbose', `App [${mod.name}] is loaded.`);
         appModule.addChildModule(baseRoute, mod);
     }).catch(reason => {

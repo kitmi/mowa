@@ -333,6 +333,8 @@ exports.pack = function (api) {
         return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
     }
 
+    api.log('info', `Start packing app [${appName}] ...`);
+
     const archiver = require('archiver');
 
     let releasePath = appModule.toAbsolutePath('release');
@@ -346,8 +348,8 @@ exports.pack = function (api) {
             zlib: { level: 9 } // Sets the compression level.
         });
 
-        output.on('end', () => {
-            api.log('info', `The app [${appName}] is packed to "${targetZip}".`);
+        output.on('close', function() {
+            api.log('info', `The app [${appName}] is packed to "${targetZip}". Total: ${archive.pointer()} bytes`);
 
             resolve();
         });
@@ -371,11 +373,23 @@ exports.pack = function (api) {
         // pipe archive data to the file
         archive.pipe(output);
 
-        let files = fs.readDirSync(appModule.absolutePath);
+        let files = fs.readdirSync(appModule.absolutePath);
 
-        console.log(files);
-
-        //archive.glob(appModule.toAbsolutePath('*.*'), { nodir: true }, { prefix: appModule.absolutePath });
+        files.forEach(f => {
+            let fp = path.join(appModule.absolutePath, f);
+            let s = fs.statSync(fp);
+            if (s.isDirectory()) {
+                if (f !== 'node_modules' && f !== 'release') {
+                    archive.directory(fp, f, { stats: s });
+                    api.log('info', `Adding directory "${f}" ...`);
+                }
+            } else  if(s.isFile()) {
+                if (f !== '.DS_Store') {
+                    archive.append(fs.createReadStream(fp), { name: f });
+                    api.log('info', `Adding file "${f}" ...`);
+                }
+            }
+        });
 
         // finalize the archive (ie we are done appending files but streams have to finish yet)
         // 'close', 'end' or 'finish' may be fired right after calling this method so register to them beforehand

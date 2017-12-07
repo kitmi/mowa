@@ -1,12 +1,29 @@
 "use strict";
 
+/**
+ * @module Feature_Oolong
+ * @summary Enable oolong DSL
+ */
+
 const path = require('path');
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const Promise = Util.Promise;
 
 module.exports = {
-    type: Util.Feature.INIT,
+    /**
+     * This feature is loaded at init stage
+     * @member {string}
+     */
+    type: Mowa.Feature.INIT,
 
-    load: function (appModule, oolong) {
+    /**
+     * Load the feature
+     * @param {AppModule} appModule - The app module object
+     * @param {object} oolong - Oolong settings
+     * @returns {Promise.<*>}
+     */
+    load_: function (appModule, oolong) {
 
         appModule.on('after:' + Util.Feature.DBMS, () => {
 

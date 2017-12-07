@@ -1,7 +1,4 @@
 {
-    "bootstrap": {
-        "path": "test/boot"
-    },
     "i18n": {
         "store": "file",
         "precedence": [ "query", "cookie", "header" ],
@@ -16,15 +13,28 @@
         }
     },
     "loggers": {
+        "general": {
+            "transports": [
+                {
+                    "type": "file",
+                    "options": {
+                        "level": "info",
+                        "filename": "#!es6:temp/file-${now.format('YYYYMMDD')}.log"
+                    }
+                }
+            ]
+        },
         "accessLog": {
             "transports": [
-                {"type": "console"},
-                {"type": "file", "options": {
-                    "level": "verbose",
-                    "json": false,
-                    "formatter": "#!es6:${options => options.message}",
-                    "filename": "#!es6:test/temp/access-${now.format('YYYYMMDD')}.log"
-                }}
+                {
+                    "type": "file",
+                    "options": {
+                        "level": "verbose",
+                        "json": false,
+                        "formatter": "#!es6:${options => options.message}",
+                        "filename": "#!es6:temp/access-${now.format('YYYYMMDD')}.log"
+                    }
+                }
             ]
         }
     },
@@ -33,11 +43,12 @@
         "cookieSecretKeys": [ "18b98f14", "f519e6d5", "e92c78780", "870b5454" ]
     },
     "middlewares": {
-        "favicon": "test/temp/favicon.ico",
+        "favicon": "public/favicon.ico",
+        "accessLog": { "logger": "accessLog" },
         "compress": {},
         "etag": {},
         "test": {},
-        "serveStatic": { "root": "test/temp" },
+        "serveStatic": { "root": "public" },
         "bodyParser": {},
         "methodOverride": {}
     },
@@ -45,11 +56,9 @@
         "/": {
             "rule": {
                 "middlewares": {
-                    "swig": {
-                        "views": "test/server/views-swig",
-                        "autoescape": true,
-                        "cache": "memory",
-                        "ext": "swig"
+                    "views": {
+                        "extension": "swig",
+                        "cache": false
                     }
                 },
                 "rules": {
@@ -59,7 +68,6 @@
         },
         "/api": {
             "rest": {
-                "resources": "test/resources"
             }
         },
         "/submodule": {

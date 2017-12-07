@@ -1,0 +1,1 @@
+"use strict";const koaError=require("koa-error");module.exports=koaError;

@@ -1,13 +1,14 @@
 "use strict";
 
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
 const MongoClient = require('mongodb').MongoClient;
 
 module.exports = {
 
-    type: Util.Feature.DBMS,
+    type: Mowa.Feature.DBMS,
 
-    load: function (appModule, dbs) {
+    load_: function (appModule, dbs) {
         Util._.forOwn(dbs, (opt, db) => {
             if (!opt.connection) {
                 appModule.invalidConfig(`mongodb.${db}.connection`, 'Missing connection string.');

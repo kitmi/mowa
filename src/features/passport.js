@@ -11,7 +11,7 @@ module.exports = {
 
     type: Util.Feature.SERVICE,
 
-    load: function (appModule, config) {
+    load_: function (appModule, config) {
         let passport = new KoaPassport();
         if (Util._.isEmpty(config) || !config.strategies) {
             appModule.invalidConfig('passport', 'Missing passport strategies.');

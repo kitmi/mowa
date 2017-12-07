@@ -1,27 +1,38 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Feature_Bootstrap
+ * @summary Enable bootstrap scripts
+ */
 
 const path = require('path');
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const Promise = Util.Promise;
 
 module.exports = {
 
-    type: Util.Feature.INIT,
+    /**
+     * This feature is loaded at init stage
+     * @member {string}
+     */
+    type: Mowa.Feature.INIT,
 
-    load: function (appModule, config) {
-        let bootPath = config.path ?
-            appModule.toAbsolutePath(config.path) :
+    /**
+     * Load the feature
+     * @param {AppModule} appModule - The app module object
+     * @param {object} options - Options for the feature
+     * @property {string} [options.path='server/boostrap'] - The path of the bootstrap scripts
+     * @returns {Promise.<*>}
+     */
+    load_: function (appModule, options) {
+        let bootPath = options.path ?
+            appModule.toAbsolutePath(options.path) :
             path.join(appModule.backendPath, 'bootstrap');
         let bp = path.join(bootPath, '**', '*.js');
 
-        return new Promise((resolve, reject) => {
-            Util.glob(bp, {nodir: true}, (err, files) => {
-                if (err) return reject(err);
-                resolve(files);
-            });
-        }).then(files => {
-            return Promise.all(Util._.map(files, file => require(file)(appModule)));
+        return Promise.promisify(Util.glob)(bp, {nodir: true}).mapSeries(file => {
+            require(file)(appModule);
         });
     }
 };

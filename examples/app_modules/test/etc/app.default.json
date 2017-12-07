@@ -3,10 +3,9 @@
         "/": {
             "rule": {
                 "middlewares": {
-                    "swig": {
-                        "autoescape": true,
-                        "cache": "memory",
-                        "ext": "html"
+                    "views": {
+                        "cache": true,
+                        "extension": "swig"
                     }
                 },
                 "rules": {

@@ -1,11 +1,15 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Feature_Loggers
+ * @summary Enable multi-categories logging by winston logger
+ */
 
 const winston = require('winston');
 const winstonFlight = require('winstonflight');
-const path = require('path');
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const Promise = Util.Promise;
 
 /*
 
@@ -28,9 +32,27 @@ const Util = require('../util.js');
 
 module.exports = {
 
-    type: Util.Feature.SERVICE,
+    /**
+     * This feature is loaded at service stage
+     * @member {string}
+     */
+    type: Mowa.Feature.SERVICE,
 
-    load: function (appModule, categories) {
+    /**
+     * Load the feature
+     * @param {AppModule} appModule - The app module object
+     * @param {object} categories - Configuration for multi-categories
+     * @returns {Promise.<*>}
+     * @example
+     *  let loggers = appModule.getService('loggers');
+     *  let logger = loggers.get('category');
+     *  logger.log('info', 'information');
+     *  logger.log('warn', 'warning');
+     *
+     *  let logger = appModule.getService('logger:category');
+     *  logger.log('error', 'error');
+     */
+    load_: function (appModule, categories) {
         let loggers = new (winston.Container)();
 
         Util._.forOwn(categories, (loggerConfig, name) => {

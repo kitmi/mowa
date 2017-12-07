@@ -1,12 +1,11 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Middleware_MethodOverride
+ * @summary HTTP method override middleware
+ */
 
 const koaMethodOverride = require('koa-methodoverride');
 const Util = require('../util.js');
 
-let methodOverride = (opt) => {
-    return koaMethodOverride(opt.getter, Util._.omit(opt, 'getter'));
-};
-
-module.exports = methodOverride;
+module.exports = (opt) => koaMethodOverride(opt.getter, Util._.omit(opt, 'getter'));

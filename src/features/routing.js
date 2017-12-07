@@ -1,14 +1,29 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Feature_Routing
+ * @summary Enable web request routing
+ */
 
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const Promise = Util.Promise;
 
 module.exports = {
 
-    type: Util.Feature.ROUTING,
+    /**
+     * This feature is loaded at routing stage
+     * @member {string}
+     */
+    type: Mowa.Feature.ROUTING,
 
-    load: function (appModule, routes) {
+    /**
+     * Load the feature
+     * @param {AppModule} appModule - The app module object
+     * @param {object} routes - Routes and configuration
+     * @returns {Promise.<*>}
+     */
+    load_: function (appModule, routes) {
         let promises = [];
         let result = Promise.resolve();
 
@@ -21,11 +36,11 @@ module.exports = {
                         return;
                     }
 
-                    let loader = require('../routers/' + type + '.js');
+                    let loader_ = require('../routers/' + type + '.js');
                     promises.push(() => {
                         appModule.log('verbose', `A "${type}" router is created at "${mount}" in module [${appModule.name}].`);
 
-                        return loader(appModule, mount, options);
+                        return loader_(appModule, mount, options);
                     });
                 });
             } else {
@@ -37,11 +52,11 @@ module.exports = {
                 let rules = {};
                 rules['/'] = routersConfig;
 
-                let loader = require('../routers/rule.js');
+                let loader_ = require('../routers/rule.js');
                 promises.push(() => {
                     appModule.log('verbose', `A "rule" router is created at "${mount}" in module [${appModule.name}].`);
 
-                    return loader(appModule, mount, { rules: rules });
+                    return loader_(appModule, mount, { rules: rules });
                 });
             }
         });

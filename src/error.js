@@ -1,6 +1,6 @@
 "use strict";
 
-const HttpCode = require('../enum/httpcode.js');
+const HttpCode = require('./enum/httpcode.js');
 
 /**
  * @module Errors
@@ -13,12 +13,12 @@ class InvalidConfiguration extends Error {
     * @constructs Errors:InvalidConfiguration
     * @extends Error
     * @param {string} message - Error message
-    * @param {string} [file] - File name of the configuration
-    * @param {string} [item] - The base route of the  web module.
+    * @param {AppModule} [appModule] - The related app module
+    * @param {string} [item] - The related config item
     */
-    constructor(message, file, item) {
+    constructor(message, appModule, item) {
         message || (message = 'Invalid configuration.');
-        if (file) message += ' ' + 'File: ' + file;
+        if (appModule) message += ' ' + 'Module: ' + appModule.displayName;
         if (item) message += ' ' + 'Item: ' + item;
 
         super(message);
@@ -36,7 +36,7 @@ class InvalidConfiguration extends Error {
     }
 }
 
-class InternalError extends Error {
+class ServerError extends Error {
     /**
      * Error caused by all kinds of runtime errors
      * @constructs Errors:InternalError
@@ -50,7 +50,7 @@ class InternalError extends Error {
          * Name of the error class
          * @member {string}
          */
-        this.name = 'InternalError';
+        this.name = 'ServerError';
 
         /**
          * Http status code
@@ -61,4 +61,4 @@ class InternalError extends Error {
 }
 
 exports.InvalidConfiguration = InvalidConfiguration;
-exports.InternalError = InternalError;
+exports.ServerError = ServerError;

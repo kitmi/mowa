@@ -28,40 +28,10 @@ const U = module.exports = RkUtil._.assignIn({}, RkUtil, {
      * @param {object} options
      * @returns {LRUCache}
      */
-    createLRUCache(options) { var LRU = require("lru-cache"); return new LRU(options); },
+    createLRUCache(options) { var LRU = require("lru-cache"); return new LRU(options); },    
 
     /**
-     * Error class definitions.
-     * @member {module:Errors}
-     */
-    Error: require('./util/error.js'),
-
-    /**
-     * Http status codes definitions.
-     * @member {HttpCodes}
-     */
-    HttpCode: require('./enum/httpcode.js'),
-
-    /**
-     * Common regexp patterns.
-     * @member {Patterns}
-     */
-    Pattern: require('./enum/pattern.js'),
-
-    /**
-     * Feature levels definitions.
-     * @member {FeatureLevels}
-     */
-    Feature: require('./enum/feature.js'),
-
-    /**
-     * Common constants.
-     * @member {Literals}
-     */
-    Literal: require('./enum/literal.js'),
-
-    /**
-     * Common messages.
+     * Error messages.
      * @member {string}
      */
     Message: require('./message.js')

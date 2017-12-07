@@ -1,9 +1,19 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Feature_I18n
+ * @summary Internationalization service
+ */
 
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const Promise = Util.Promise;
+const _ = Util._;
+
 const I18n = require('../i18n.js');
+
+const DEFAULT_LOCALE = 'en_AU';
+const DEFAULT_PRECEDENCE = ['query', 'cookie', 'header'];
 
 /**
  * 1. Register an i18n service
@@ -51,46 +61,66 @@ class I18nService {
 
 module.exports = {
 
-    type: Util.Feature.SERVICE,
+    /**
+     * This feature is loaded at service stage
+     * @member {string}
+     */
+    type: Mowa.Feature.SERVICE,
 
-    load: function (appModule, config) {
+    /**
+     * Load the feature
+     * @param {AppModule} appModule - The app module object
+     * @param {object} config - Configuration for the feature
+     * @property {string} config.store - The storage type
+     * @property {Object} config.options - Options for the storage type
+     * @property {Array.<string>} config.precedence - Precedence of the source of locale id, candidate sources are like 'query', 'cookie', 'header'
+     * @property {string} [config.queryKey=locale] - The key of locale id in a http request query, default: locale
+     * @property {string} [config.cookieKey=locale] - The key of locale id in the cookie, default: locale
+     * @returns {Promise.<*>}
+     */
+    load_: function (appModule, config) {
         if (!config.store) {
-            appModule.invalidConfig('i18n.store', 'Missing store type.');
+            throw new Mowa.Error.InvalidConfiguration('Missing store type.', appModule, 'i18n.store');
         }
 
         let Storage = I18nStorage[config.store];
 
         if (!Storage) {
-            appModule.invalidConfig('i18n.store', 'Unsupported store type.');
+            throw new Mowa.Error.InvalidConfiguration('Unsupported store type.', appModule, 'i18n.store');
         }
+
+        let options;
 
         if (config.store === 'file') {
-            config.options = Object.assign(config.options, {directory: appModule.toAbsolutePath(config.options.directory || 'locale')})
+            options = Object.assign({}, {directory: Mowa.Literal.LOCALE_PATH}, config.options);
         }
 
-        let service = new I18nService(Storage, config.options);
+        let service = new I18nService(Storage, options);
 
-        let precedence = Util._.isEmpty(config.precedence) ? ['query', 'cookie', 'header'] : config.precedence;
+        let precedence = _.isEmpty(config.precedence) ? ['query', 'cookie', 'header'] : config.precedence;
         let queryKey = config.queryKey || 'locale';
         let cookieKey = config.cookieKey || 'locale';
 
-        function* i18nMiddleware(next) {
+        precedence.forEach(p => {
+            if (DEFAULT_PRECEDENCE.indexOf(p) === -1) {
+                throw new Mowa.Error.InvalidConfiguration('Unknown locale id source: ' + source, appModule, 'i18n.precedence');
+            }
+        });
 
-            const self = this;
+        let i18nMiddleware = async (ctx, next) => {            
             let locale;
             let found = precedence.some(source => {
-
                 switch (source) {
                     case 'query':
-                        locale = self.query[queryKey];
+                        locale = ctx.query[queryKey];
                         break;
 
                     case 'cookie':
-                        locale = self.cookies.get(cookieKey);
+                        locale = ctx.cookies.get(cookieKey);
                         break;
 
                     case 'header':
-                        let accept = self.acceptsLanguages() || '',
+                        let accept = ctx.acceptsLanguages() || '',
                             reg = /(^|,\s*)([a-z-]+)/gi,
                             match, l;
 
@@ -102,20 +132,17 @@ module.exports = {
 
                         locale = l;
                         break;
-
-                    default:
-                        appModule.invalidConfig('i18n.precedence', 'Unknown keyword: ' + source);                
                 }
 
-                return !Util._.isEmpty(locale);
+                return !_.isEmpty(locale);
             });
 
-            if (found) this.requestedLocale = locale;
+            if (found) ctx.requestedLocale = locale;
 
-            this.__ = yield service.getI18n(this.requestedLocale);
+            ctx.__ = await service.getI18n(ctx.requestedLocale || DEFAULT_LOCALE);
 
-            yield next;
-        }
+            await next();
+        };
 
         appModule.registerService('i18n', service);
         appModule.router.use(i18nMiddleware);

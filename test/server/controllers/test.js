@@ -1,6 +1,6 @@
 "use strict";
 
-exports.index = function* () {
-    this.body = yield this.render('index', {title: 'Test.index', name: 'Swig'});
+exports.index = async (ctx) => {
+    await ctx.render('index', {title: 'Test.index', name: 'Swig'});
 };
 

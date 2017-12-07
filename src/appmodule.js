@@ -5,9 +5,12 @@ const _ = Util._;
 
 const path = require('path');
 const EventEmitter = require('events');
-const koa = require('koa');
-const mount = require('koa-mount');
-const vhost = require('koa-vhost');
+const Koa = require('koa');
+
+const Feature = require('./enum/feature.js');
+const Literal = require('./enum/literal.js');
+const Error = require('./error.js');
+
 const { Config, JsonConfigProvider } = require('rk-config');
 
 class AppModule extends EventEmitter {
@@ -19,6 +22,13 @@ class AppModule extends EventEmitter {
      * @param {string} name - The name of the web module.
      * @param {string} route - The base route of the  web module.
      * @param {object} [options] - The web module's extra options defined in its parent's configuration.
+     * @property {string} [options.logger] - The logger channel to be used as the default logger of this app module
+     * @property {string} [options.modulePath] - The path of this app module
+     * @property {string} [options.childModulesPath='app_modules'] - Relative path of child modules
+     * @property {string} [options.etcPath='etc'] - Relative path of configuration files
+     * @property {bool} [options.npmModule=false] - Specify whether it's a npmModule
+     * @property {bool} [options.verbose=false] - Flag to output trivial information for diagnostics
+     * @property {string} [options.host] - Host of this app module
      */
     constructor(parent, name, route, options) {
         pre: name, Util.Message.DBC_ARG_REQUIRED;
@@ -37,7 +47,7 @@ class AppModule extends EventEmitter {
          * @type {object}
          * @public
          */
-        this.config = {};
+        this.config = undefined;
 
         /**
          * Name of the app
@@ -68,139 +78,105 @@ class AppModule extends EventEmitter {
         this.middlewares = {};
 
         /**
-         * Environment mode
-         * @type {string}
-         * @public
-         */
-        this.env;
-
-        /**
-         * Absolute path of this app module
-         * @type {string}
-         * @public
-         */
-        this.absolutePath;
-
-        /**
-         * Mounting route of the app
-         * @type {string}
-         * @public
-         */
-        this.route;
-
-        /**
-         * Router object
-         * @type {object}
-         * @public
-         */
-        this.router;
-
-        /**
-         * Server module
-         * @type {MowaServer}
-         * @public
-         */
-        this.serverModule;
-
-        /**
-         * A friendly name of the app to be used in debugging info
-         * @type {string}
-         * @public
-         */
-        this.displayName;
-
-        /**
          * Child modules
          * @type {object}
          * @public
          */
-        this.childModules;
+        this.childModules = undefined;
 
         if (!parent) {
-            this._etcPrefix = Util.Literal.SERVER_CFG_NAME;
+            this._etcPrefix = Literal.SERVER_CFG_NAME;
 
+            /**
+             * Environment mode
+             * @type {string}
+             * @public
+             */
             this.env = process.env.NODE_ENV || "development";
+
+            /**
+             * Absolute path of this app module
+             * @type {string}
+             * @public
+             */
             this.absolutePath = (options && options.modulePath) ? path.resolve(options.modulePath) : process.cwd();
+
+            /**
+             * Mounting route of the app
+             * @type {string}
+             * @public
+             */
             this.route = '';
 
-            this.router = koa();
+            /**
+             * Server module
+             * @type {MowaServer}
+             * @public
+             */
             this.serverModule = this;
+
+            /**
+             * A friendly name of the app to be used in debugging info
+             * @type {string}
+             * @public
+             */
             this.displayName = `$[${this.name}]`;
         } else {
-            this._etcPrefix = Util.Literal.APP_CFG_NAME;
+            this._etcPrefix = Literal.APP_CFG_NAME;
 
             this.env = parent.env;
             this.absolutePath = (options && options.modulePath) ? path.resolve(options.modulePath) : path.join(parent.absolutePath, parent.options.childModulesPath, name);
 
             if (_.isEmpty(route)) {
-                throw new Error('Argument "route" is required.');
+                throw new Error.ServerError('Argument "route" is required.');
             }
 
             this.route = Util.ensureLeftSlash(Util.trimRightSlash(Util.urlJoin(parent.route, route)));
 
-            this.router = koa();
             this.serverModule = parent.serverModule;
             this.displayName = this.parent.displayName + '->[' + this.name + ']';
 
             if (!Util.fs.existsSync(this.absolutePath)) {
-                throw new Error(`App module [${this.name}] does not exist.`);
+                throw new Error.ServerError(`App module [${this.name}] does not exist.`);
             }
         }
 
         this.options = Object.assign({
-            childModulesPath: Util.Literal.APP_MODULES_PATH,
-            etcPath: Util.Literal.ETC_PATH,
-            backendPath: Util.Literal.BACKEND_PATH,
-            frontendPath: Util.Literal.FRONTEND_PATH,
-            staticPath: Util.Literal.FRONTEND_STATIC_PATH,
-            modelsPath: Util.Literal.MODELS_PATH,
-            middlewaresPath: Util.Literal.MIDDLEWARES_PATH,
-            featuresPath: Util.Literal.FEATURES_PATH,
-            oolongPath: Util.Literal.OOLONG_PATH,
-            dbScriptsPath: Util.Literal.DB_SCRIPTS_PATH
+            childModulesPath: Literal.APP_MODULES_PATH,
+            etcPath: Literal.ETC_PATH
         }, options);
-    }
-
-    /**
-     * Module options, e.g. backendPath, frontendPath, ...
-     * @property {string} options.backendPath - Backend files path
-     * @property {string} options.frontendPath - Frontend files path
-     * @property {string} options.modelsPath - Models files path, under backend folder
-     * @property {string} options.middlewaresPath - Middleware files path
-     * @property {string} options.featuresPath - Feature files path
-     * @member
-     **/
-    get options() {
-        return this._options;
-    }
-
-    set options(options) {
-        this._options = options;
 
         /**
          * Backend files path
          * @type {string}
          * @public
          **/
-        this.backendPath = this.toAbsolutePath(options.backendPath);
+        this.backendPath = this.toAbsolutePath(Literal.BACKEND_PATH);
         /**
          * Frontend source files path
          * @type {string}
          * @public
          **/
-        this.frontendPath = this.toAbsolutePath(options.frontendPath);
+        this.frontendPath = this.toAbsolutePath(Literal.FRONTEND_PATH);
         /**
          * Ooolong files path
          * @type {string}
          * @public
          */
-        this.oolongPath = this.toAbsolutePath(options.oolongPath);
+        this.oolongPath = this.toAbsolutePath(Literal.OOLONG_PATH);
         /**
          * Frontend static files path, may be override by serveStatic middleware
          * @type {string}
          * @public
          **/
-        this.frontendStaticPath = this.toAbsolutePath(options.staticPath);
+        this.frontendStaticPath = this.toAbsolutePath(Literal.FRONTEND_STATIC_PATH);
+
+        /**
+         * Base router of the app
+         * @type {Koa}
+         * @public
+         */
+        this.router = new Koa();
     }
 
     /**
@@ -215,11 +191,11 @@ class AppModule extends EventEmitter {
      * Start the app module
      * @memberof AppModule
      * @param extraFeatures
-     * @returns {Promise}
+     * @returns {Promise.<MowaServer>}
      */
-    start(extraFeatures) {
+    start_(extraFeatures) {
         //load middlewares of the web module
-        this.loadMiddlewareFiles(path.join(this.backendPath, this.options.middlewaresPath));
+        this.loadMiddlewareFiles(this.toAbsolutePath(Literal.MIDDLEWARES_PATH));
 
         let configVariables = {
             'name': this.name,
@@ -238,7 +214,7 @@ class AppModule extends EventEmitter {
 
             if (!_.isEmpty(extraFeatures)) _.extend(this.config, extraFeatures);
 
-            return this._loadFeatures().then(() => {
+            return this._loadFeatures_().then(() => {
                 if (this.options.logger) {
                     this.logger = this.getService('logger:' + this.options.logger);
 
@@ -262,9 +238,9 @@ class AppModule extends EventEmitter {
     /**
      * Stop the app module
      * @memberof AppModule
-     * @returns {*|Promise}
+     * @returns {Promise.<*>}
      */
-    stop() {
+    stop_() {
         return Promise.resolve();
     }
 
@@ -324,7 +300,7 @@ class AppModule extends EventEmitter {
      */
     registerService(name, serviceObject, override) {
         if (name in this.services && !override) {
-            throw new Util.Error.InternalError('Service "'+ name +'" already registered!');
+            throw new Error.ServerError('Service "'+ name +'" already registered!');
         }
 
         this.services[name] = serviceObject;
@@ -366,7 +342,7 @@ class AppModule extends EventEmitter {
      */
     registerMiddleware(name, middleware) {
         if (name in this.middlewares) {
-            throw new Util.Error.InternalError('Middleware "'+ name +'" already registered!');
+            throw new Error.ServerError('Middleware "'+ name +'" already registered!');
         }
 
         this.middlewares[name] = middleware;
@@ -403,7 +379,7 @@ class AppModule extends EventEmitter {
             let middleware = this.getMiddleware(name);
 
             if (typeof middleware !== 'function') {
-                throw new Error('Unregistered middlware: ' + name);
+                throw new Error.ServerError('Unregistered middlware: ' + name);
             }
 
             //walk around the fix: https://github.com/alexmingoia/koa-router/issues/182
@@ -434,7 +410,7 @@ class AppModule extends EventEmitter {
             let middleware = this.getMiddleware(name);
 
             if (typeof middleware !== 'function') {
-                throw new Error('Unregistered middlware: ' + name);
+                throw new Error.ServerError('Unregistered middlware: ' + name);
             }
 
             generators.push(middleware(options, this));
@@ -472,9 +448,13 @@ class AppModule extends EventEmitter {
 
         if (childModule.options.host) {
             this.log('verbose', `Child module [${childModule.name}] is mounted at "${childModule.route}" with host pattern: "${childModule.options.host}".`);
+
+            const vhost = require('koa-virtual-host');
             this.router.use(vhost(childModule.options.host, childModule.router));
         } else {
             this.log('verbose', `Child module [${childModule.name}] is mounted at "${childModule.route}".`);
+
+            const mount = require('koa-mount');
             this.router.use(mount(baseRoute, childModule.router));
         }
     }    
@@ -514,23 +494,31 @@ class AppModule extends EventEmitter {
     }
 
     /**
-     * @memberof AppModule
-     * @param item
-     * @param msg
-     * @param cfgFile
+     * Prepare context for response action
+     * @param {Object} ctx - Request context
      */
-    invalidConfig(item, msg, cfgFile) {
-        throw new Util.Error.InvalidConfiguration(msg, cfgFile, item);
+    prepareActionContext(ctx) {
+        ctx.appModule = this;
+
+        Object.assign(ctx.state, {
+            _ctx: ctx,
+            _module: this,
+            _util: {
+                __: this.__,
+                makePath: (relativePath, query) => this.toWebPath(relativePath, query),
+                makeUrl: (relativePath, query) => (this.origin + this.toWebPath(relativePath, query))
+            }
+        });
     }
 
-    _loadFeatures() {
+    _loadFeatures_() {
         let featureGroups = {
-            [Util.Feature.INIT]: [],
-            [Util.Feature.DBMS]: [],
-            [Util.Feature.SERVICE]: [],
-            [Util.Feature.ENGINE]: [],
-            [Util.Feature.MIDDLEWARE]: [],
-            [Util.Feature.ROUTING]: []
+            [Feature.INIT]: [],
+            [Feature.DBMS]: [],
+            [Feature.SERVICE]: [],
+            [Feature.ENGINE]: [],
+            [Feature.MIDDLEWARE]: [],
+            [Feature.ROUTING]: []
         };
 
         // load features
@@ -541,16 +529,16 @@ class AppModule extends EventEmitter {
             }            
 
             if (!feature.type) {
-                throw new Error(`Missing feature type. Feature: ${name}`);
+                throw new Error.ServerError(`Missing feature type. Feature: ${name}`);
             }
 
             if (!(feature.type in featureGroups)) {
-                throw new Error(`Invalid feature type. Feature: ${name}, type: ${feature.type}`);
+                throw new Error.ServerError(`Invalid feature type. Feature: ${name}, type: ${feature.type}`);
             }
 
             featureGroups[feature.type].push(() => {
                 this.log('verbose', `Loading feature: ${name} ...`);
-                return feature.load(this, block);
+                return feature.load_(this, block);
             });
         });
 
@@ -580,16 +568,17 @@ class AppModule extends EventEmitter {
     }
 
     _loadFeature(feature) {
-        let extensionJs = this.toAbsolutePath(this.options.featuresPath, feature + '.js');
+        let extensionJs = this.toAbsolutePath(Literal.FEATURES_PATH, feature + '.js');
 
         if (!Util.fs.existsSync(extensionJs)) {
             if (this.parent) {
                 return this.parent._loadFeature(feature);
             } else {
+                //built-in features
                 extensionJs = path.resolve(__dirname, 'features', feature + '.js');
 
                 if (!Util.fs.existsSync(extensionJs)) {
-                    throw new Error(`Feature "${feature}" not exist.`);
+                    throw new Error.ServerError(`Feature "${feature}" not exist.`);
                 }
             }
         }

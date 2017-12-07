@@ -6,10 +6,11 @@
         "/": {
             "rule": {
                 "middlewares": {
-                    "swig": {
-                        "autoescape": true,
-                        "cache": false,
-                        "ext": "swig"
+                    "views": {
+                        "extension": "swig",
+                        "options": {
+                            "cache": false
+                        }
                     }
                 },
                 "rules": {

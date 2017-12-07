@@ -1,7 +1,7 @@
 "use strict";
 
 const _ = require('lodash');
-const mysql = require('mysql');
+const mysql = require('mysql2');
 const Errors = require('./errors.js');
 const { ModelValidationError, ModelOperationError } = Errors;
 const Generators = require('./generators.js');

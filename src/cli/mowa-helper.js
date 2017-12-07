@@ -22,7 +22,7 @@ const MowaHelper = module.exports;
  */
 exports.startMowa_ = function (api) {
     let mowa = new Mowa(api.mowaName, {deaf: true, verbose: api.config['general'].mowaVerbose});
-    return mowa.start();
+    return mowa.start_();
 };
 
 /**
@@ -42,7 +42,7 @@ exports.writeConfigBlock_ = function (loader, key, value) {
  * @returns {Array}
  */
 exports.getAvailableAppNames = function (api) {
-    let appModulesPath = path.resolve(api.base, Mowa.Util.Literal.APP_MODULES_PATH);
+    let appModulesPath = path.resolve(api.base, Mowa.Literal.APP_MODULES_PATH);
 
     let modules = fs.readdirSync(appModulesPath, 'utf8');
 
@@ -84,7 +84,7 @@ exports.getRunningAppModules = function (api, server) {
  * @returns {Array}
  */
 exports.getAllDbmsFeatures = function (appModule) {
-    return _.filter(appModule.features, { type: Mowa.Util.Feature.DBMS });
+    return _.filter(appModule.features, { type: Mowa.Feature.DBMS });
 };
 
 /**

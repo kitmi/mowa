@@ -1,7 +1,10 @@
 "use strict";
 
 const path = require('path');
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const _ = Util._;
+
 const Router = require('koa-router');
 
 /*
@@ -20,11 +23,9 @@ const Router = require('koa-router');
  /:resource/:id                  del            del
  */
 
-module.exports = function loadRestRouter(appModule, baseRoute, options) {
-    options = Object.assign({
-        resources: path.join(appModule.backendPath, 'resources')
-    }, options);
-
+module.exports = function (appModule, baseRoute, options) {
+    let resourcePath = path.join(appModule.backendPath, Mowa.Literal.RESOURCES_PATH);
+    
     let router = baseRoute === '/' ? new Router() : new Router({prefix: baseRoute});
 
     if (options.middlewares) {
@@ -33,10 +34,10 @@ module.exports = function loadRestRouter(appModule, baseRoute, options) {
 
     let ctrlsMap = new Map();
 
-    let resourcesPath = appModule.toAbsolutePath(options.resources, "*.js");
+    let resourcesPath =  path.join(resourcePath, "*.js");
     let files = Util.glob.sync(resourcesPath, {nodir: true});
 
-    Util._.each(files, file => {
+    _.each(files, file => {
         let urlName = Util.S(path.basename(file, '.js')).underscore().s;
         ctrlsMap.set(urlName, require(file));
     });
@@ -45,7 +46,7 @@ module.exports = function loadRestRouter(appModule, baseRoute, options) {
     appModule.addRoute(router, 'post', '/:resource', { restAction: { type: 'create', controllers: ctrlsMap } });
     appModule.addRoute(router, 'get', '/:resource/:id', { restAction: { type: 'get', controllers: ctrlsMap } });
     appModule.addRoute(router, 'put', '/:resource/:id', { restAction: { type: 'update', controllers: ctrlsMap } });
-    appModule.addRoute(router, 'del', '/:resource/:id', { restAction: { type: 'del', controllers: ctrlsMap } });
+    appModule.addRoute(router, 'del', '/:resource/:id', { restAction: { type: 'delete', controllers: ctrlsMap } });
 
     appModule.addRouter(router);
 

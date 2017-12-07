@@ -1,16 +1,25 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Middleware_Session
+ * @summary Response time middleware adds a x-response-time header field in http response
+ */
 
-const Util = require('../util.js');
-const session = require('koa-generic-session');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
 
-module.exports = (opt, appModule) => {
+const session = require('koa-session-minimal');
 
-    let store = opt.store || '';
+module.exports = (options, appModule) => {
+
+    let store = options.store || { type: 'memory' };
 
     if (!store.type) {
-        appModule.invalidConfig('session.store.type', 'Missing session store type.');
+        throw new Mowa.Error.InvalidConfiguration(
+            'Missing session store type.',
+            appModule,
+            'middlewares.session.store'
+        );        
     }
 
     let storeGenerator;
@@ -28,17 +37,21 @@ module.exports = (opt, appModule) => {
         case 'pgsql':
             storeGenerator = require('koa-pg-session');
             break;
-        case 'rethinkdb':
-            storeGenerator = require('koa-pg-session');
+        case 'sqlite3':
+            storeGenerator = require('koa-sqlite3-session');
             break;
         case 'memory':
-            storeGenerator = () => { return new (session.MemoryStore)(); };
+            storeGenerator = () => { return undefined; }; // default store
             break;
         default:
-            appModule.invalidConfig('session.store.type', 'Unsupported session store type.');
+            throw new Mowa.Error.InvalidConfiguration(
+                'Unsupported session store type: ' + store.type,
+                appModule,
+                'middlewares.session.store.type'
+            );
     }
 
-    let sessionOptions = Object.assign({}, opt, {store: storeGenerator(store.options)});
+    let sessionOptions = Object.assign({}, options, {store: storeGenerator(store.options)});
 
     return session(sessionOptions);
 };

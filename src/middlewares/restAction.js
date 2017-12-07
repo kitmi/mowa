@@ -1,40 +1,46 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Middleware_RestAction
+ * @summary Restful action as middleware
+ */
 
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const _ = Util._;
 
 module.exports = (options, appModule) => {
-    return function* (next) {
-        let ctrlName = this.params.resource;
+    return async (ctx, next) => {
+        let ctrlName = ctx.params.resource;
 
         if (!options.controllers.has(ctrlName)) {
-            return yield next;
+            await next();
+            return;
         }
 
-        this.appModule = appModule;
+        ctx.appModule = appModule;
 
         let ctrl = options.controllers.get(ctrlName);
 
         switch (options.type) {
             case 'query':
-                yield ctrl.query.call(this, next);
+                await ctrl.query(ctx);
                 break;
 
             case 'create':
-                yield ctrl.create.call(this, next);
+                await ctrl.create(ctx);
                 break;
 
             case 'get':
-                yield ctrl.get.call(this, next);
+                await ctrl.get(ctx);
                 break;
 
             case 'update':
-                yield ctrl.update.call(this, next);
+                await ctrl.update(ctx);
                 break;
 
-            case 'del':
-                yield ctrl.del.call(this, next);
+            case 'delete':
+                await ctrl.remove(ctx);
                 break;
         }
     };

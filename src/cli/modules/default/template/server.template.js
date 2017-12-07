@@ -2,6 +2,10 @@
 
 const Mowa = require('mowa');
 
-let mowa = new Mowa('{{ serverName }}');
+let mowa = new Mowa('{{ serverName }}', { logger: 'general' });
 
-mowa.start();
+mowa.start_().then(() => {
+    //started
+}).catch(error => {
+    console.error(error);
+});

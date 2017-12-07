@@ -3,7 +3,8 @@
 require('debug')('tracing')(__filename);
 
 const path = require('path');
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
 const SocketServer = require('socket.io');
 
 function getEventHandler(appModule, controllerBasePath, handlerName, isMiddleware = false) {
@@ -33,9 +34,9 @@ function getEventHandler(appModule, controllerBasePath, handlerName, isMiddlewar
 
 module.exports = {
 
-    type: Util.Feature.ENGINE,
+    type: Mowa.Feature.ENGINE,
 
-    load: function (appModule, config) {
+    load_: function (appModule, config) {
         appModule.on('after:' + Util.Feature.ENGINE, () => {
             let io, standalone = false;
 

@@ -58,6 +58,11 @@ const Literals = module.exports = {
     CONTROLLERS_PATH: 'controllers',
 
     /**
+     * Controllers files path, under backend folder
+     */
+    RESOURCES_PATH: 'resources',
+
+    /**
      * Views files path, under backend folder
      */
     VIEWS_PATH: 'views',
@@ -75,5 +80,10 @@ const Literals = module.exports = {
     /**
      * Database scripts path
      */
-    DB_SCRIPTS_PATH: 'db_scripts'
+    DB_SCRIPTS_PATH: 'db_scripts',
+
+    /**
+     * Locale dictionary files path
+     */
+    LOCALE_PATH: 'locale'
 };

@@ -1,15 +1,17 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Middleware_ServeStatic
+ * @summary Static file server middleware
+ */
 
 const koaStatic = require('koa-static');
-const Util = require('../util.js');
 
-let serveStatic = (opt, appModule) => {
-    let frontendStaticPath = appModule.toAbsolutePath(opt.root || appModule.options.staticPath);
+let serveStatic = (options, appModule) => {
+    let frontendStaticPath = appModule.toAbsolutePath(options.root || appModule.options.staticPath);
     appModule.frontendStaticPath = frontendStaticPath;
     
-    return koaStatic(frontendStaticPath, Util._.omit(opt, 'root'));
+    return koaStatic(frontendStaticPath, options);
 };
 
 serveStatic.__metaMatchMethods = ['get'];

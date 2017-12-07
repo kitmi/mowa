@@ -1,13 +1,15 @@
 "use strict";
 
 const path = require('path');
-const util = require('util');
 const Util = require('./util.js');
+const _ = Util._;
+const Promise = Util.Promise;
+
 const AppModule = require('./appmodule.js');
 const OolongRuntime = require('./oolong/runtime');
 const pkg = require('../package.json');
 
-const Commons = Util.Literal;
+const Literal = require('./enum/literal.js');
 
 process.on('uncaughtException', e => {
     console.error('UncaughtException: ' + e.stack);
@@ -17,17 +19,25 @@ process.on('uncaughtException', e => {
 class MowaServer extends AppModule {
 
     /**
-      * A Mowa server instance
-      * @constructs MowaServer
-      * @extends AppModule
-      * @param {string} [name='server'] - The name of the web module.
-      * @param {object} [options] - The web module's extra options defined in its parent's configuration.
-      */
+     * A Mowa server instance
+     * @constructs MowaServer
+     * @extends AppModule
+     * @param {string} [name='server'] - The name of the web module.
+     * @param {object} [options] - The web module's extra options defined in its parent's configuration.
+     * @property {string} [options.logger] - The logger channel to be used as the default logger of server
+     * @property {string} [options.modulePath] - The path of the server
+     * @property {string} [options.childModulesPath='app_modules'] - Relative path of child modules
+     * @property {string} [options.etcPath='etc'] - Relative path of configuration files
+     * @property {string} [options.host] - Host of the server
+     * @property {bool} [options.verbose=false] - Flag to output trivial information for diagnostics
+     * @property {bool} [options.deaf=false] - Start the server without enabling the web engine, specially for cli
+     * @property {bool} [options.logWithModuleName=false] - Flag to prepend module name before logging
+     */
     constructor(name, options) {
         if (typeof options === 'undefined') {
             if (typeof name === 'undefined') {
                 name = 'server';
-            } else if (util.isObject(name)) {
+            } else if (_.isPlainObject(name)) {
                 options = name;
                 name = 'server';
             }
@@ -57,17 +67,23 @@ class MowaServer extends AppModule {
      * Start the mowa server
      * @memberof MowaServer
      * @param extraFeatures
-     * @returns {Promise}
+     * @returns {Promise.<MowaServer>}
      */
-    start(extraFeatures) {
+    start_(extraFeatures) {
         this.emit('starting', this);
 
         this.log('info', `Starting mowa server v.${pkg.version} ...`);
+
+        let cwd = process.cwd();
+        if (this.absolutePath !== cwd) {
+            this._cwdBackup = cwd;
+            process.chdir(this.absolutePath);
+        }
         
         //register builtin middlewares
-        this.loadMiddlewareFiles(path.resolve(__dirname, Commons.MIDDLEWARES_PATH));
+        this.loadMiddlewareFiles(path.resolve(__dirname, Literal.MIDDLEWARES_PATH));
 
-        return super.start(extraFeatures).then(() => {
+        return super.start_(extraFeatures).then(() => {
             if (this._pendingHttpServer > 0) {
                 this.once('allHttpReady', () => {
                     this.emit('started', this);
@@ -78,7 +94,7 @@ class MowaServer extends AppModule {
 
             return this;
         }).catch(error => {
-            if (this.env === 'development' && util.isError(error)) {
+            if (this.env === 'development' && _.isError(error)) {
                 console.error(error.stack);
             }
 
@@ -91,12 +107,12 @@ class MowaServer extends AppModule {
     /**
      * Stop the mowa server
      * @memberof MowaServer
-     * @returns {*|Promise}
+     * @returns {Promise.<*>}
      */
-    stop() {
+    stop_() {
         this.emit('stopping', this);
 
-        return super.stop().then(() => {
+        return super.stop_().then(() => {
             let promises = this._httpServers.reverse().map(s => new Promise((resolve, reject) => {
                 let port = s.address().port;
                 s.close((err) => {
@@ -108,6 +124,10 @@ class MowaServer extends AppModule {
             }));
 
             return Promise.all(promises).then(() => {
+                if (this._cwdBackup) {
+                    process.chdir(this._cwdBackup);
+                }
+
                 this._httpServers = [];
                 this.emit('stopped', this);
             });
@@ -138,6 +158,36 @@ class MowaServer extends AppModule {
  * @memberof MowaServer
  */
 MowaServer.Util = Util;
+
+/**
+ * Error class definitions.
+ * @memberof MowaServer
+ */
+MowaServer.Error = require('./error.js');
+
+/**
+ * Http status codes definitions.
+ * @memberof MowaServer
+ */
+MowaServer.HttpCode = require('./enum/httpcode.js');
+
+/**
+* Common regexp patterns.
+* @memberof MowaServer
+*/
+MowaServer.Pattern = require('./enum/pattern.js');
+
+/**
+* Feature levels definitions.
+* @memberof MowaServer
+*/
+MowaServer.Feature = require('./enum/feature.js');
+
+/**
+* Common constants.
+* @memberof MowaServer
+*/
+MowaServer.Literal = Literal;
 
 /**
  * Ooloon runtime context

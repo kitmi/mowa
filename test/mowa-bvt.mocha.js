@@ -10,7 +10,7 @@ const util = require('util');
 const Mowa = require('../temp/server.js');
 
 function createMowa() {
-    return new Mowa('MowaBVT', { backendPath: 'test/server', etcPath: 'test/etc-mocha', childModulesPath: 'test/app_modules' });
+    return new Mowa('MowaBVT', { logger: 'general', modulePath: 'test' });
 }
 
 describe('mowa-bvt', function () {
@@ -18,13 +18,13 @@ describe('mowa-bvt', function () {
         it('should return a special header', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .get('/')
                     .expect('X-TEST-HEADER', 'For test only')
                     .expect(200)
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
@@ -33,28 +33,28 @@ describe('mowa-bvt', function () {
         it('should return static page by visiting web root', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .get('/')
                     .expect('content-type', 'text/html; charset=utf-8')
                     .expect(/<title>Static Page<\/title>/)
                     .expect(200)
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
         it('should return static page by visiting the page url', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .get('/text-file.txt')
                     .expect('content-type', 'text/plain; charset=utf-8')
                     .expect('This is a test file.')
                     .expect(200)
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
@@ -63,14 +63,14 @@ describe('mowa-bvt', function () {
         it('should return a page rendered by swig', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .get('/test')
                     .expect('content-type', 'text/html; charset=utf-8')
                     .expect(/<title>Test.index<\/title>/)
                     .expect(200)
                     .end((err, res) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
@@ -79,7 +79,7 @@ describe('mowa-bvt', function () {
         it('should get a list of books', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .get('/api/book')
                     .set('Accept', 'application/json')
@@ -95,14 +95,16 @@ describe('mowa-bvt', function () {
                         }
                     })
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => {
+                            done(err);
+                        });
                     });
             });
         });
         it('should add a new book', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .post('/api/book')
                     .send({title: 'Avatar'})
@@ -110,15 +112,15 @@ describe('mowa-bvt', function () {
                     .expect('Content-Type', /json/)
                     .expect(200)
                     .expect({id: 3, title: 'Avatar'})
-                    .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                    .end((err, res) => {
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
         it('should get book 2 successfully', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .get('/api/book/2')
                     .set('Accept', 'application/json')
@@ -126,14 +128,14 @@ describe('mowa-bvt', function () {
                     .expect(200)
                     .expect({id: 2, title: 'Book 2'})
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
         it('should update book 2 successfully', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .put('/api/book/2')
                     .send({title: 'Brave Cross'})
@@ -142,14 +144,14 @@ describe('mowa-bvt', function () {
                     .expect(200)
                     .expect({id: 2, title: 'Brave Cross'})
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
         it('should delete book 2 successfully', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .del('/api/book/2')
                     .set('Accept', 'application/json')
@@ -165,21 +167,21 @@ describe('mowa-bvt', function () {
                     .expect(200)
                     .expect({})
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
         it('should return 404', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .get('/api/non_exist/1')
                     .set('Accept', 'application/json')
                     .expect('Content-Type', 'text/plain; charset=utf-8')
                     .expect(404)
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
@@ -188,28 +190,28 @@ describe('mowa-bvt', function () {
         it('should return a text file in test module', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .get('/submodule/text-file.txt')
                     //.expect('content-type', 'text/plain; charset=utf-8')
                     //.expect('This is a test file in submodule.')
                     .expect(200)
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });
         it('should return a page rendered by a controller', function (done) {
             let mowa = createMowa();
 
-            mowa.start().then(() => {
+            mowa.start_().then(() => {
                 request(mowa.httpServer)
                     .get('/submodule/test')
                     .expect('content-type', 'text/html; charset=utf-8')
                     .expect(/<title>Test.index<\/title>/)
                     .expect(200)
                     .end((err) => {
-                        mowa.stop().then(() => { done(err); });
+                        mowa.stop_().then(() => { done(err); });
                     });
             });
         });

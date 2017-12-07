@@ -1,15 +1,15 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
-
 const path = require('path');
-const Util = require('../util.js');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
+const _ = Util._;
+
 const Router = require('koa-router');
 
 /*
  '<base path>': {
      rule: {
-         controllers:
          middlewares:
          rules: {
              // type 1, default is "get", methods mapped to one action
@@ -41,27 +41,24 @@ const Router = require('koa-router');
 
 const ALLOWED_METHODS = new Set(['options', 'get', 'head', 'post', 'put', 'delete', 'trace', 'connect']);
 
-module.exports = function loadRuleRouter(appModule, baseRoute, options) {
-    options = Object.assign({
-        controllers: path.join(appModule.backendPath, 'controllers')
-    }, options);
-
+module.exports = function (appModule, baseRoute, options) {
+    let controllerPath = path.join(appModule.backendPath, Mowa.Literal.CONTROLLERS_PATH);
+    
     let router = baseRoute === '/' ? new Router() : new Router({prefix: baseRoute});
 
     if (options.middlewares) {
         appModule.useMiddlewares(router, options.middlewares);
     }
 
-    if (!options.rules) {
-        appModule.invalidConfig('routes.*.rule', 'Missing rules definition.');
-    }
-
-    Util._.forOwn(options.rules, (methods, subRoute) => {
+    _.forOwn(options.rules || {}, (methods, subRoute) => {
         let pos = subRoute.indexOf(':/');
 
-        if (pos != -1) {
-            if (pos == 0) {
-                appModule.invalidConfig('routes.*.rule.rules', 'Unrecognized route rule syntax: ' + subRoute);
+        if (pos !== -1) {
+            if (pos === 0) {
+                throw new Mowa.Error.InvalidConfiguration(
+                    'Invalid route rule syntax: ' + subRoute, 
+                    appModule, 
+                    `routing.${baseRoute}.rule.rules`);
             }
             
             // like get:/, or post:/
@@ -74,20 +71,23 @@ module.exports = function loadRuleRouter(appModule, baseRoute, options) {
 
         subRoute = Util.ensureLeftSlash(subRoute);
 
-        if (Util._.isString(methods)) {
+        if (_.isString(methods)) {
             methods = { get: methods };
         }
 
-        Util._.forOwn(methods, (middlewares, method) => {
+        _.forOwn(methods, (middlewares, method) => {
             if (!ALLOWED_METHODS.has(method)) {
-                appModule.invalidConfig('routes.*.rule.rules', 'Unsupported http method: ' + method);
+                throw new Mowa.Error.InvalidConfiguration(
+                    'Unsupported http method: ' + method,
+                    appModule,
+                    `routing.${baseRoute}.rule.rules.${subRoute}`);
             }
 
-            if (Util._.isString(middlewares)) {
-                middlewares = { action: path.join(options.controllers, middlewares) };
+            if (_.isString(middlewares)) {
+                middlewares = { action: path.join(controllerPath, middlewares) };
             } else {
                 if ('action' in middlewares) {
-                    middlewares['action'] = path.join(options.controllers, middlewares['action']);
+                    middlewares['action'] = path.resolve(controllerPath, middlewares['action']);
                 }
             }
 

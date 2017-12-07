@@ -1,6 +1,9 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Middleware_Compress
+ * @summary ETag middleware
+ */
 
 const koaEtag = require('koa-etag');
 

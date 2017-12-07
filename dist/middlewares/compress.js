@@ -1,1 +1,1 @@
-'use strict';require('debug')('tracing')(__filename);const koaCompress=require('koa-compress');module.exports=koaCompress;
+"use strict";const koaCompress=require("koa-compress");module.exports=koaCompress;

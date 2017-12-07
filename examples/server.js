@@ -2,6 +2,10 @@
 
 const Mowa = require('..');
 
-let mowa = new Mowa('examples', { verbose: true });
+let mowa = new Mowa('examples', { logger: 'general', verbose: true });
 
-mowa.start();
+mowa.start_().then(() => {
+    //started
+}).catch(error => {
+    console.error(error);
+});

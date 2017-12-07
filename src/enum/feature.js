@@ -24,7 +24,7 @@ const FeatureLevels = module.exports = {
      */
     ENGINE: '40-engine',
     /**
-     * Middlewares
+     * Attaching middlewares
      */
     MIDDLEWARE: '50-middleware',
     /**
