@@ -7,7 +7,7 @@
     "jison": "jison ./src/oolong/lang/grammar/oolong.jison -o ./src/oolong/lang/oolong.js",
     "test": "npm run build-dev && mocha -R spec -t 5000 test/*.mocha.js",
     "cover": "npm run build-dev && nyc --reporter=html --reporter=text mocha test/*.mocha.js",
-    "travis": "npm run build-dev && nyc --reporter=text-lcov mocha test/*.mocha.js",
+    "travis": "npm run build-dev && nyc --reporter=text-lcov mocha test/*.mocha.js && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage",
     "build": "NODE_ENV=production babel src -d dist --copy-files",
     "build-dev": "BABEL_ENV=development babel src -d temp --copy-files"
   },
