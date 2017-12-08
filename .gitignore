@@ -3,7 +3,7 @@
 .idea
 **/.idea
 
-# node_modules files #
+# node files #
 ######################
 examples/node_modules/
 node_modules
@@ -21,6 +21,7 @@ Thumbs.db
 
 # test files #
 ######################
+.nyc_output
 coverage
 temp
 test/temp/*.log
