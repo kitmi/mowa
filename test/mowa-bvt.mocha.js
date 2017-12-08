@@ -13,6 +13,8 @@ function createMowa() {
     return new Mowa('MowaBVT', { logger: 'general', modulePath: 'test' });
 }
 
+Mowa.Util.fs.ensureDirSync(require('path').join(__dirname, 'temp'));
+
 describe('mowa-bvt', function () {
     describe('basic features and functions', function () {
         it('should return a special header', function (done) {
