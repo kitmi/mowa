@@ -14,7 +14,7 @@ entryFiles.forEach(entryFile => {
     }
 });
 
-const outputPath = path.resolve('{{ outputPath }}');
+const outputPath = path.resolve(__dirname, '..', '{{ outputPath }}');
 {% if cleanBeforeBuild %}
 const CleanWebpackPlugin = require('clean-webpack-plugin');
 {% endif %}

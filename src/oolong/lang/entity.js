@@ -362,7 +362,10 @@ class OolongEntity {
      * @returns {OolongEntity}
      */
     addFeature(feature) {
-        Util.contract(() => feature.name);
+        pre: {
+            feature, Util.Message.DBC_ARG_REQUIRED;
+            feature.name, Util.Message.DBC_INVALID_ARG;
+        }
 
         if (!this.features) {
             this.features = [];

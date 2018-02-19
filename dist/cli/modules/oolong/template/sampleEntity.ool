@@ -1,0 +1,29 @@
+type
+  sampleState : [ 'state1', 'state2', 'state3', 'state4', 'state5' ]
+  flagType : bool
+
+  normalId : text(40) ~matches(/^[A-Za-z_]\w{2,39}$/)
+  univesalId : text(36) fixed ~isUUID
+
+#--a beautiful separator---------------------------------------------
+
+entity sampleEntity
+  with
+    autoId
+    createTimestamp
+    updateTimestamp
+    logicalDeletion
+    stateTracking(status)
+
+  has
+    id : univesalId default(auto) readOnly
+    name : normalId
+    status : sampleState
+    balance : money
+    isMember : flagType
+
+  key
+    id
+
+  index
+    name is unique

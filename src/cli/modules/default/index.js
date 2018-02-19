@@ -3,6 +3,7 @@
 const path = require('path');
 const Util = require('../../../util.js');
 const fs = Util.fs;
+const Promise = Util.Promise;
 
 /**
  * @module MowaCLI_Default

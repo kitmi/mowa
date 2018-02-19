@@ -63,6 +63,11 @@ const Literals = module.exports = {
     RESOURCES_PATH: 'resources',
 
     /**
+     * Remote calls controllers path
+     */
+    REMOTE_CALLS_PATH: 'remoteCalls',
+
+    /**
      * Views files path, under backend folder
      */
     VIEWS_PATH: 'views',

@@ -1,12 +1,13 @@
 "use strict";
 
 const path = require('path');
-const Util = require('rk-utils');
+const Mowa = require('../server.js');
+const Util = Mowa.Util;
 const _ = Util._;
 const fs = Util.fs;
-const { Config, JsonConfigProvider } = require('rk-config');
+const Promise = Util.Promise;
 
-const Mowa = require('../server.js');
+const oolong = require('../oolong');
 
 const MowaHelper = module.exports;
 
@@ -21,13 +22,13 @@ const MowaHelper = module.exports;
  * @returns {Promise}
  */
 exports.startMowa_ = function (api) {
-    let mowa = new Mowa(api.mowaName, {deaf: true, verbose: api.config['general'].mowaVerbose});
+    let mowa = new Mowa(api.mowaName, {deaf: true, verbose: api.config['general'].verbose});
     return mowa.start_();
 };
 
 /**
  * Rewrite config.
- * @param {ConfigLoader} loader
+ * @param {Object} loader
  * @param {string} key
  * @param {*} value
  * @returns {Promise}
@@ -71,11 +72,10 @@ exports.getMountedAppNames_ = function (api) {
 /**
  * Get a list of running app module instances
  * @param {MowaAPI} api
- * @param {MowaServer} server
  * @returns {Array.<AppModule>}
  */
-exports.getRunningAppModules = function (api, server) {
-    return _.values(server.childModules);
+exports.getRunningAppModules = function (api) {
+    return _.values(api.server.childModules);
 };
 
 /**
@@ -90,45 +90,105 @@ exports.getAllDbmsFeatures = function (appModule) {
 /**
  * Get a list of DBMS connection string.
  * @param {MowaAPI} api
- * @returns {Promise} Array
+ * @returns {Array}
  */
-exports.getDbConnectionList_ = function(api) {
+exports.getDbConnectionList = function(api) {
     let serverDbs = {};
     let allAppDbs = {};
 
-    return MowaHelper.startMowa_(api).then(server => {
+    let features = MowaHelper.getAllDbmsFeatures(api.server);
 
-        let features = MowaHelper.getAllDbmsFeatures(server);
+    features.forEach(feature => {
+        let featureConfig = api.server.config[feature.name];
+
+        _.forOwn(featureConfig, (config, name) => {
+            serverDbs[name] = config.connection;
+        });
+    });
+
+    let apps = MowaHelper.getRunningAppModules(api);
+
+    apps.forEach(appModule => {
+
+        features = MowaHelper.getAllDbmsFeatures(appModule);
+
+        let appDbs = {};
 
         features.forEach(feature => {
-            let featureConfig = server.config[feature];
+
+            let featureConfig = appModule.config[feature.name];
 
             _.forOwn(featureConfig, (config, name) => {
-                serverDbs[name] = config.connection;
+
+                appDbs[name] = config.connection;
+
             });
         });
 
-        let apps = MowaHelper.getRunningAppModules(api, server);
-
-        apps.forEach(appModule => {
-
-            features = MowaHelper.getAllDbmsFeatures(appModule);
-            let appDbs = {};
-
-            features.forEach(feature => {
-
-                let featureConfig = appModule.config[feature];
-
-                _.forOwn(featureConfig, (config, name) => {
-
-                    appDbs[name] = config.connection;
-
-                });
-            });
-
-            allAppDbs[appModule.name] = appDbs;
-        });
-
-        return [ serverDbs, allAppDbs, server ];
+        allAppDbs[appModule.name] = appDbs;
     });
+
+    return [ serverDbs, allAppDbs ];
+};
+
+exports.getAppDbConnections = function(api) {
+    let appName = api.getOption('app');
+
+    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
+
+    let appModule = api.server.childModules[appName];
+    if (!appModule) {
+        throw new Error(`App "${appName}" is not mounted in the project.`);
+    }
+
+    let conns = [];
+
+    let features = MowaHelper.getAllDbmsFeatures(api.server);
+
+    features.forEach(feature => {
+        let featureConfig = api.server.config[feature.name];
+
+        _.forOwn(featureConfig, (config, name) => {
+            conns.push(feature.name + ':' + name);
+        });
+    });
+
+    features = MowaHelper.getAllDbmsFeatures(appModule);
+
+    let appDbs = {};
+
+    features.forEach(feature => {
+
+        let featureConfig = appModule.config[feature.name];
+
+        _.forOwn(featureConfig, (config, name) => {
+            conns.push(feature.name + ':' + name);
+        });
+    });
+
+    return _.uniq(conns);
+};
+
+exports.getAppSchemas = function (api) {
+    let appName = api.getOption('app');
+
+    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
+
+    let appModule = api.server.childModules[appName];
+    if (!appModule) {
+        throw new Error(`App "${appName}" is not mounted in the project.`);
+    }
+    
+    let schemas = [];
+
+    let files = Util.glob.sync('*.ool', { cwd: appModule.oolongPath });
+
+    files.forEach(f => {
+        let linker = new oolong.Linker({ logger: api.logger, currentApp: appModule });
+        linker.link(path.join(appModule.oolongPath, f));
+
+        schemas = schemas.concat(_.values(linker.schemas));
+    });
+
+    return schemas.map(s => s.name);
 };

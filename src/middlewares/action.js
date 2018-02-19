@@ -30,9 +30,9 @@ module.exports = (controllerAction, appModule) => {
     let controllerPath = path.resolve(controllerBasePath, controller + '.js');
     let ctrl = require(controllerPath);
 
-    var actioner = ctrl[action];
+    let actioner = ctrl[action];
     if (typeof actioner !== 'function') {
-        appModule.invalidConfig('action', `${controllerAction} is not a valid action.`);
+        throw new Mowa.Error.InvalidConfiguration(`${controllerAction} is not a valid action.`, appModule);
     }
 
     return async (ctx, next) => {
@@ -40,6 +40,6 @@ module.exports = (controllerAction, appModule) => {
         
         await actioner(ctx);
 
-        await next();
+        return next();
     };
 };

@@ -1,1 +1,1 @@
-'use strict';exports.index=function*(){this.body=yield this.render('index',{title:'A new mowa app'})};
+'use strict';exports.index=async ctx=>{await ctx.render('index',{title:'A new mowa app'})};

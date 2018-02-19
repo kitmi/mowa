@@ -7,63 +7,7 @@ const { ModelValidationError, ModelOperationError } = Errors;
 const Generators = require('./generators.js');
 const Validators = require('./validators.js');
 
-function *modelPreCreate(appModule, ModelMeta, rawData) {
-    let validateAll = ModelMeta.flags.validateAllFieldsOnCreation;
-    let errors = [], warnings = [];
-    let newData = {}, dbFunctionCalls = [];
 
-    for (let name in ModelMeta.fields) {        
-        let info = ModelMeta.fields[name];
-        if (name in rawData) {
-            if (info.readOnly) {
-                if (appModule.env === 'development') {
-                    warnings.push(new ModelOperationError(ModelOperationError.UPDATE_READ_ONLY_FIELD, name));
-                }
-            } else {
-                let validation = yield Validators.validateAndSanitize(info, rawData[name]);
-                if (validation.error) {
-                    errors.push(new ModelValidationError(ModelValidationError.INVALID_VALUE, name, validation.error));
-
-                    if (!validateAll)
-                        return {errors};
-                }
-                newData[name] = validation.sanitized;
-                continue;
-            }
-        }
-        
-        if (!info.defaultByDb) {
-            if ('default' in info) {
-                if (_.isPlainObject(info.default)) {
-                    if (info.default.type === 'Generator') {
-                        newData[name] = yield Generators.generate(info);
-                    } else if (info.default.type === 'DbFunction') {
-                        dbFunctionCalls.push({
-                            field: name,
-                            dbFunction: info.default
-                        });
-                    }
-                } else {
-                    newData[name] = info.default;
-                }
-            } else if (!info.optional) {
-                errors.push(new ModelValidationError(ModelValidationError.MISSING_REQUIRED_VALUE, name));
-
-                if (!validateAll)
-                    return {errors};
-            }
-        }
-    }
-
-    if (errors.length > 0) {
-        return {
-            errors,
-            warnings
-        };
-    }
-
-    return { warnings, newData, dbFunctionCalls };
-}
 
 function *mysqlModelCreate(appModule, ModelMeta, rawData, newData, dbFunctionCalls) {
     function mysqlBuildDbCallForInsertSql(callDbFunctions, rawData, newData, values) {
@@ -117,6 +61,7 @@ function *mysqlModelCreate(appModule, ModelMeta, rawData, newData, dbFunctionCal
 
     sql = mysql.format(sql, values);
 
+    //todo: move to oolong config
     if (appModule.options.logSqlStatement) {
         appModule.log('verbose', sql);
     }

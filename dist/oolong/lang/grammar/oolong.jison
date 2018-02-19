@@ -144,6 +144,18 @@
         return str.substr(quotes, str.length-quotes*2);
     }
 
+    function translateValidators(vs) {
+        return vs.map(v => {
+            if (typeof v === 'string') {
+                return { name: v };
+            } else if (v.type === 'FunctionCall') {
+                return { name: v.name, args: v.args };
+            }
+
+            throw new Error('Invalid validator syntax: ' + v.toString());
+        });
+    }
+
     var KEYWORDS = new Set([
         "not", "and", "or", "xor", "mod", "div", "in", "is", "like", //operators
         'int', 'integer', 'number', 'text', 'bool', 'boolean', 'blob', 'binary', 'datetime', 'date', 'time', 'year', 'timestamp', 'json', 'xml', 'enum', 'csv',
@@ -566,9 +578,9 @@ type_qualifiers_or_not
 
 type_validator
     : "~" identifier_function
-        { $$ = { validators: [ $2 ] }; }
+        { $$ = { validators: translateValidators([ $2 ]) }; }
     | "~" identifier_function_array
-        { $$ = { validators: $2 }; }
+        { $$ = { validators: translateValidators($2) }; }
     ;
 
 type_stmt_blk

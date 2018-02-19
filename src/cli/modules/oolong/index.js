@@ -8,7 +8,7 @@ const Util = require('../../../util.js');
 const fs = Util.fs;
 const _ = Util._;
 const glob = Util.glob;
-const async = Util.async;
+const Promise = Util.Promise;
 
 const MowaHelper = require('../../mowa-helper.js');
 
@@ -20,11 +20,11 @@ const MowaHelper = require('../../mowa-helper.js');
 exports.moduleDesc = 'Provide commands to do database modeling.';
 
 exports.commandsDesc = {
-    'list': 'List all database connections',
+    'list': 'List all oolong schemas',
     'create': 'Create database schema',
+    'config': 'Enable oolong feature and add deploy config',
     'build': 'Generate database script and access models',
-    'deploy': 'Create database structure',
-    'initTest': 'Import test data'
+    'deploy': 'Create database structure'
 };
 
 exports.help = function (api) {
@@ -56,6 +56,32 @@ exports.help = function (api) {
             };
             break;
 
+        case 'config':
+            cmdOptions['app'] = {
+                desc: 'The name of the app to operate',
+                inquire: true,
+                required: true,
+                promptType: 'list',
+                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
+            };
+            cmdOptions['s'] = {
+                desc: 'The name of the schema to deploy',
+                alias: [ 'schema' ],
+                required: true,
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => Promise.resolve(MowaHelper.getAppSchemas(api))
+            };
+            cmdOptions['db'] = {
+                desc: 'The name of the db to be deployed',
+                alias: [ 'database' ],
+                required: true,
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => Promise.resolve(MowaHelper.getAppDbConnections(api))
+            };
+            break;
+
         case 'deploy':
             cmdOptions['app'] = {
                 desc: 'Specify the name of the app to operate',
@@ -73,7 +99,6 @@ exports.help = function (api) {
             break;
 
         case 'build':
-        case 'initTest':
             cmdOptions['app'] = {
                 desc: 'Specify the name of the app to operate',
                 inquire: true,
@@ -92,20 +117,68 @@ exports.help = function (api) {
 };
 
 exports.list = function (api) {
-    api.log('verbose', 'exec => mowa db list');
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
 
-    return MowaHelper.getDbConnectionList_(api).then(result => {
-        let serverDbs = result[0];
-        let allAppDbs = result[1];
-        let server = result[2];
+    api.log('verbose', 'exec => mowa oolong list');
 
-        api.log('info', 'All server-wide database connections:\n' + JSON.stringify(serverDbs, null, 4) + '\n');
+    let appName = api.getOption('app');
 
-        _.forOwn(allAppDbs, (appDbs, appName) => {
-            api.log('info', 'Database connections in app ['  + appName  +  ']:\n' + JSON.stringify(appDbs, null, 4) + '\n');
+    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
+
+    let appModule = api.server.childModules[appName];
+    if (!appModule) {
+        return Promise.reject(`App "${appName}" is not mounted in the project.`);
+    }
+
+    let schemas = [];
+
+    return new Promise((resolve, reject) => {
+        Util.glob('*.ool', { cwd: appModule.oolongPath }, (err, files) => {
+            if (err) return reject(err);
+
+            files.forEach(f => {
+                let linker = new oolong.Linker({ logger: api.logger, currentApp: appModule });
+                linker.link(path.join(appModule.oolongPath, f));
+
+                schemas = schemas.concat(_.values(linker.schemas));
+            });
+
+            api.log('info', `Defined schemas in app "${appName}":\n${schemas.map(s => s.name + ' in ' + s.oolModule.name + '.ool').join('\n')}\n`);
+
+            resolve();
         });
+    });
+};
 
-        return server.stop();
+exports.config = function (api) {
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
+
+    api.log('verbose', 'exec => mowa oolong config');
+
+    let appName = api.getOption('app');
+    let schemaName = api.getOption('s');
+    let dbName = api.getOption('db');
+
+    assert: {
+        appName, Util.Message.DBC_VAR_NOT_NULL;
+        schemaName, Util.Message.DBC_VAR_NOT_NULL;
+        dbName, Util.Message.DBC_VAR_NOT_NULL;
+    }
+
+    let appModule = api.server.childModules[appName];
+    if (!appModule) {
+        return Promise.reject(`App "${appName}" is not mounted in the project.`);
+    }
+
+    let configPath = `oolong.schemas.${schemaName}`;
+
+    let deployTo = Util.getValueByPath(appModule.config, configPath, []);
+
+    deployTo.push(dbName);
+    deployTo = _.unique(deployTo);
+
+    return MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, { deployTo: deployTo }).then(() => {
+        api.log('info', `Deployment of schema "${schemaName}" is configured.`);
     });
 };
 
@@ -129,13 +202,27 @@ exports.create  = function (api) {
         schemaName, Util.Message.DBC_VAR_NOT_NULL;
     }
 
-    return MowaHelper.startMowa_(api).then(server => {
-        let appModule = server.childModules[appName];
-        if (!appModule) {
-            return Promise.reject(`App "${appName}" is not mounted in the project.`);
-        }
-        
-    });    
+    let appModule = api.server.childModules[appName];
+    if (!appModule) {
+        return Promise.reject(`App "${appName}" is not mounted in the project.`);
+    }
+    
+    let entitiesPath = path.join(appModule.oolongPath, 'entities');
+    fs.ensureDirSync(entitiesPath);
+    
+    let schemaFile = path.join(appModule.oolongPath, `${schemaName}.ool`);
+    if (fs.existsSync(schemaFile)) {
+        return Promise.reject(`Oolong schema "${schemaName}" has already exist.`);
+    }
+
+    let templatePath = path.resolve(__dirname, 'template');
+
+    let schemaContent = fs.readFileSync(path.join(templatePath, 'schema.ool'));
+    fs.writeFileSync(schemaFile, Util.S(schemaContent).template({ schemaName: schemaName }).s);
+    api.log('info', `Created "${schemaName}.ool" file.`);
+  
+    fs.copySync(path.join(templatePath, 'sampleEntity.ool'), path.join(entitiesPath, 'sampleEntity.ool'));
+    api.log('info', 'Created "sampleEntity.ool" file.');
 };
 
 exports.build = function (api) {
@@ -145,28 +232,27 @@ exports.build = function (api) {
 
     let appName = api.getOption('app');
     assert: appName, Util.Message.DBC_VAR_NOT_NULL;
-    
-    return MowaHelper.startMowa_(api).then(server => {
-        let appModule = server.childModules[appName];
-        if (!appModule) {
-            return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
-        }
 
-        api.log('info', `Start building oolong dsl for app [${appName}] ...`);
+    let appModule = api.server.childModules[appName];
+    if (!appModule) {
+        return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
+    }
 
-        let oolongDir = appModule.oolongPath;
+    api.log('info', `Start building oolong dsl for app [${appName}] ...`);
 
-        if (!fs.existsSync(oolongDir)) {
-            return Promise.reject(`Oolong DSL files not found. Nothing to build.`);
-        }
+    let oolongDir = appModule.oolongPath;
 
-        let schemaFiles = glob.sync(path.join(appModule.oolongPath, '*.ool'), {nodir: true});
+    if (!fs.existsSync(oolongDir)) {
+        return Promise.reject(`Oolong DSL files not found. Nothing to build.`);
+    }
 
-        return Util.eachPromise(_.map(schemaFiles, schemaFile => (() => oolong.build({
-            logger: api.logger,
-            currentApp: appModule
-        }, schemaFile))));
-    });
+    let schemaFiles = glob.sync(path.join(appModule.oolongPath, '*.ool'), {nodir: true});
+
+    return Util.eachPromise_(_.map(schemaFiles, schemaFile => (() => oolong.build({
+        logger: api.logger,
+        currentApp: appModule,
+        verbose: api.server.options.verbose
+    }, schemaFile))));
 };
 
 exports.deploy = function (api) {
@@ -179,33 +265,24 @@ exports.deploy = function (api) {
 
     let reset = api.getOption('reset');
 
-    return MowaHelper.startMowa_(api).then(server => {
-        let appModule = server.childModules[appName];
-        if (!appModule) {
-            return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
-        }
+    let appModule = api.server.childModules[appName];
+    if (!appModule) {
+        return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
+    }
 
-        api.log('info', `Start deploying database for app [${appName}] ...`);
+    api.log('info', `Start deploying database for app [${appName}] ...`);
 
-        let oolongDir = appModule.oolongPath;
+    let oolongDir = appModule.oolongPath;
 
-        if (!fs.existsSync(oolongDir)) {
-            return Promise.reject(`Oolong DSL files not found. Nothing to build.`);
-        }
+    if (!fs.existsSync(oolongDir)) {
+        return Promise.reject(`Oolong DSL files not found. Nothing to build.`);
+    }
 
-        let schemaFiles = glob.sync(path.join(appModule.oolongPath, '*.ool'), {nodir: true});
+    let schemaFiles = glob.sync(path.join(appModule.oolongPath, '*.ool'), {nodir: true});
 
-        return Util.eachPromise(_.map(schemaFiles, schemaFile => (() => oolong.deploy({
-            logger: api.logger,
-            currentApp: appModule
-        }, schemaFile, reset))));
-    });
-};
-
-exports.initTest = function (api) {
-    api.log('verbose', 'exec => mowa oolong initTest');
-
-    return startMowaAndRunWithSchemaFiles(api, 'initTest', appModule => (f, cb) => {
-        oolong.import({ logger: api.logger, currentApp: appModule }, f, 'test').then(() => cb(), e => cb(e));
-    });
+    return Util.eachPromise_(_.map(schemaFiles, schemaFile => (() => oolong.deploy({
+        logger: api.logger,
+        currentApp: appModule,
+        verbose: api.server.options.verbose
+    }, schemaFile, reset))));
 };

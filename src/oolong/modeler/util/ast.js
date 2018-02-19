@@ -1,17 +1,72 @@
 "use strict";
 
-const _ = require('lodash');
+const Util = require('../../../util.js');
+const _ = Util._;
 
 /**
  * @module AST
  * @summary Abstract syntax tree of JavaScript
  */
 
+const AST_OBJECT_TYPES = [
+    'ThisExpression',
+    'MemberExpression',
+    'BinaryExpression',
+    'ArrowFunctionExpression',
+    'FunctionExpression',
+    'ArrayExpression',
+    'ObjectExpression',
+    'CallExpression',
+    'YieldExpression',
+    'AwaitExpression',
+    'Literal',
+    'Identifier'
+];
 
-function astProgram(body, strict = true) {
+function mapParams(params) {
+    params = Array.isArray(params) ? params : [ params ];
+
+    return params.map(p => {
+         if (typeof p === 'string') {
+             return astId(p);
+         }
+
+        if (_.isPlainObject(p) && p.type === 'Identifier') {
+            return p;
+        }
+
+        throw new Error('Invalid param: ' + JSON.stringify(p));
+    });
+}
+
+function mapArgs(args) {
+    args = Array.isArray(args) ? args : [ args ];
+
+    return args.map(a => {
+        if (_.isPlainObject(a) && 'type' in args) {
+            return a;
+        }
+
+        return astValue(a);
+    });
+}
+
+function mapBody(body) {
+    if (Array.isArray(body)) {
+        return astBlock(body);
+    }
+    
+    if (_.isPlainObject(body) && 'type' in body) {
+        return body;
+    }
+
+    return astValue(body);
+}
+
+function astProgram(strict = true) {
     return {
         "type": "Program",
-        "body": strict ? [astExpression(astValue('use strict'))].concat(body) : body,
+        "body": strict ? [astExpression(astValue('use strict'))] : [],
         "sourceType": "script"
     };
 }
@@ -23,7 +78,7 @@ function astRequire(varName, requirePath) {
             {
                 "type": "VariableDeclarator",
                 "id": astId(varName),
-                "init": astCallInline('require', [ astValue(requirePath) ])
+                "init": astCall('require', [ astValue(requirePath) ])
             }
         ],
         "kind": "const"
@@ -37,7 +92,7 @@ function astDeclare(left, right, isConstant = false) {
             {
                 "type": "VariableDeclarator",
                 "id": astId(left),
-                "init": right
+                "init": astValue(right)
             }
         ],
         "kind": isConstant ? "const" : "let"
@@ -48,14 +103,8 @@ function astIf(test, consequent, alternate) {
     return {
         "type": "IfStatement",
         "test": test,
-        "consequent": Array.isArray(consequent) ? {
-            "type": "BlockStatement",
-            "body": consequent
-        } : consequent,
-        "alternate": Array.isArray(alternate) ? {
-            "type": "BlockStatement",
-            "body": alternate
-        } : alternate
+        "consequent": mapBody(consequent),
+        "alternate": mapBody(alternate)
     };
 }
 
@@ -63,23 +112,16 @@ function astBinExp(left, operator, right) {
     return {
         "type": "BinaryExpression",
         "operator": operator,
-        "left": left,
-        "right": right
+        "left": astValue(left),
+        "right": astValue(right)
     }
 }
 
 function astCall(functionName, args) {
     return {
-        "type": "ExpressionStatement",
-        "expression": astCallInline(functionName, args)
-    };
-}
-
-function astCallInline(functionName, args) {
-    return {
         "type": "CallExpression",
         "callee": _.isPlainObject(functionName) ? functionName : astVarRef(functionName),
-        "arguments": Array.isArray(args) ? args : [args]
+        "arguments": mapArgs(args)
     };
 }
 
@@ -88,6 +130,13 @@ function astYield(target, delegate = false) {
         "type": "YieldExpression",
         "argument": target,
         "delegate": delegate
+    };
+}
+
+function astAwait(functionName, args) {
+    return {
+        "type": "AwaitExpression",
+        "argument": astCall(functionName, args)
     };
 }
 
@@ -128,10 +177,14 @@ function astThis() {
 }
 
 function astId(name) {
-    return {
-        "type": "Identifier",
-        "name": name
-    };
+    if (typeof name === 'string') {
+        return {
+            "type": "Identifier",
+            "name": name
+        };
+    }
+
+    throw new Error('Invalid identifier name: ' + JSON.stringify(name));
 }
 
 function astMember(key, any, shorthand = false) {
@@ -155,6 +208,10 @@ function astValue(value) {
     }
 
     if (_.isPlainObject(value)) {
+        if (AST_OBJECT_TYPES.indexOf(value.type) !== -1) {
+            return value;
+        }
+
         if (value.type === 'ObjectReference' || value.type === 'Variable') {
             return astVarRef(value.name);
         }
@@ -176,9 +233,17 @@ function astValue(value) {
             };
         }
 
-        throw new Error('Unrecognized object: ' + JSON.stringify(value));
+        return astValue({type: 'Object', value});
     }
 
+    if (_.isObject(value)) {
+        throw new Error('Invalid value: ' + JSON.stringify(value));
+    }
+
+    return astLiteral(value);
+}
+
+function astLiteral(value) {
     return {
         "type": "Literal",
         "value": value,
@@ -190,7 +255,7 @@ function astAddMember(obj, member) {
     obj.properties.push(member);
 }
 
-function astAddBodyExpression(obj, expr) {
+function astPushInBody(obj, expr) {
     if (Array.isArray(obj.body)) {
         obj.body.push(expr);
     } else {
@@ -198,48 +263,48 @@ function astAddBodyExpression(obj, expr) {
     }
 }
 
-function astFunction(name, args, body, generator = false) {
+function astFunction(name, params, body, generator = false, async = false) {
     return {
         "type": "FunctionDeclaration",
         "id": astId(name),
         "generator": generator,
         "expression": false,
+        "async": async,
         "defaults": [],
-        "params": args,
+        "params": mapParams(params),
         "body": astBlock(body)
     };
 }
 
-function astAnonymousFunction(args, body, generator = false) {
+function astAnonymousFunction(params, body, generator = false, async = false) {
     return {
         "type": "FunctionExpression",
         "id": null,
-        "params": args,
+        "params": mapParams(params),
         "defaults": [],
-        "body": {
-            "type": "BlockStatement",
-            "body": body
-        },
+        "body": astBlock(body),
         "generator": generator,
-        "expression": false
+        "expression": false,
+        "async": async
     };
 }
 
-function astArrowFunction(args, body, generator = false) {
+function astArrowFunction(params, body, generator = false, async = false) {
     return {
         "type": "ArrowFunctionExpression",
         "id": null,
-        "params": args,
-        "body": body,
+        "params": mapParams(params),
+        "body": mapBody(body),
         "generator": generator,
-        "expression": true
+        "expression": true,
+        "async": async
     }
 }
 
 function astBlock(body) {
     return {
         "type": "BlockStatement",
-        "body": body
+        "body": Array.isArray(body) ? body : [ body ]
     };
 }
 
@@ -285,7 +350,7 @@ function astThrow(name, args) {
                 "type": "Identifier",
                 "name": name
             },
-            "arguments": args
+            "arguments": mapArgs(args)
         }
     };
 }
@@ -294,7 +359,7 @@ function astNot(expr) {
     return {
         "type": "UnaryExpression",
         "operator": "!",
-        "argument": expr,
+        "argument": astValue(expr),
         "prefix": true
     };
 }
@@ -302,17 +367,17 @@ function astNot(expr) {
 function astReturn(val) {
     return {
         "type": "ReturnStatement",
-        "argument": val
+        "argument": astValue(val)
     };
 }
 
 module.exports = {
     astProgram,
     astRequire,
-    astDeclare,
+    astDeclare,    
     astCall,
-    astCallInline,
     astYield,
+    astAwait,
     astThis,
     astId,
     astVarRef,
@@ -328,8 +393,9 @@ module.exports = {
     astAssign,
     astAddMember,
     astMember,
-    astAddBodyExpression,
+    astPushInBody,
     astThrow,
     astNot,
-    astReturn
+    astReturn,
+    astLiteral
 };

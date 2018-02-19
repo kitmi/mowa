@@ -1,6 +1,9 @@
 "use strict";
 
 const Npm = require('silent-npm-registry-client');
+const Util = require('rk-utils');
+const Promise = Util.Promise;
+
 const pkg = require('../../package.json');
 
 module.exports = function (api) {

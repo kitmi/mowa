@@ -5,7 +5,7 @@
  * @summary Flash Messages Middleware
  */
 
-const koaFlash = require('koa-flash-message');
+const koaFlash = require('koa-flash-simple');
 
 /**
  add message to flash messages

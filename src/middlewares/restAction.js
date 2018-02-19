@@ -14,8 +14,7 @@ module.exports = (options, appModule) => {
         let ctrlName = ctx.params.resource;
 
         if (!options.controllers.has(ctrlName)) {
-            await next();
-            return;
+            return next();
         }
 
         ctx.appModule = appModule;
@@ -24,24 +23,27 @@ module.exports = (options, appModule) => {
 
         switch (options.type) {
             case 'query':
-                await ctrl.query(ctx);
+                return ctrl.query(ctx);
                 break;
 
             case 'create':
-                await ctrl.create(ctx);
+                return ctrl.create(ctx);
                 break;
 
             case 'get':
-                await ctrl.get(ctx);
+                return ctrl.get(ctx);
                 break;
 
             case 'update':
-                await ctrl.update(ctx);
+                return ctrl.update(ctx);
                 break;
 
             case 'delete':
-                await ctrl.remove(ctx);
+                return ctrl.remove(ctx);
                 break;
+
+            default:
+                ctx.throw(Mowa.HttpCode.HTTP_BAD_REQUEST);
         }
     };
 };

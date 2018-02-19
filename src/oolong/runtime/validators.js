@@ -1,5 +1,8 @@
 "use strict";
 
+const Util = require('../../util.js');
+const _ = Util._;
+
 const validator = require('validator');
 const Types = require('./types.js');
 const xml = require("tiny-xml");
@@ -61,199 +64,222 @@ const MOMENT_MESSAGES = [
     'Invalid millisecond.'
 ];
 
-const validateInt = function (info, value) {
-    if (!Types.isInt(value)) {
-        if (validator.isNumeric(value)) {
-            value = parseInt(value);
+function processInt(ctx, meta, input) {
+    let sanitized = input;
+
+    if (!_.isInteger(sanitized)) {
+        if (validator.isNumeric(sanitized)) {
+            sanitized = parseInt(sanitized);
         } else {
-            return { error: 'Not an integer.' };
+            return { input, error: { field: meta, message: 'Invalid integer value.' } };
         }        
     }
     
-    if ('max' in info && value > info.max) {
-        return { error: 'Exceed max limit.' };
+    if ('max' in meta && sanitized > meta.max) {
+        return { input, error: { field: meta, message: 'Exceeds the maximum value.' } };
     }
     
-    if ('min' in info && value < info.min) {
-        return { error: 'Under min limit.' }
+    if ('min' in meta && sanitized < meta.min) {
+        return { input, error: { field: meta, message: 'Less than the minimum value.' } };
     }    
 
-    return { sanitized: value };
-};
+    return { input, sanitized };
+}
 
-const validateFloat = function (info, value) {
-    if (!Types.isFloat(value)) {
-        if (validator.isFloat(value)) {
-            value = parseFloat(value);
+function processFloat(ctx, meta, input) {
+    let sanitized = input;
+
+    if (!_.isNumber(sanitized)) {
+        if (validator.isFloat(sanitized)) {
+            sanitized = parseFloat(sanitized);
         } else {
-            return { error: 'Not a float number.' };
+            return { input, error: { field: meta, message: 'Invalid float number value.' } };
         }
     }
 
-    if ('max' in info && value > info.max) {
-        return { error: 'Exceed max limit.' };
+    if ('max' in meta && sanitized > meta.max) {
+        return { input, error: { field: meta, message: 'Exceeds the maximum value.' } };
     }
 
-    if ('min' in info && value < info.min) {
-        return { error: 'Under min limit.' }
+    if ('min' in meta && sanitized < meta.min) {
+        return { input, error: { field: meta, message: 'Less than the minimum value.' } };
     }
     
-    if ('precision' in info) {
-        value = parseFloat(value.toFixed(info.precision));
+    if ('precision' in meta) {
+        sanitized = parseFloat(sanitized.toFixed(meta.precision));
     }
 
-    return { sanitized: value };
-};
+    return { input, sanitized };
+}
 
-const validateBool = function (info, value) {
-    if (typeof value !== 'boolean') {
-        let i = ['true', '1', 'false', '0'].indexOf(value.toString().toLowerCase());
+function processBool(ctx, meta, input) {
+    let sanitized = input;
+
+    if (typeof input !== 'boolean') {
+        let i = ['true', '1' , 'yes', 'false', '0', 'no'].indexOf(input.toString().toLowerCase());
         if (i === -1) {
-            return { error: 'Not a boolean value.' };
+            return { input, error: { field: meta, message: 'Invalid boolean value.' } };
         }
-        
-        value = i < 2;
+
+        sanitized = i < 3;
     }
 
-    return { sanitized: value };
-};
+    return { input, sanitized };
+}
 
-const validateText = function (info, value) {
-    if (typeof value !== 'string') {
-        value = value.toString();
-    }
-    
-    if (('fixedLength' in info && value.length > info.fixedLength) ||
-        ('max' in info && value.length > info.max)) {
-        return { error: 'Exceed max length.' };
-    }  
-    
-    if ('min' in info && value.length < info.min) {
-        return { error: 'Text too short.' };
+function processText(ctx, meta, input) {
+    let sanitized = (typeof input !== 'string') ? input.toString() : input;
+
+    if (('fixedLength' in meta && sanitized.length > meta.fixedLength) ||
+        ('max' in meta && sanitized.length > meta.max)) {
+        return { input, error: { field: meta, message: 'Exceeds the maximum length.' } };
     }
 
-    if (!info.nonTrim) {
-        value = value.trim();
-    }    
-
-    return { sanitized: value };
-};
-
-const validateBinary = function (info, value) {
-    if (!(value instanceof Buffer)) {
-        value = Buffer.from(value.toString());
+    if ('min' in meta && sanitized.length < meta.min) {
+        return { input, error: { field: meta, message: 'Does not meet the minimum length requirement.' } };
     }
 
-    if (('fixedLength' in info && value.length > info.fixedLength) ||
-        ('max' in info && value.length > info.max)) {
-        return { error: 'Exceed max length.' };
+    if (!meta.nonTrim) {
+        sanitized = sanitized.trim();
     }
 
-    if ('min' in info && value.length < info.min) {
-        return { error: 'Text too short.' };
+    return { input, sanitized };
+}
+
+function processBinary(ctx, meta, input) {
+    let sanitized = (input instanceof Buffer) ? input : Buffer.from(input.toString());
+
+    if (('fixedLength' in meta && sanitized.length > meta.fixedLength) ||
+        ('max' in meta && sanitized.length > meta.max)) {
+        return { input, error: { field: meta, message: 'Exceeds the maximum length.' } };
     }
 
-    return { sanitized: value };
-};
+    if ('min' in meta && sanitized.length < meta.min) {
+        return { input, error: { field: meta, message: 'Does not meet the minimum length requirement.' } };
+    }
 
-const validateDatetime = function (info, value) {
-    if (!(value instanceof Date)) {
-        let m = this.__.datetime(value);
+    return { input, sanitized };
+}
+
+function processDatetime(ctx, meta, input) {
+    let sanitized = input;
+
+    if (!(sanitized instanceof Date)) {
+        let m = ctx.appModule.__.datetime(sanitized);
         if (!m.isValid()) {
             let flag = m.invalidAt();
             if (flag < 0 || flag > 6) {
-                return { error: 'Invalid datetime format.' };
+                return { input, error: { field: meta, message: 'Invalid datetime format.' } };
             }
 
-            return { error: MOMENT_MESSAGES[flag] };
+            return { input, error: { field: meta, message: MOMENT_MESSAGES[flag] } };
         }
 
-        value = m.toDate();
+        sanitized = m.toDate();
     }
 
-    return { sanitized: value };
-};
+    return { input, sanitized };
+}
 
-const validateJson = function (info, value) {
-    return { sanitized: typeof value === 'string' ? value : JSON.stringify(value) };
-};
+function processJson(ctx, meta, input) {
+    let sanitized = input;
+    
+    if (typeof sanitized === 'string') {
+        sanitized = JSON.parse(sanitized);
+    } else if (!_.isPlainObject(sanitized)) {
+        if (ctx.appModule.env !== 'production') {
+            sanitized = JSON.parse(JSON.stringify(sanitized));
+        }
+    }
+    
+    return { input, sanitized };
+}
 
-const validateXml = function (info, value) {
-    let type = typeof value;
+function processXml(ctx, meta, input) {
+    let sanitized = input;
+
+    let type = typeof sanitized;
     if (type !== 'string') {
-        value = xml.serialize(value);
-    } else if (!xml.valid(value)) {
-        return { error: 'Not a valid XML document.' };
+        sanitized = xml.serialize(sanitized);
+    } else if (!xml.valid(sanitized)) {
+        return { input, error: { field: meta, message: 'Invalid XML snippet.' } };
     }
 
-    return { sanitized: value };
-};
+    return { input, sanitized };
+}
 
-const validateEnum = function (info, value) {
-    if (typeof value !== 'string' || info.values.indexOf(value) === -1) {
-        return { error: 'Invalid enum value.' };
+function processEnum(ctx, meta, input) {
+    let sanitized = input;
+
+    if (typeof sanitized !== 'string' || meta.values.indexOf(sanitized) === -1) {
+        return { input, error: { field: meta, message: 'Invalid enum value.' } };
     }
 
-    return { sanitized: value };
-};
+    return { input, sanitized };
+}
 
-const validateCsv = function (info, value) {
+function processCsv(ctx, meta, input) {
+    let sanitized = input;
+
     // todo add escape
-    if (typeof value === 'string') {
+    if (typeof sanitized === 'string') {
         
-    } else if (Array.isArray(value)) {
-        value = value.join(',');
-    } else if (Types.isPlainObject(value)) {
+    } else if (Array.isArray(sanitized)) {
+        sanitized = sanitized.join(',');
+    } else if (Types.isPlainObject(sanitized)) {
         // todo add a qualifier to sort keys
-        value = Object.values(value).join(',');
+        sanitized = Object.values(sanitized).join(',');
     }
 
-    return { sanitized: value };
-};
+    return { input, sanitized };
+}
 
-exports.validateAndSanitize = function* (fieldInfo, fieldValue) {
+exports.sanitizeAndValidate_ = async function (ctx, meta, value) {
     let result;
 
-    switch (fieldInfo.type) {
+    switch (meta.type) {
         case Types.TYPE_INT:
-            result = validateInt(fieldInfo, fieldValue);
+            result = processInt(ctx, meta, value);
             break;
         case Types.TYPE_FLOAT:
-            result = validateFloat(fieldInfo, fieldValue);
+            result = processFloat(ctx, meta, value);
             break;
         case Types.TYPE_BOOL:
-            result = validateBool(fieldInfo, fieldValue);
+            result = processBool(ctx, meta, value);
             break;
         case Types.TYPE_TEXT:
-            result = validateText(fieldInfo, fieldValue);
+            result = processText(ctx, meta, value);
             break;
         case Types.TYPE_BINARY:
-            result = validateBinary(fieldInfo, fieldValue);
+            result = processBinary(ctx, meta, value);
             break;
         case Types.TYPE_DATETIME:
-            result = validateDatetime(fieldInfo, fieldValue);
+            result = processDatetime(ctx, meta, value);
             break;
         case Types.TYPE_JSON:
-            result = validateJson(fieldInfo, fieldValue);
+            result = processJson(ctx, meta, value);
             break;
         case Types.TYPE_XML:
-            result = validateXml(fieldInfo, fieldValue);
+            result = processXml(ctx, meta, value);
             break;
         case Types.TYPE_ENUM:
-            result = validateEnum(fieldInfo, fieldValue);
+            result = processEnum(ctx, meta, value);
             break;
         case Types.TYPE_CSV:
-            result = validateCsv(fieldInfo, fieldValue);
+            result = processCsv(ctx, meta, value);
             break;
+        default:
+            throw new Error('Uknown field type: ' + meta.type);
     }
 
-    if (fieldInfo.validator) {
-        Array.isArray(fieldInfo.validator) || (fieldInfo.validator = [fieldInfo.validator]);
+    if (result.error) {
+        return result;
+    }
 
-        let found = fieldInfo.validator.find(vtor => !(typeof vtor === 'object' ? validator[vtor.name](value, vtor.args) : validator[vtor](value)));
-        if (found !== undefined) {
-            return { error: VALIDATORS_AND_MESSAGES[typeof found === 'object' ? found.name : found] }
-        }
+    if (meta.validator) {
+        Array.isArray(meta.validator) || (meta.validator = [meta.validator]);
+
+        result = await Util.ifAnyPromise_(meta.validator.map(vtor => validator[vtor.name](value, vtor.args)), result => result.error);
     }
 
     return result;

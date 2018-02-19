@@ -47,16 +47,16 @@ class OolongField {
              * @type {array}
              * @public
              */
-            this.validators = rawInfo.validators.map(v => (typeof v === 'string') ? v : { type: "FunctionCall", name: v.name, args: v.args });
+            this.validators = rawInfo.validators;
         }
 
-        if (rawInfo.modifiers) {
+        if (this.modifiers) {
             /**
              * Modifiers of this field
              * @type {array}
              * @public
              */
-            this.modifiers = rawInfo.modifiers.map(m => (typeof m === 'string') ? v : { type: "FunctionCall", name: m.name, args: m.args });
+            this.modifiers = rawInfo.modifiers;
         }
 
         if (this.type === 'enum') {

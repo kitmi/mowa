@@ -3,9 +3,10 @@
 const modules = require('./modules/');
 const CliApi = require('./cli-api.js');
 const { restart } = require('./cli-util.js');
-const checkUpdate_ = require('./update.js');
+const Util = require('rk-utils');
 
-console.log(`Mowa Development & Deployment CLI Helper v${checkUpdate_.version}\n`);
+const checkUpdate_ = require('./update.js');
+const Promise = Util.Promise;
 
 const api = new CliApi(modules);
 
@@ -23,7 +24,7 @@ if (process.env.NODE_ENV && env !== process.env.NODE_ENV) {
                 api.log('info', 'done.');
             }
 
-            process.exit(0);
+            return api.server.stop_();
         }).catch(e => {
             api.log('error', e.stack ? e.stack : e);
             process.exit(1);

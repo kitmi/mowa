@@ -28,25 +28,33 @@ exports.help = function (api) {
 
     switch (api.command) {
         case 'list':
-            cmdOptions['app'] = {
-                desc: 'Specify the name of the app to operate'                
-            };
             break;
 
         case 'add':
             cmdOptions['app'] = {
-                desc: 'Specify the name of the app to operate'
+                desc: 'The name of the app to operate',
+                inquire: true,
+                promptType: 'list',
+                required: true,
+                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
-            cmdOptions['key'] = {
-                desc: 'Specify the key of the connection string'
+            cmdOptions['dbms'] = {
+                desc: 'Select the target dbms',
+                inquire: true,
+                promptType: 'list',
+                required: true,
+                choicesProvider: () => Promise.resolve(['mysql', 'mongodb'])
             };
-            cmdOptions['value'] = {
-                desc: 'Specify the value of the connection string'
+            cmdOptions['db'] = {
+                desc: 'Specify the name of the database',
+                inquire: true,
+                required: true,
+                alias: [ 'database' ]
             };
-            cmdOptions['for-server'] = {
-                desc: 'Specify whether the connection is for server or for app',
-                default: false,
-                bool: true
+            cmdOptions['conn'] = {
+                desc: 'Specify the value of the connection string',
+                alias: [ 'c', 'connection' ],
+                inquire: true
             };
             break;
 
@@ -66,20 +74,20 @@ exports.help = function (api) {
  * @returns {Promise}
  */
 exports.list = function (api) {
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
+
     api.log('verbose', 'exec => mowa db list');
 
-    return MowaHelper.getDbConnectionList(api).then(result => {
-        let serverDbs = result[0];
-        let allAppDbs = result[1];
-        let server = result[2];
+    let result = MowaHelper.getDbConnectionList(api);
 
-        api.log('info', 'All server-wide database connections:\n' + JSON.stringify(serverDbs, null, 4) + '\n');
+    let serverDbs = result[0];
+    let allAppDbs = result[1];
+    let server = result[2];
 
-        _.forOwn(allAppDbs, (appDbs, appName) => {
-            api.log('info', 'Database connections in app ['  + appName  +  ']:\n' + JSON.stringify(appDbs, null, 4) + '\n');
-        });
+    api.log('info', 'All server-wide database connections:\n' + JSON.stringify(serverDbs, null, 4) + '\n');
 
-        return server.stop();
+    _.forOwn(allAppDbs, (appDbs, appName) => {
+        api.log('info', 'Database connections in app ['  + appName  +  ']:\n' + JSON.stringify(appDbs, null, 4) + '\n');
     });
 };
 
@@ -91,46 +99,25 @@ exports.list = function (api) {
  * @returns {*}
  */
 exports.add = function (api) {
-    let appName = api.getOption('app');
-    let isForServer = api.getOption('for-server');
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
 
-    if (!appName && !isForServer) {
-        return Promise.reject('Should specify an app name or use for-server option to add a new connection.');
+    api.log('verbose', 'exec => mowa db add');
+
+    let appName = api.getOption('app');
+    let dbms = api.getOption('dbms');
+    let dbName = api.getOption('db');
+    assert: {
+        appName, Util.Message.DBC_VAR_NOT_NULL;
+        dbms, Util.Message.DBC_VAR_NOT_NULL;
+        dbName, Util.Message.DBC_VAR_NOT_NULL;
     }
 
-    const inquirer = require('inquirer');
+    let conn = api.getOption('conn') || 'to be defined';
 
-    let key = api.getOption('key'), value = api.getOption('value');
+    let appModule = api.server.childModules[appName];
+    if (!appModule) {
+        return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
+    }
 
-    let getKey = () => key ?
-        Promise.resolve(key) :
-        inquirer.prompt([
-            { type: 'input', name: 'key', message: 'Connection key:'}
-        ]).then(function (answers) {
-            if (answers.key && answers.key.length > 0) {
-                return Promise.resolve(answers.key);
-            }
-
-            return Promise.reject('Invalid connection key!');
-        });
-
-    let getValue = k => value ?
-        Promise.resolve(value) :
-        inquirer.prompt([
-            {type: 'input', name: 'value', message: 'Connection value:'}
-        ]).then(function (answers) {
-            if (answers.value && answers.value.length > 0) {
-                return Promise.resolve([k, answers.value]);
-            }
-
-            return Promise.reject('Invalid connection value!');
-        });
-
-    return getKey().then(k => getValue(k)).then(([k, v]) => {
-        if (isForServer) {
-            
-        } else {
-            
-        }
-    });
+    return MowaHelper.writeConfigBlock_(appModule.configLoader, `${dbms}.${dbName}.connection`, conn);
 };

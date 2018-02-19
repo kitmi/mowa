@@ -4,6 +4,7 @@ const path = require('path');
 const Mowa = require('../server.js');
 const Util = Mowa.Util;
 const _ = Util._;
+const Promise = Util.Promise;
 
 const Router = require('koa-router');
 

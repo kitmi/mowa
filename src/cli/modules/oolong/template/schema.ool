@@ -1,0 +1,5 @@
+use 'entities/**'
+
+schema '{{ schemaName }}'
+  entities
+    sampleEntity

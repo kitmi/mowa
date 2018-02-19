@@ -1,7 +1,7 @@
 "use strict";
 
-exports.index = function* () {
-    this.body = yield this.render('reactPage', {
+exports.index = async (ctx) => {
+    await ctx.render('reactPage', {
         title: '{{ pageComponent }}',
         page: '{{ page }}'
     });

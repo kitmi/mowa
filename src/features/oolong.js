@@ -21,13 +21,15 @@ module.exports = {
      * Load the feature
      * @param {AppModule} appModule - The app module object
      * @param {object} oolong - Oolong settings
+     * @property {bool} [oolong.logSqlStatement] - Flag to turn on sql debugging log
      * @returns {Promise.<*>}
      */
     load_: function (appModule, oolong) {
+        appModule.oolong = oolong;
 
-        appModule.on('after:' + Util.Feature.DBMS, () => {
+        appModule.on('after:' + Mowa.Feature.DBMS, () => {
 
-            appModule.getSchema = function (schemaName) {
+            appModule.getDbSchema = function (schemaName) {
                 if (!schemaName) {
                     if (defaultSchema in oolong) {
                         schemaName = oolong.defaultSchema;
@@ -36,7 +38,7 @@ module.exports = {
                     }
                 }
 
-                let dbFile = path.resolve(appModule.backendPath, appModule.options.modelsPath, schemaName + '.js');
+                let dbFile = path.resolve(appModule.backendPath, Mowa.Literal.MODELS_PATH, schemaName + '.js');
                 return require(dbFile);
             };
         });

@@ -37,7 +37,7 @@ function applyModifier(varName, modifier) {
         args = args.concat(_.map(modifier.args.value, a => JsLang.astValue(a)));
     }
 
-    return JsLang.astAssign(varName, JsLang.astCallInline(
+    return JsLang.astAssign(varName, JsLang.astCall(
         modifier.name,
         args
     ));
@@ -82,7 +82,7 @@ function applyFieldModifier(fieldName, modifier, astBody) {
         }));
     }
 
-    thenDo.push(JsLang.astAssign('newData.' + fieldName, JsLang.astCallInline(
+    thenDo.push(JsLang.astAssign('newData.' + fieldName, JsLang.astCall(
         modifier.name,
         args
     )));
@@ -122,16 +122,16 @@ function processModifiersQueue(context, modifiersQueue, astBody) {
     return modifiersQueue.length == 0;
 }
 
-function prepareDbConnection(dbType, body) {
-    body.push(JsLang.astDeclare('dbService', JsLang.astCallInline('this.appModule.getService', [
+function prepareDbConnection(body) {
+    body.push(JsLang.astDeclare('dbService', JsLang.astCall('this.appModule.getService', [
         JsLang.astVarRef('ModelMeta.connectionId')
     ])));
-    body.push(JsLang.astDeclare('db', JsLang.astYield(JsLang.astCallInline('dbService.getConnection', [
+    body.push(JsLang.astDeclare('db', JsLang.astYield(JsLang.astCall('dbService.getConnection', [
         JsLang.astValue(true)
     ]))));
 }
 
-function processPopulate(context, dbType, op, astBody) {
+function processPopulate(context, op, astBody) {
     let mainTable;
     let columns = [];
     let joining = {};
@@ -185,7 +185,7 @@ function processPopulate(context, dbType, op, astBody) {
     let sqlVarName = op.output + 'Sql';
     astBody.push(JsLang.astDeclare(sqlVarName, JsLang.astValue(sql)));
     astBody.push(JsLang.astDeclare(op.output, JsLang.astYield(
-        JsLang.astCallInline('db.query', [
+        JsLang.astCall('db.query', [
             JsLang.astVarRef(sqlVarName),
             JsLang.astValue({ type: 'Array', value: queryValues })
         ])
@@ -353,25 +353,25 @@ function translateTestToAst(context, test) {
 
             switch (test.operator) {
                 case 'exists':
-                    astTest = JsLang.astNot(JsLang.astCallInline('Mowa._.isEmpty', [
+                    astTest = JsLang.astNot(JsLang.astCall('Mowa._.isEmpty', [
                         translateTestToAst(context, test.argument)
                     ]));
                     break;
 
                 case 'is-not-null':
-                    astTest = JsLang.astNot(JsLang.astCallInline('Mowa._.isNil', [
+                    astTest = JsLang.astNot(JsLang.astCall('Mowa._.isNil', [
                         translateTestToAst(context, test.argument)
                     ]));
                     break;
 
                 case 'not-exists':
-                    astTest = JsLang.astCallInline('Mowa._.isEmpty', [
+                    astTest = JsLang.astCall('Mowa._.isEmpty', [
                         translateTestToAst(context, test.argument)
                     ]);
                     break;
 
                 case 'is-null':
-                    astTest = JsLang.astCallInline('Mowa._.isNil', [
+                    astTest = JsLang.astCall('Mowa._.isNil', [
                         translateTestToAst(context, test.argument)
                     ]);
                     break;
@@ -413,61 +413,67 @@ class DaoModeler {
     /**
      * Oolong database access object (DAO) modeler
      * @constructs OolongDaoModeler
-     * @param {OolongLinker} linker
+     * @param {object} context
+     * @property {Logger} context.logger - Logger object
+     * @property {AppModule} context.currentApp - Current app module
+     * @property {bool} context.verbose - Verbose mode
+     * @property {OolongLinker} context.linker - Oolong DSL linker
+     * @param {string} buildPath
      */
-    constructor(linker, buildPath) {
-        this.linker = linker;
+    constructor(context, buildPath) {
+        this.logger = context.logger;
+        this.linker = context.linker;
+        this.verbose = context.verbose;
         this.buildPath = buildPath;
     }
 
     modeling(schema, dbService) {
-        this.linker.log('info', 'Modeling database access object (DAO) for schema "' + schema.name + '"...');
+        this.logger.log('info', 'Modeling database access object (DAO) for schema "' + schema.name + '"...');
+
+        this._generateSchemaModel(schema, dbService);
 
         _.forOwn(schema.entities, (entity, entityName) => {
+            let capitalized = Util.S('-' + entityName).camelize().s;
 
-            let ast = JsLang.astProgram([
+            let ast = JsLang.astProgram(/*[
                 JsLang.astRequire('Mowa', 'mowa'),
-                JsLang.astRequire('mysql', 'mysql'),
                 JsLang.astDeclare('Oolong', JsLang.astVarRef('Mowa.OolongRuntime'), true),
                 JsLang.astDeclare('Util', JsLang.astVarRef('Mowa.Util'), true),
+                JsLang.astDeclare('_', JsLang.astVarRef('Util._'), true),
                 JsLang.astMatchObject(['ModelValidationError', 'ModelOperationError'], JsLang.astVarRef('Oolong'))
-            ]);
+            ]*/);
 
             let modifiersQueue = this._generateModifiers(entity, entityName, schema.name, ast);
 
-            let translatedFields = { type: 'Object', value: _.reduce(entity.fields, (result, v, k) => {
-                if (_.isPlainObject(v.default) && v.default.type != 'Object') {
-                    v.default = { type: 'Object', value: v.default };
-                }
-
-                result[k] = { type: 'Object', value: v };
-                return result;
-            }, {})};
-
             let modelMetaInit = {
-                connectionId: dbService.name,
-                modelName: entityName,
-                primaryKey: entity.key,
-                fields: translatedFields
+                schemaName: schema.name,
+                name: entityName,
+                keyField: entity.key,
+                fields: _.mapValues(entity.fields, f => f.toJSON())
             };
 
-            console.dir(translatedFields, {depth: 8, colors: true});
+            if (this.verbose) {
+                this.logger.log('verbose', JSON.stringify(modelMetaInit, null, 4));
+            }
 
             let modelMeta = JsLang.astValue({type: 'Object', value: modelMetaInit});
 
-            this._generateCreateMethod(modifiersQueue, entity, modelMeta);
-            this._generateFindMethod(modifiersQueue, entity, modelMeta);
+            //this._generateCreateMethod(modifiersQueue, entity, modelMeta);
+            //this._generateFindMethod(modifiersQueue, entity, modelMeta);
 
+            /*
             if (entity.interfaces) {
-                this._generateInterfaces(entity, db, modelMeta);
-            }
+                this._generateInterfaces(entity, dbService, modelMeta);
+            }*/
 
-            JsLang.astAddBodyExpression(ast, JsLang.astDeclare('ModelMeta', modelMeta, true));
-            JsLang.astAddBodyExpression(ast, JsLang.astAssign('module.exports', JsLang.astVarRef('ModelMeta')));
+            JsLang.astPushInBody(ast, JsLang.astDeclare(capitalized, modelMeta, true));
+            JsLang.astPushInBody(ast, JsLang.astAssign('module.exports', JsLang.astVarRef(capitalized)));
 
             let modelFilePath = path.resolve(this.buildPath, schema.name, entityName + '.js');
             this._exportSourceCode(ast, modelFilePath);
-            this.linker.log('info', 'Generated data access model: ' + modelFilePath);
+
+
+            //fs.writeFileSync(modelFilePath + '.json', JSON.stringify(ast, null, 4));
         });
     }
 
@@ -490,11 +496,39 @@ class DaoModeler {
                 parentheses: true,
                 semicolons: true,
                 safeConcatenation: false
-            }
+            },
+            comment: true
         });
 
         fs.ensureFileSync(modelFilePath);
         fs.writeFileSync(modelFilePath, content);
+
+        this.logger.log('info', 'Generated data access model: ' + modelFilePath);
+    }
+
+    _generateSchemaModel(schema, dbService) {
+        let capitalized = Util.S('-' + schema.name).camelize().s;
+
+        let ast = JsLang.astProgram([
+            JsLang.astRequire('ModelOperator', '')
+        ]);
+
+        let meta = {
+            name: schema.name,
+            dbType: dbService.dbmsType,
+            serviceId: dbService.serviceId,
+            getMeta: JsLang.astArrowFunction(['name'], JsLang.astCall('require', JsLang.astBinExp(JsLang.astBinExp(`./${schema.name}/`, '+', JsLang.astId('name')), '+', '.js')), false, false),
+            getService: JsLang.astArrowFunction(['ctx'], JsLang.astCall('ctx.appModule.getService',  dbService.serviceId), false, false),
+            getModel: JsLang.astArrowFunction(['name'], JsLang.astCall('ctx.appModule.getService',  dbService.serviceId), false, false),
+        };
+
+        JsLang.astPushInBody(ast, JsLang.astDeclare(capitalized, JsLang.astValue(meta), true));
+        JsLang.astPushInBody(ast, JsLang.astAssign('module.exports', JsLang.astVarRef(capitalized)));
+
+        console.log(JSON.stringify(ast, null, 4));
+
+        let modelFilePath = path.resolve(this.buildPath, schema.name + '.js');
+        this._exportSourceCode(ast, modelFilePath);
     }
 
     _generateModifierFile(m, schemaName, entityName, fieldName) {
@@ -540,7 +574,7 @@ class DaoModeler {
         ]);
 
         this._exportSourceCode(ast, modifierFilePath);
-        this.linker.log('info', 'Generated field modifier file: ' + modifierFilePath);
+        this.logger.log('info', 'Generated field modifier file: ' + modifierFilePath);
     }
 
     _generateCreateMethod(modifiersQueue, entity, modelMeta) {
@@ -548,7 +582,7 @@ class DaoModeler {
             JsLang.astMatchObject(
                 ['errors', 'warnings', 'newData', 'dbFunctionCalls'],
                 JsLang.astYield(
-                    JsLang.astCallInline(
+                    JsLang.astCall(
                         'Oolong.modelPreCreate',
                         [ JsLang.astVarRef('this.appModule'), JsLang.astId('ModelMeta'), JsLang.astId('rawData') ]
                     )
@@ -568,7 +602,7 @@ class DaoModeler {
             JsLang.astId('errors'),
             [ {
                 "type": "ThrowStatement",
-                "argument": JsLang.astCallInline('ModelValidationError.fromErrors', [
+                "argument": JsLang.astCall('ModelValidationError.fromErrors', [
                     JsLang.astId('errors'),
                     JsLang.astId('warnings'),
                     JsLang.astBinExp(JsLang.astVarRef('ModelMeta.modelName'), '+', JsLang.astValue('.create'))
@@ -578,17 +612,21 @@ class DaoModeler {
 
         createBody.push(JsLang.astIf(
             JsLang.astBinExp(JsLang.astVarRef('warnings.length'), '>', JsLang.astValue(0)),
-            [ JsLang.astCall(
-                'this.appModule.log',
-                [ JsLang.astValue('warn'), JsLang.astCallInline({
-                    "type": "MemberExpression",
-                    "computed": false,
-                    "object": JsLang.astCallInline('Mowa.Util._.map', [
-                        JsLang.astId('warnings'),
-                        JsLang.astArrowFunction([ JsLang.astId('w') ], JsLang.astVarRef('w.message'))
-                    ]),
-                    "property": JsLang.astId('join')
-                }, [ JsLang.astValue('\n') ]) ])
+            [
+                JsLang.astExpression(
+                    JsLang.astCall(
+                        'this.appModule.log',
+                        [ JsLang.astValue('warn'), JsLang.astCall({
+                            "type": "MemberExpression",
+                            "computed": false,
+                            "object": JsLang.astCall('Mowa.Util._.map', [
+                                JsLang.astId('warnings'),
+                                JsLang.astArrowFunction(['w'], JsLang.astVarRef('w.message'))
+                            ]),
+                            "property": JsLang.astId('join')
+                        }, [ JsLang.astValue('\n') ]) ]
+                    )
+                )
             ]
         ));
 
@@ -613,7 +651,7 @@ class DaoModeler {
 
         createBody.push(
             JsLang.astReturn(JsLang.astYield(
-                JsLang.astCallInline(
+                JsLang.astCall(
                     'Oolong.mysqlModelCreate',
                     [ JsLang.astVarRef('this.appModule'), JsLang.astId('ModelMeta'), JsLang.astId('rawData'), JsLang.astId('newData'), JsLang.astId('dbFunctionCalls') ]
                 )
@@ -628,7 +666,7 @@ class DaoModeler {
             JsLang.astMatchObject(
                 ['errors', 'warnings', 'newData', 'dbFunctionCalls'],
                 JsLang.astYield(
-                    JsLang.astCallInline(
+                    JsLang.astCall(
                         'Oolong.modelPreCreate',
                         [ JsLang.astVarRef('this.appModule'), JsLang.astId('ModelMeta'), JsLang.astId('rawData') ]
                     )
@@ -648,7 +686,7 @@ class DaoModeler {
             JsLang.astId('errors'),
             [ {
                 "type": "ThrowStatement",
-                "argument": JsLang.astCallInline('ModelValidationError.fromErrors', [
+                "argument": JsLang.astCall('ModelValidationError.fromErrors', [
                     JsLang.astId('errors'),
                     JsLang.astId('warnings'),
                     JsLang.astBinExp(JsLang.astVarRef('ModelMeta.modelName'), '+', JsLang.astValue('.create'))
@@ -658,17 +696,21 @@ class DaoModeler {
 
         createBody.push(JsLang.astIf(
             JsLang.astBinExp(JsLang.astVarRef('warnings.length'), '>', JsLang.astValue(0)),
-            [ JsLang.astCall(
-                'this.appModule.log',
-                [ JsLang.astValue('warn'), JsLang.astCallInline({
-                    "type": "MemberExpression",
-                    "computed": false,
-                    "object": JsLang.astCallInline('Mowa.Util._.map', [
-                        JsLang.astId('warnings'),
-                        JsLang.astArrowFunction([ JsLang.astId('w') ], JsLang.astVarRef('w.message'))
-                    ]),
-                    "property": JsLang.astId('join')
-                }, [ JsLang.astValue('\n') ]) ])
+            [
+                JsLang.astExpression(
+                    JsLang.astCall(
+                        'this.appModule.log',
+                        [ JsLang.astValue('warn'), JsLang.astCall({
+                            "type": "MemberExpression",
+                            "computed": false,
+                            "object": JsLang.astCall('Mowa.Util._.map', [
+                                JsLang.astId('warnings'),
+                                JsLang.astArrowFunction([ JsLang.astId('w') ], JsLang.astVarRef('w.message'))
+                            ]),
+                            "property": JsLang.astId('join')
+                        }, [ JsLang.astValue('\n') ]) ]
+                    )
+                )
             ]
         ));
 
@@ -693,7 +735,7 @@ class DaoModeler {
 
         createBody.push(
             JsLang.astReturn(JsLang.astYield(
-                JsLang.astCallInline(
+                JsLang.astCall(
                     'Oolong.mysqlModelCreate',
                     [ JsLang.astVarRef('this.appModule'), JsLang.astId('ModelMeta'), JsLang.astId('rawData'), JsLang.astId('newData'), JsLang.astId('dbFunctionCalls') ]
                 )
@@ -709,6 +751,8 @@ class DaoModeler {
         let tsort = new TopoSort();
 
         if (entity.fieldModifiers) {
+            console.log(fieldName);
+
             _.forOwn(entity.fieldModifiers, (mods, fieldName) => {
                 let modEntityName, modRefName, modJsFile;
 
@@ -760,14 +804,14 @@ class DaoModeler {
 
         if (!_.isEmpty(modifiersTable)) {
             _.forOwn(modifiersTable, (jsFile, varName) => {
-                JsLang.astAddBodyExpression(ast, JsLang.astRequire(varName, './modifiers/' + jsFile));
+                JsLang.astPushInBody(ast, JsLang.astRequire(varName, './modifiers/' + jsFile));
             });
         }
 
         return tsort.sort();
     };
 
-    _generateInterfaces(entity, db, modelMeta) {
+    _generateInterfaces(entity, dbService, modelMeta) {
         _.forOwn(entity.interfaces, (method, name) => {
             let body = [], params = [], modifiersQueue = [], context = {};
 
@@ -776,7 +820,7 @@ class DaoModeler {
                     if (variable.type === 'Variable') {
                         if (!('optional' in variable) || !variable.optional) {
                             body.push(JsLang.astIf(
-                                JsLang.astCallInline('Util._.isNil', JsLang.astVarRef(variable.name)),
+                                JsLang.astCall('Util._.isNil', JsLang.astVarRef(variable.name)),
                                 JsLang.astThrow('ModelValidationError', [
                                     JsLang.astVarRef('ModelValidationError.MISSING_REQUIRED_VALUE'),
                                     JsLang.astValue(variable.name)
@@ -824,31 +868,31 @@ class DaoModeler {
                 switch (operation.type) {
                     case 'populate':
                         if (!preparedDb) {
-                            prepareDbConnection(db.type, body);
+                            prepareDbConnection(body);
                             preparedDb = true;
                         }
-                        processPopulate(context, db.type, operation, body);
+                        processPopulate(context, operation, body);
                         //console.log(context);
                         processModifiersQueue(context, modifiersQueue, body);
                         break;
 
                     case 'update':
                         if (!preparedDb) {
-                            prepareDbConnection(db.type, body);
+                            prepareDbConnection(body);
                             preparedDb = true;
                         }
                         break;
 
                     case 'create':
                         if (!preparedDb) {
-                            prepareDbConnection(db.type, body);
+                            prepareDbConnection(body);
                             preparedDb = true;
                         }
                         break;
 
                     case 'delete':
                         if (!preparedDb) {
-                            prepareDbConnection(db.type, body);
+                            prepareDbConnection(body);
                             preparedDb = true;
                         }
                         break;
@@ -874,7 +918,7 @@ class DaoModeler {
                 body.push(JsLang.astReturn(JsLang.astValue(method.return.value)));
             }
 
-            JsLang.astAddMember(modelMeta, JsLang.astMember(name, JsLang.astAnonymousFunction(params, body, true)));
+            JsLang.astAddMember(modelMeta, JsLang.astMember(name, JsLang.astAnonymousFunction(params, body, false, true)));
         });
     };
 }

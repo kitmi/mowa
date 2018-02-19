@@ -6,7 +6,9 @@ const shell = require('shelljs');
 const Util = require('../../../util.js');
 const _ = Util._;
 const fs = Util.fs;
+const Promise = Util.Promise;
 
+const Mowa = require('../../../server.js');
 const MowaHelper = require('../../mowa-helper.js');
 
 /**
@@ -149,7 +151,7 @@ exports.create = function (api) {
     mountingPoint = Util.ensureLeftSlash(mountingPoint);
 
     //check name availability
-    const appDest = path.join(api.base, Util.Literal.APP_MODULES_PATH, appName);
+    const appDest = path.join(api.base, Mowa.Literal.APP_MODULES_PATH, appName);
 
     if (fs.existsSync(appDest)) {
         return Promise.reject('App "' + appName + '" already exist!');
@@ -214,7 +216,7 @@ exports.install = function (api) {
     let appName = api.getOption('app');
     assert: appName, Util.Message.DBC_VAR_NOT_NULL;
 
-    const modFolder = path.join(api.base, Util.Literal.APP_MODULES_PATH, appName);
+    const modFolder = path.join(api.base, Mowa.Literal.APP_MODULES_PATH, appName);
     if (!fs.existsSync(modFolder)) {
         return Promise.reject('App "' + appName + '" not exist!');
     }
@@ -238,15 +240,12 @@ exports.install = function (api) {
 };
 
 exports.bootstrap = function (api) {
-    api.log('verbose', 'exec => mowa app install');
+    api.log('verbose', 'exec => mowa app bootstrap');
 
     let appName = api.getOption('app');
+    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
 
-    if (!appName) {
-        return Promise.reject('App name is required!');
-    }
-
-    const modFolder = path.join(api.base, Util.Literal.APP_MODULES_PATH, appName);
+    const modFolder = path.join(api.base, Mowa.Literal.APP_MODULES_PATH, appName);
     if (!fs.existsSync(modFolder)) {
         return Promise.reject('App "' + appName + '" not exist!');
     }
@@ -255,7 +254,7 @@ exports.bootstrap = function (api) {
     return (bootstrapFileName ? Promise.resolve(bootstrapFileName) : inputName()).then(bn => {
         const templateFolder = path.resolve(__dirname, 'template');
         const bootstrapSource = path.join(templateFolder, 'bootstrap.template.js');
-        const bootstrapDir = path.join(modFolder, Util.Literal.SERVER_CFG_NAME, 'bootstrap');
+        const bootstrapDir = path.join(modFolder, Mowa.Literal.SERVER_CFG_NAME, 'bootstrap');
 
         fs.ensureDirSync(bootstrapDir);
 
@@ -279,7 +278,7 @@ exports.remove = function (api) {
     assert: appName, Util.Message.DBC_VAR_NOT_NULL;
 
     //check the app folder
-    const modFolder = path.join(api.base, Util.Literal.APP_MODULES_PATH, appName);
+    const modFolder = path.join(api.base, Mowa.Literal.APP_MODULES_PATH, appName);
     if (!fs.existsSync(modFolder)) {
         return Promise.reject('App "' + appName + '" not exist!');
     }
@@ -308,15 +307,15 @@ exports.remove = function (api) {
         let routing = Object.assign({}, api.server.configLoader.data.routing);
 
         _.forOwn(api.server.configLoader.data.routing, (config, route) => {
-            if (config.mod && config.mod.name === name) {
+            if (config.mod && config.mod.name === appName) {
                 delete routing[route];
                 needRewrite = true;
             }
         });
 
         if (needRewrite) {
-            return MowaHelper.writeConfigBlock_(loader, 'routing', routing).then(() => {
-                api.log('info', `Removed app [${name}] from routing.`);
+            return MowaHelper.writeConfigBlock_(api.server.configLoader, 'routing', routing).then(() => {
+                api.log('info', `Removed app [${appName}] from routing.`);
             });
         }
     });
@@ -337,9 +336,11 @@ exports.pack = function (api) {
 
     const archiver = require('archiver');
 
+    let env = api.getOption('env');
+
     let releasePath = appModule.toAbsolutePath('release');
     fs.ensureDirSync(releasePath);
-    let targetZip = path.join(releasePath, 'bundle.zip');
+    let targetZip = path.join(releasePath, `bundle-${env}.zip`);
 
     return new Promise((resolve, reject) => {
         // create a file to stream archive data to.
@@ -380,12 +381,12 @@ exports.pack = function (api) {
             let s = fs.statSync(fp);
             if (s.isDirectory()) {
                 if (f !== 'node_modules' && f !== 'release') {
-                    archive.directory(fp, f, { stats: s });
+                    archive.directory(fp, f);
                     api.log('info', `Adding directory "${f}" ...`);
                 }
             } else  if(s.isFile()) {
                 if (f !== '.DS_Store') {
-                    archive.append(fs.createReadStream(fp), { name: f });
+                    archive.file(fp, { name: f });
                     api.log('info', `Adding file "${f}" ...`);
                 }
             }

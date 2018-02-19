@@ -3,12 +3,14 @@
 const Util = require('rk-utils');
 const _ = Util._;
 const fs = Util.fs;
+const Promise = Util.Promise;
 
 const path = require('path');
 const minimist = require('minimist');
 const winston = require('winston');
 const inquirer = require('inquirer');
 
+const checkUpdate_ = require('./update.js');
 const MowaHelper = require('./mowa-helper.js');
 
 function translateMinimistOptions(opts) {
@@ -38,6 +40,10 @@ function optionDecorator(name) {
 }
 
 class MowaAPI {
+    static showBanner() {
+        console.log(`Mowa Development & Deployment CLI Helper v${checkUpdate_.version}\n`);
+    }
+
     /**
      * The Mowa CLI api class.
      * @constructs MowaAPI
@@ -61,6 +67,11 @@ class MowaAPI {
                 bool: true,
                 default: false
             },
+            'v': {
+                desc: 'Show version number',
+                bool: true,
+                default: false
+            },
             '?': {
                 desc: 'Show usage message',
                 alias: [ 'help' ],
@@ -76,11 +87,19 @@ class MowaAPI {
 
         //no command and no module specified
         if (argNum == 0) {
+            if (argTrial.v) {
+                console.log('v' + checkUpdate_.version);
+                process.exit(0);
+            }
+
+            MowaAPI.showBanner();
             console.error('error: Command not given!\n');
 
             this._showUsage();
             process.exit(1);
         }
+
+        MowaAPI.showBanner();
 
         //extract module and command
         let cliModuleName, command;
@@ -132,7 +151,7 @@ class MowaAPI {
                 fileLogLevel: 'verbose',
                 fileLogFilename: 'mowa-deploy.log',
                 fileLogOverwrite: true,
-                mowaVerbose: false
+                verbose: false
             }
         };
     }
@@ -158,7 +177,7 @@ class MowaAPI {
         return MowaHelper.startMowa_(this).then(server => {
             this.server = server;
 
-            let deploySettings = Util.getValueByPath(server.settings, 'deploy');
+            let deploySettings = Util.getValueByPath(server.settings, 'cli');
             if (_.isEmpty(deploySettings)) {
                 if ((this.cliModuleName !== 'default' || this.command !== 'init') && this.command !== 'help') {
                     console.error("error: Deployment config not found. Run 'mowa init' first.");
@@ -167,8 +186,10 @@ class MowaAPI {
             }
 
             //override default config
-            _.defaultsDeep({}, deploySettings, this.config);
+            this.config = _.defaultsDeep({}, deploySettings, this.config);
 
+            server.options.verbose = this.config.general.verbose;
+            
             //init logger
             let transports = [];
 
@@ -200,7 +221,7 @@ class MowaAPI {
 
             //locate command
             this.commandHanlder_ = this.cliModule[this.command];
-            if (typeof this.commandHanlder_ !== 'function') {
+            if (typeof this.commandHanlder_ !== 'function') {                
                 this.log('error', 'Command "' + this.command + '" not found!\n');
                 this.command = undefined;
 
@@ -208,11 +229,16 @@ class MowaAPI {
                 process.exit(1);
             }
 
+            this.logger.info(`mowa ${this.cliModuleName} ${this.command}: ` + this.cliModule.commandsDesc[this.command]);
+            console.log();
+
             return this._inquire_().then(() => {
                 if (!this._validateArgv()) {
                     this._showUsage();
                     return Promise.reject();
                 }
+
+                console.log();
             });
         });
     }
@@ -256,7 +282,6 @@ class MowaAPI {
         return this.config[moduleName];
     }
 
-
     _validateArgv() {
         let valid = true;
 
@@ -271,46 +296,60 @@ class MowaAPI {
         return valid;
     }
 
-    _inquire_() {
-        let dataFetchers = [], inquires = [];
+    async _inquire_() {
+        let dataFetchers = [];
 
-        _.forOwn(this.usageOptions, (opts, name) => {
-            if (opts.inquire && !this.argv[name]) {
-                let type;
-
-                if (opts.promptType) {
-                    type = opts.promptType;
-                    if (type === 'list' || type  === 'rawList' || type === 'checkbox' || type === 'expand') {
-                        if (!opts.choicesProvider) {
-                            throw new Error('Missing choices provider!');
-                        }
-
-                        dataFetchers.push(() => opts.choicesProvider().then(data => { inquires.push({ type: type, name: name, message: opts.desc, choices: data }); }));
-                        return;
-                    }
-                } else if (opts.bool) {
-                    type = 'confirm';
-                } else {
-                    type = 'input'
-                }
-
-                dataFetchers.push(() => { inquires.push({ type: type, name: name, message: opts.desc }); return Promise.resolve() });
-            }
-        });
-
-        if (_.isEmpty(dataFetchers)) {
-            return Promise.resolve();
-        }
-
-        return Util.eachPromise(dataFetchers).then(() => inquirer.prompt(inquires).then(answers => {
+        let doInquire = item => inquirer.prompt([item]).then(answers => {
             _.forOwn(answers, (ans, name) => {
                 this.argv[name] = ans;
                 let opts = this.usageOptions[name];
                 if (opts.alias) {
                     _.each(opts.alias, a => { this.argv[a] = ans; });
                 }
-            });
-        }));
+            })
+        }); 
+        
+        return Util.eachAsync_(this.usageOptions, async (opts, name) => {
+            if (('inquire' in opts) && !this.argv[name]) {
+                let inquire = opts.inquire;
+                
+                if (typeof opts.inquire === 'function') {
+                    inquire = await opts.inquire();
+                }
+
+                if (inquire) {
+                    let type;
+                    let q = { name: name, message: opts.desc };
+
+                    if (opts.promptType) {
+                        type = opts.promptType;
+                        if (type === 'list' || type  === 'rawList' || type === 'checkbox' || type === 'expand') {
+                            if (!opts.choicesProvider) {
+                                throw new Error('Missing choices provider!');
+                            }
+
+                            q.choices = await opts.choicesProvider();
+                        }
+                    } else if (opts.bool) {
+                        type = 'confirm';
+                    } else {
+                        type = 'input'
+                    }
+
+                    q.type = type;
+
+                    if ('promptDefault' in opts) {
+                        if (typeof opts.promptDefault === 'function') {
+                            q.default = await opts.promptDefault();
+                        } else {
+                            q.default = opts.promptDefault;
+                        }
+                    }
+
+                    await doInquire(q);
+                }
+            }
+        });
     }
 
     _showUsage() {

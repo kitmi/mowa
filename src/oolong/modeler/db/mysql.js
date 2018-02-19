@@ -18,13 +18,17 @@ class MysqlModeler extends OolongDbModeler {
      * Ooolong database modeler for mysql db
      * @constructs OolongMysqlModeler
      * @extends OolongDbModeler
-     * @param {OolongLinker} linker
+     * @param {object} context
+     * @property {Logger} context.logger - Logger object
+     * @property {AppModule} context.currentApp - Current app module
+     * @property {bool} context.verbose - Verbose mode
+     * @property {OolongLinker} context.linker - Oolong DSL linker
      * @param {object} dbmsOptions
      * @property {object} dbmsOptions.dbOptions
      * @property {object} dbmsOptions.tableOptions
      */
-    constructor(linker, dbmsOptions) {
-        super(linker);
+    constructor(context, dbmsOptions) {
+        super(context);
 
         this._events = new EventEmitter();
 
@@ -52,7 +56,7 @@ class MysqlModeler extends OolongDbModeler {
         let modelingSchema = schema.clone();
 
         if (modelingSchema.relations) {
-            this.linker.log('debug', 'Building relations...');
+            this.logger.log('debug', 'Building relations...');
 
             _.each(modelingSchema.relations, (relation) => {
                 this._buildRelation(modelingSchema, relation);
@@ -217,7 +221,7 @@ class MysqlModeler extends OolongDbModeler {
     }
 
     _buildRelation(schema, relation) {
-        this.linker.log('debug', 'Analyzing relation between ['
+        this.logger.log('debug', 'Analyzing relation between ['
         + relation.left + '] and ['
         + relation.right + '] relationship: '
         + relation.relationship + ' ...');
@@ -282,7 +286,7 @@ class MysqlModeler extends OolongDbModeler {
             throw new Error(`Entity [${relationEntityName}] conflicts with entity [${fullName}] in schema [${schema.name}].`);
         }
 
-        this.linker.log('debug', `Create a relation entity for "${relation.left}" and "${relation.right}".`);    
+        this.logger.log('debug', `Create a relation entity for "${relation.left}" and "${relation.right}".`);
         
         let leftEntity = schema.entities[relation.left];
         let rightEntity = schema.entities[relation.right];

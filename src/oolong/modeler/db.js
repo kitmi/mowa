@@ -7,11 +7,16 @@ class DbModeler {
     /**
      * Oolong database modeler
      * @constructs OolongDbModeler
-     * @param {OolongLinker} linker
+     * @param {object} context
+     * @property {Logger} context.logger - Logger object
+     * @property {AppModule} context.currentApp - Current app module
+     * @property {bool} context.verbose - Verbose mode
+     * @property {OolongLinker} context.linker - Oolong DSL linker
      * @param {dbmsOptions} dbmsOptions
      */
-    constructor(linker, dbmsOptions) {
-        this.linker = linker;
+    constructor(context, dbmsOptions) {
+        this.logger = context.logger;
+        this.linker = context.linker;
         this.dbmsOptions = dbmsOptions;
     }
 
@@ -20,14 +25,14 @@ class DbModeler {
      * @returns {Array}
      */
     modeling(schema, buildPath) {
-        this.linker.log('info', 'Modeling database structure for schema "' + schema.name + '"...');
+        this.logger.log('info', 'Modeling database structure for schema "' + schema.name + '"...');
     }
 
     _writeFile(filePath, content) {
         fs.ensureFileSync(filePath);
         fs.writeFileSync(filePath, content);
 
-        this.linker.log('info', 'Generated db script: ' + filePath);
+        this.logger.log('info', 'Generated db script: ' + filePath);
     }
 }
 

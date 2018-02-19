@@ -3,6 +3,7 @@
 const Util = require('rk-utils');
 const _ = Util._;
 const fs = Util.fs;
+const Promise = Util.Promise;
 
 const { Client } = require('ssh2');
 const path = require('path');

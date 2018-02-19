@@ -1,15 +1,15 @@
 {
     "settings": {
-        "deploy": {
+        "cli": {
             "general": {
                 "consoleEnabled": true,
                 "consoleLogLevel": "info",
                 "consoleLogColorize": true,
                 "fileLogEnabled": true,
                 "fileLogLevel": "verbose",
-                "fileLogFilename": "mowa-deploy.log",
+                "fileLogFilename": "mowa-cli.log",
                 "fileLogOverwrite": true,
-                "mowaVerbose": false
+                "verbose": false
             }
         }
     },

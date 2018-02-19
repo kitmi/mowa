@@ -3,6 +3,7 @@
 const path = require('path');
 const util = require('util');
 const Util = require('./util.js');
+const Promise = Util.Promise;
 
 class I18n {
 

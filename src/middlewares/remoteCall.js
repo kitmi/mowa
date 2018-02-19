@@ -1,29 +1,32 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+/**
+ * @module Middleware_RemoteCall
+ * @summary Remote call middleware
+ */
 
-const Util = require('../util.js');
+const Mowa = require('../server.js');
 
 module.exports = (options, appModule) => {
-    return function* (next) {
-        let ctrlName = this.params.controller;
+    return async (ctx, next) => {
+        let ctrlName = ctx.params.controller;
 
         if (!options.controllers.has(ctrlName)) {
-            return yield next;
+            return next();
         }
 
-        this.appModule = appModule;
+        ctx.appModule = appModule;
 
         let ctrl = options.controllers.get(ctrlName);
-        let method = this.body.method;
+        let method = ctx.body.method;
 
         if (!method || typeof ctrl[method] !== 'function') {
-            this.throw(Util.HttpCode.HTTP_BAD_REQUEST);
+            ctx.throw(Mowa.HttpCode.HTTP_BAD_REQUEST);
         }
 
-        this.rpcData = this.body.data;
         let actioner = ctrl[method];
+        await actioner(ctx);
 
-        yield actioner.call(this, next);
+        return next();
     };
 };

@@ -1,9 +1,12 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 
-class {{ pageComponent }}Page extends React.Component {
-    render() {
-        return (<div>{{ page }}</div>);
-    }
+function {{ pageComponent }}(props) {
+    return (<div>{{ page }}</div>);
 }
 
-module.exports = {{ pageComponent }}Page;
+{{ pageComponent }}.propTypes = {
+    data: PropTypes.object.isRequired
+};
+
+export default {{ pageComponent }};

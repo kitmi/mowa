@@ -791,12 +791,12 @@ var oolong = (function () {
         break;
       case 61:
         this.$ = {
-          validators: [$$[$0]]
+          validators: translateValidators([$$[$0]])
         };
         break;
       case 62:
         this.$ = {
-          validators: $$[$0]
+          validators: translateValidators($$[$0])
         };
         break;
       case 66:
@@ -7523,6 +7523,23 @@ var oolong = (function () {
 
   function unquoteString(str, quotes) {
     return str.substr(quotes, str.length - quotes * 2);
+  }
+
+  function translateValidators(vs) {
+    return vs.map(v => {
+      if (typeof v === 'string') {
+        return {
+          name: v
+        };
+      } else if (v.type === 'FunctionCall') {
+        return {
+          name: v.name,
+          args: v.args
+        };
+      }
+
+      throw new Error('Invalid validator syntax: ' + v.toString());
+    });
   }
 
   var KEYWORDS = new Set([

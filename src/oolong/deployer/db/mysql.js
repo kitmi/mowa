@@ -1,6 +1,7 @@
 "use strict";
 
-const Util = require('../../../util.js');
+const Mowa = require('../../../server.js');
+const Util = Mowa.Util;
 const _ = Util._;
 const fs = Util.fs;
 
@@ -38,7 +39,7 @@ class MysqlDeployer extends OolongDbDeployer {
     }
 
     deploy(reset) {
-        let dbScriptDir = path.join(this.appModule.backendPath, this.appModule.options.dbScriptsPath, 'mysql', this.schemaName);
+        let dbScriptDir = path.join(this.appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, 'mysql', this.schemaName);
 
         let connStr = this.dbService.connectionString;
         let connInfo = URL.parse(connStr);
@@ -64,17 +65,19 @@ class MysqlDeployer extends OolongDbDeployer {
             }
 
             return dbConnection.query(`CREATE DATABASE IF NOT EXISTS ??`, [ realDbName ]);
-        }).then(result => {
+        }).then(results => {
+            let [ result, fields ] = results;
+
             if (reset) {
-                if (result[0].warningCount == 0 && result[0].affectedRows > 0) {
+                if (result[0].warningStatus == 0 && result[0].affectedRows > 0) {
                     this.logger.log('info', `Dropped database "${realDbName}".`);
                 }
 
-                if (result[1].warningCount == 0 && result[1].affectedRows == 1) {
+                if (result[1].warningStatus == 0 && result[1].affectedRows == 1) {
                     this.logger.log('info', `Created database "${realDbName}".`);
                 }
             } else {
-                if (result.warningCount == 0) {
+                if (result.warningStatus == 0) {
                     this.logger.log('info', `Created database "${realDbName}".`);
                 } else {
                     this.logger.log('warn', `Database "${realDbName}" exists.`);
@@ -88,16 +91,20 @@ class MysqlDeployer extends OolongDbDeployer {
             }
 
             return dbConnection.query('USE ??', [ realDbName ]);
-        }).then(() => {
+        }).then(results => {
+            let [ result, fields ] = results;
+
             let sql = fs.readFileSync(entitiesSqlFile, { encoding: 'utf8' });
             return dbConnection.query(sql);
-        }).then(result => {
+        }).then(results => {
+            let [ result, fields ] = results;
+
             if (!_.isArray(result)) {
                 result = [ result ];
             }
 
             let warningRows = _.reduce(result, (sum, row) => {
-                sum += row.warningCount;
+                sum += row.warningStatus;
                 return sum;
             }, 0);
 

@@ -14,11 +14,21 @@ const DbService = require('../dbservice.js');
 const poolByConn = {};
 
 class MysqlService extends DbService {
-    constructor(type, name, options) {
+    constructor(name, options) {
         super('mysql', name, options);
     }
 
     getConnection(ctx, autoRelease) {
+        if (autoRelease) {
+            if (!ctx) {
+                throw new Mowa.ServerError('"autoRelease" feature can only be used within a koa action.');
+            }
+
+            if (!('postActions' in ctx)) {
+                throw new Mowa.ServerError('"postAction" middleware is required for autoRelease feature of MysqlService.');
+            }
+        }
+
         let pool = poolByConn[this.connectionString];
 
         if (!pool) {
@@ -27,18 +37,16 @@ class MysqlService extends DbService {
 
         if (autoRelease) {
             return pool.getConnection().then(conn => {
-                appModule.once('actionCompleted', () => {
-                    conn.release();
-                });
-
-                return Promise.resolve(conn);
+                ctx.postActions.push(() => Promise.resolve(conn.release()));
+                return conn;
             });
         }
 
         return pool.getConnection();
     }
 
-    closeConnection(ctx, connnection) {
+    closeConnection(ctx, conn) {
+        conn.release();
     }
 }
 
@@ -64,30 +72,8 @@ module.exports = {
                 throw new Mowa.Error.InvalidConfiguration('Missing connection string.', appModule, `mysql.${db}.connection`);
             }
 
-            let serviceName = 'mysql:' + db;
-            let service = {
-                name: serviceName,
-                dbmsType: 'mysql',
-                dbmsSpec: opt.dbms,
-                connectionString: opt.connection,                
-                getConnection: autoRelease => {
-                    
-
-                    if (autoRelease) {
-                        return pool.getConnection().then(conn => {
-                            appModule.once('actionCompleted', () => {
-                                conn.release();
-                            });
-
-                            return Promise.resolve(conn);
-                        });
-                    }
-
-                    return pool.getConnection();
-                }
-            };
-
-            appModule.registerService('mysql:' + db, service);
+            let service = new MysqlService(db, opt);
+            appModule.registerService(service.serviceId, service);
         });
 
         return Promise.resolve();

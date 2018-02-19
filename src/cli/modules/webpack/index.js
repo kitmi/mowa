@@ -4,6 +4,7 @@ const webpack = require( 'webpack');
 const Util = require('../../../util.js');
 const _ = Util._;
 const fs = Util.fs;
+const Promise = Util.Promise;
 const shell = require('shelljs');
 
 const MowaHelper = require('../../mowa-helper.js');
@@ -72,8 +73,8 @@ exports.init = function (api) {
     let webpackDefault = swig.renderFile(defaultTemplate, {
         profileName: 'browser',
         clientPath: appModule.frontendPath,
-        outputPath: appModule.frontendStaticPath,
-        publicPath: appModule.publicUrl,
+        outputPath: path.relative(appModule.frontendStaticPath, appModule.absolutePath),
+        publicPath: Util.ensureLeftSlash(appModule.route),
         cleanBeforeBuild: webpackOptions.cleanBeforeBuild || false
     });
     
@@ -95,7 +96,9 @@ exports.init = function (api) {
     api.log('info', 'Generated webpack.production.js.');
 
     shell.cd(appModule.absolutePath);
-    let stdout = Util.runCmdSync('npm i --save-dev babel-loader babel-core babel-preset-env babel-preset-react webpack webpack-merge extract-text-webpack-plugin css-loader style-loader file-loader');
+    let stdout = Util.runCmdSync('npm i --save-dev babel-loader babel-core babel-preset-env babel-preset-react ' +
+        'webpack webpack-merge  webpack-dev-server ' +
+        'extract-text-webpack-plugin css-loader style-loader file-loader');
     shell.cd(api.base);
 
     api.log('verbose', stdout);
@@ -130,8 +133,8 @@ exports.build = function (api) {
                 if (jsonStats.errors.length > 0) {
                     reject(jsonStats.errors.join('\n'));
                 } else {
-                    api.log('verbose', stats.toString({chunks: false, colors: false}));
-                    api.log('info', `Client source files of app "${appName}" are webpacked successfully.`);
+                    api.log('verbose', stats.toString({chunks: false, colors: true}));
+                    api.log('info', `Client source files of app "${appName}" are packed successfully.`);
                     resolve();
                 }
             }

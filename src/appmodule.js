@@ -1,6 +1,7 @@
 "use strict";
 
 const Util = require('./util.js');
+const Promise = Util.Promise;
 const _ = Util._;
 
 const path = require('path');
@@ -266,7 +267,6 @@ class AppModule extends EventEmitter {
 
         url = Util.ensureLeftSlash(url);
         if (query) {
-            console.log(query);
             url = Util.urlAppendQuery(url, query);
             url = url.replace('/?', '?');
         }
@@ -346,6 +346,7 @@ class AppModule extends EventEmitter {
         }
 
         this.middlewares[name] = middleware;
+        this.log('verbose', `Registered middleware [${name}].`);
     }
 
     /**
@@ -379,7 +380,7 @@ class AppModule extends EventEmitter {
             let middleware = this.getMiddleware(name);
 
             if (typeof middleware !== 'function') {
-                throw new Error.ServerError('Unregistered middlware: ' + name);
+                throw new Error.ServerError('Unregistered middleware: ' + name);
             }
 
             //walk around the fix: https://github.com/alexmingoia/koa-router/issues/182
@@ -410,7 +411,7 @@ class AppModule extends EventEmitter {
             let middleware = this.getMiddleware(name);
 
             if (typeof middleware !== 'function') {
-                throw new Error.ServerError('Unregistered middlware: ' + name);
+                throw new Error.ServerError('Unregistered middleware: ' + name);
             }
 
             generators.push(middleware(options, this));

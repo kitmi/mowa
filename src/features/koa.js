@@ -25,7 +25,6 @@ module.exports = {
      * @property {bool} [options.trustProxy] - When true proxy header fields will be trusted
      * @property {Array.<string>} [options.keys] - Set signed cookie keys
      * @property {int} [options.httpPort] - The http port number
-     * @property {string} [options.publicUrl] - The public url for the http server
      * @property {int} [options.subdomainOffset=2] - The offset of subdomains to ignore, default: 2
      * @returns {Promise.<*>}
      */
@@ -73,22 +72,10 @@ module.exports = {
                 appModule.httpServer.listen(port, function (err) {
                     if (err) throw err;
 
-                    if (options.publicUrl) {
-                        appModule.publicUrl = options.publicUrl;
-                    } else {
-                        appModule.publicUrl = 'http://localhost:' + port;
-                    }
-
                     appModule.log('info', `A http service is listening on port [${this.address().port}] ...`);
                     appModule.emit('httpReady');
                 });
             });
-        } else {
-            if (options.publicUrl) {
-                appModule.publicUrl = options.publicUrl;
-            } else {
-                appModule.publicUrl = 'http://localhost:' + port;
-            }
         }
 
         return Promise.resolve();

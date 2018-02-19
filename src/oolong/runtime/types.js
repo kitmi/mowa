@@ -1,41 +1,5 @@
 "use strict";
 
-const isInt = function (val) {
-    return typeof val === "number" &&
-        isFinite(val) &&
-        Math.floor(val) === val;
-};
-
-const isFloat = function (val) {
-    return typeof val === 'number' &&!isNaN(val);
-};
-
-const isPlainObject = function (value) {
-    if (typeof value !== 'object' ||
-        value.toString() != '[object Object]') {
-        return false;
-    }
-
-    // If has modified constructor
-    let ctor = value.constructor;
-    if (typeof ctor !== 'function') return false;
-
-    // If has modified prototype
-    let prot = value.prototype;
-    if (typeof prot !== 'object' ||
-        prot.toString() != '[object Object]') {
-        return false;
-    }
-
-    // If constructor does not have an Object-specific method
-    if (prot.hasOwnProperty('isPrototypeOf') === false) {
-        return false;
-    }
-
-    // Most likely a plain Object
-    return true;
-};
-
 const DOUBLE_QUOTE = "\"";
 const ESCAPED_DOUBLE_QUOTE = "\"\"";
 const CHARACTERS_THAT_MUST_BE_QUOTED = /,|"|\n/;
@@ -64,10 +28,6 @@ const unescapeCsv = function (s) {
     return s;
 };
 
-exports.isInt = isInt;
-exports.isFloat = isFloat;
-exports.isPlainObject = isPlainObject;
-
 exports.TYPE_INT = 'int';
 exports.TYPE_FLOAT = 'float';
 exports.TYPE_BOOL = 'bool';
@@ -78,5 +38,3 @@ exports.TYPE_JSON = 'json';
 exports.TYPE_XML = 'xml';
 exports.TYPE_ENUM = 'enum';
 exports.TYPE_CSV = 'csv';
-
-

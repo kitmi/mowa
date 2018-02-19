@@ -1,6 +1,8 @@
 # Mowa
 
-  A full-stack (aimed to be full-stack) **mo**dular **w**eb **a**pplication framework based on koa. (ES6 required)
+[![npm version](https://badge.fury.io/js/mowa.svg)](https://badge.fury.io/js/mowa)
+
+  A full-stack (aimed to be full-stack) **mo**dular **w**eb **a**pplication framework based on koa2. (ES7 required)
 
 ## 1. Mowa Concepts
 
@@ -14,9 +16,9 @@ A mowa application is a web module hosted by a mowa server. It mounts controller
 A mowa controller is a plain object exported by a JavaScript module containing several actions to handle web requests and response to the reqeusting client.
 
 ### Action
-A mowa action is a koa-styled action which is a generator and handles one client request at a time. Besides all the koa context, the code in a mowa action can also access the appModule object which represents the instance of the application.
+A mowa action is a koa2-styled action which is a async function and handles one client request at a time. Besides all the koa context, the code in a mowa action can also access the appModule object which represents the instance of the application.
 
-	function* (next) {
+	async (ctx, next) {
     	...
     }
 
