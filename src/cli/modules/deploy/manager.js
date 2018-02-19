@@ -8,7 +8,6 @@ const Promise = Util.Promise;
 
 const Ssh = require('node-ssh');
 const TaskList = require('./tasklist.js');
-const Setup = require('./dependencies/setup.js');
 
 let componentsCache = undefined;
 
