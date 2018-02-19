@@ -1,6 +1,6 @@
 {
   "name": "mowa",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A modular web application framework based on koa.",
   "scripts": {
     "doc": "jsdoc -c jsdoc.json -t ./node_modules/ink-docstrap/template -R README.md -d './docs/api-doc' -r --verbose ./src",
