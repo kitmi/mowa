@@ -10,9 +10,6 @@
             }]
         }
     },
-    "rewriteOptions": {
-        "logger": "general"
-    },
     "koa": {
         "httpPort": 3000
     },

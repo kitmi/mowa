@@ -132,7 +132,7 @@ class AppModule extends EventEmitter {
                 throw new Error.ServerError('Argument "route" is required.');
             }
 
-            this.route = Util.ensureLeftSlash(Util.trimRightSlash(Util.urlJoin(parent.route, route)));
+            this.route = Util.trimRightSlash(Util.urlJoin(parent.route, route));
 
             this.serverModule = parent.serverModule;
             this.displayName = this.parent.displayName + '->[' + this.name + ']';

@@ -40,12 +40,12 @@ let favicon = (options, appModule) => {
         if (!icon) {
             let stats = await fs.stat(faviconPath);
             //maximum 1M
-            if (size > 1048576) {
+            if (stats.size > 1048576) {
                 appModule.log('warn', 'favicon.ico too large.', stats);
                 ctx.throw(Mowa.HttpCode.HTTP_NOT_FOUND);                
             }
             
-            icon = await fs.readFile(path);
+            icon = await fs.readFile(faviconPath);
         }
         ctx.set('Cache-Control', cacheControl);
         ctx.type = 'image/x-icon';

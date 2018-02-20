@@ -4,4 +4,8 @@ const Mowa = require('mowa');
 
 let mowa = new Mowa('{{name}}', { oneAppMode: true, childModulesPath: '..', verbose: true });
 
-mowa.start();
+mowa.start_().then(() => {
+    //started
+}).catch(error => {
+    console.error(error);
+});

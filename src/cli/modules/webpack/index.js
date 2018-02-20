@@ -88,7 +88,7 @@ exports.init = function (api) {
     fs.writeFileSync(path.join(appModule.absolutePath, 'etc', 'webpack.development.js'), webpackDev);
     api.log('info', 'Generated webpack.development.js.');
 
-    let prodTemplate = path.resolve(__dirname, 'template', 'etc', 'webpack.development.js.swig');
+    let prodTemplate = path.resolve(__dirname, 'template', 'etc', 'webpack.production.js.swig');
     let webpackProd= swig.renderFile(prodTemplate, {
     });
 
