@@ -70,7 +70,7 @@ exports.init = function (api) {
     let npmInit = fs.existsSync(packageJson) ?
         Promise.resolve() :
         new Promise((resolve, reject) => {
-            Util.runCmd('npm init -y', (error, output) => {
+            Util.runCmd_('npm init -y', (error, output) => {
                 if (output.stdout) {
                     api.log('verbose', output.stdout);
                 }
@@ -104,7 +104,7 @@ exports.init = function (api) {
             return resolve();
         }
 
-        Util.runCmd('npm install', (error, output) => {
+        Util.runCmd_('npm install', (error, output) => {
             if (output.stdout) {
                 api.log('verbose', output.stdout);
             }
