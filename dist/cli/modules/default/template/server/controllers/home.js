@@ -1,1 +1,1 @@
-exports.index=function*(){this.body='<html><body><h1>A New Mowa Project</h1></body></html>'};
+exports.index=async ctx=>{ctx.body='<html><body><h1>A New Mowa Project</h1></body></html>'};

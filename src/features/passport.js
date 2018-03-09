@@ -37,17 +37,14 @@ module.exports = {
             );
         }
 
-        let strategies = Array.isArray(config.strategies) ? config.strategies : [ config.strategies ];        
-
-        let promiseFactories = Util._.map(strategies, (strategy) => () => {
-            let strategyScript = path.join(appModule.backendPath, 'passportStrategies', strategy + '.js');
-            let strategyInitiator = require(strategyScript);
-
-            return Promise.resolve(strategyInitiator(appModule, passport));
-        });
-
         appModule.registerService('passport', passport);
 
-        return Util.eachPromise_(promiseFactories);
+        let strategies = Array.isArray(config.strategies) ? config.strategies : [ config.strategies ];
+
+        return Util.eachAsync_(strategies, async strategy => {
+            let strategyScript = path.join(appModule.backendPath, 'passports', strategy + '.js');
+            let strategyInitiator = require(strategyScript);
+            return strategyInitiator(appModule, passport);
+        });
     }
 };

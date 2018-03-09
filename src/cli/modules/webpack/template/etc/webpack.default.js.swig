@@ -1,9 +1,8 @@
 const path = require('path');
 const webpack = require('webpack');
-const ExtractTextPlugin = require('extract-text-webpack-plugin');
 const fs = require('fs');
 
-const clientPath = path.resolve('{{ clientPath }}');
+const clientPath = path.resolve(__dirname, '{{ clientPath }}');
 let entryFiles = fs.readdirSync(clientPath);
 let entry = {};
 
@@ -14,7 +13,7 @@ entryFiles.forEach(entryFile => {
     }
 });
 
-const outputPath = path.resolve(__dirname, '..', '{{ outputPath }}');
+const outputPath = path.resolve(__dirname, '{{ outputPath }}');
 {% if cleanBeforeBuild %}
 const CleanWebpackPlugin = require('clean-webpack-plugin');
 {% endif %}
@@ -28,43 +27,77 @@ module.exports = {
         publicPath: '{{ publicPath }}'
     },
     module: {
-        loaders: [
+        rules: [
             {
               test: /\.js$/,
               exclude: /(node_modules|bower_components)/,
               use: {
-                loader: 'babel-loader',
-                options: {
-                  presets: ['babel-preset-env', 'babel-preset-react']
-                }
+                  loader: 'babel-loader',
+                  options: {
+                      presets: ['babel-preset-env', 'babel-preset-react']
+                  }
               }
             },
             {
                 test: /\.css$/,
-                loader: ExtractTextPlugin.extract({
-                    fallback: "style-loader",
-                    use: "css-loader"
-                })
+                use: [
+                    { loader: 'style-loader' },
+                    {
+                        loader: 'css-loader',
+                        options: {
+                            modules: true
+                        }
+                    }
+                ]
+            },
+            {
+                test: /\.ts$/,
+                use: 'ts-loader'
             },
             {
                 test: /\.svg$/,
-                loader: 'file?prefix=svg'
+                use: {
+                    loader: 'file-loader',
+                    options: {
+                        prefix: 'svg'
+                    }
+                }
             },
             {
                 test: /\.(png|jpg|gif)$/,
-                loader: 'file?prefix=img'
+                use: {
+                    loader: 'file-loader',
+                    options: {
+                        prefix: 'img'
+                    }
+                }
             },
             {
                 test: /\.(woff2?|ttf|eot|otf)$/,
-                loader: 'file?prefix=font'
+                use: {
+                    loader: 'file-loader',
+                    options: {
+                        prefix: 'font'
+                    }
+                }
             },
             {
                 test: /\.(csv|tsv)$/,
-                loader: 'csv-loader'
+                use: {
+                    loader: 'csv-loader'
+                }
             },
             {
                 test: /\.xml$/,
-                loader: 'xml-loader'
+                use: {
+                    loader: 'xml-loader'
+                }
+            },
+            {
+                test: /\.txt$/,
+                use: {
+                    loader: 'raw-loader'
+                }
             }
         ]
     },
@@ -72,9 +105,5 @@ module.exports = {
 {% if cleanBeforeBuild %}
         new CleanWebpackPlugin([outputPath]),
 {% endif %}
-        new webpack.optimize.CommonsChunkPlugin({
-            name: 'common' // Specify the common bundle's name.
-        }),
-        new ExtractTextPlugin("[name].style.css", { allChunks: true }),
     ]
 };

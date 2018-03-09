@@ -49,6 +49,10 @@ exports.build = function (context, schemaFile) {
     let buildPath = path.join(context.currentApp.backendPath, Mowa.Literal.DB_SCRIPTS_PATH);
     
     let schemas = [];
+
+    if (!oolongConfig.schemas) {
+        throw new Error('Schemas config not found! Try run "mowa ooloon config" first.');
+    }
     
     _.forOwn(context.linker.schemas, (schema, schemaName) => {
         if (!(schemaName in oolongConfig.schemas)) {

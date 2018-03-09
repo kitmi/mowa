@@ -11,6 +11,8 @@ const Promise = Util.Promise;
 const Mowa = require('../../../server.js');
 const MowaHelper = require('../../mowa-helper.js');
 
+const reactComponents = require('./components.js');
+
 /**
  * @module MowaCLI_App
  * @summary Application module of Mowa CLI program.
@@ -20,7 +22,9 @@ exports.moduleDesc = 'Provide commands to enable react in an app.';
 
 exports.commandsDesc = {
     'init': "Initialize the react environment",
-    'newPage': "Create a new react app and a corresponding page component",
+    'createApp': "Create a react page entry file and the corresponding page component",
+    'createPage': "Create a page component",
+    'createComponent': "Create a reusable component",
     'install': "Install react component"
 };
 
@@ -52,11 +56,41 @@ exports.help = function (api) {
                 required: true,
                 inquire: true,
                 promptType: 'list',
-                choicesProvider: () => Promise.resolve([ 'react-router-dom', 'material-ui@next', 'material-ui-icons' ])
+                choicesProvider: () => Promise.resolve(reactComponents.componentGroup)
             };
             break;
 
-        case 'newPage':
+        case 'createApp':
+            cmdOptions['app'] = {
+                desc: 'The name of the app module to operate',
+                required: true,
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
+            };
+            cmdOptions['page'] = {
+                desc: 'The name of the entry page to create',
+                required: true,
+                inquire: true
+            };
+            break;
+
+        case 'createPage':
+            cmdOptions['app'] = {
+                desc: 'The name of the app module to operate',
+                required: true,
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
+            };
+            cmdOptions['page'] = {
+                desc: 'The name of the page component to create',
+                required: true,
+                inquire: true
+            };
+            break;
+
+        case 'createComponent':
             cmdOptions['app'] = {
                 desc: 'The name of the app to operate',
                 required: true,
@@ -64,10 +98,19 @@ exports.help = function (api) {
                 promptType: 'list',
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
-            cmdOptions['page'] = {
-                desc: 'The name of the page to create',
+            cmdOptions['component'] = {
+                desc: 'The name of the component to create',
+                alias: [ 'c', 'com' ],
                 required: true,
                 inquire: true
+            };
+            cmdOptions['type'] = {
+                desc: 'Specify the type of component',
+                alias: [ 't' ],
+                required: true,
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => Promise.resolve([ 'class', 'function' ])
             };
             break;
 
@@ -114,52 +157,45 @@ exports.init = function (api) {
 
 exports.install = function (api) {
     api.log('verbose', 'exec => mowa react install');
-
-    let appName = api.getOption('app');
+    
     let pkgName = api.getOption('pkg');
-    assert: {
-        appName, Util.Message.DBC_VAR_NOT_NULL;
+    assert: {        
         pkgName, Util.Message.DBC_VAR_NOT_NULL;
     }
 
-    let appModule = api.server.childModules[appName];
-    if (!appModule) {
-        return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
-    }
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+    
+    let pkgs = reactComponents.componentPackages[pkgName];
+    let pkgsLine = pkgs.join(' ');
 
     let appPath = appModule.absolutePath;
 
     shell.cd(appPath);
-    let stdout = Util.runCmdSync(`npm i --save-dev ${pkgName}`);
+    let stdout = Util.runCmdSync(`npm i --save-dev ${pkgsLine}`);
     shell.cd(api.base);
 
     api.log('verbose', stdout);
-    api.log('info', 'Enabled react.');
+    api.log('info', `Installed react component: ${pkgsLine}.`);
 };
 
-exports.newPage = function (api) {
-    api.log('verbose', 'exec => mowa react newPage');
+exports.createApp = async api => {
+    api.log('verbose', 'exec => mowa react createApp');
 
-    let appName = api.getOption('app');
     let page = api.getOption('page');
     assert: {
-        appName, Util.Message.DBC_VAR_NOT_NULL;
         page, Util.Message.DBC_VAR_NOT_NULL;
     }
 
-    page = Util.S(page).camelize().s;
+    page = _.camelCase(page);
 
-    let appModule = api.server.childModules[appName];
-    if (!appModule) {
-        return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
-    }
+    let appModule = MowaHelper.getAppModuleToOperate(api);
 
     const swig  = require('swig-templates');
     let viewPageSource = path.resolve(__dirname, 'template', 'server', 'react.swig');
     let viewPageDest = path.join(appModule.backendPath, Mowa.Literal.VIEWS_PATH, 'react.swig');
 
     if (fs.existsSync(viewPageDest)) {
-        api.log('info', 'React page template already exists.');
+        api.log('info', 'React page exists. Skipped this step.');
     } else {
         fs.copySync(viewPageSource, viewPageDest);
         api.log('info', 'Created react page template.');
@@ -179,11 +215,69 @@ exports.newPage = function (api) {
 
         fs.writeFileSync(targetPage, pageJs);
 
-        let pageComTemplate = path.resolve(__dirname, 'template', 'client', 'pageComponent.js.swig');
-        let pageCom = swig.renderFile(pageComTemplate, locals);
+        api.log('info', `Created a new react entry page "${page}".`);
+    }
 
-        fs.ensureDirSync(path.join(appModule.frontendPath, 'pages'));
-        fs.writeFileSync(path.join(appModule.frontendPath, 'pages', `${locals.pageComponent}.js`), pageCom);
-        api.log('info', `Created a new react page "${page}"`);
+    return exports.createPage(api);
+};
+
+exports.createPage = async api => {
+    api.log('verbose', 'exec => mowa react createPage');
+
+    let page = api.getOption('page');
+    assert: {
+        page, Util.Message.DBC_VAR_NOT_NULL;
+    }
+
+    let pageComponent = _.upperFirst(_.camelCase(page));
+
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    const swig  = require('swig-templates');
+
+    let locals = {
+        pageComponent
+    };
+
+    let componentsPath = path.join(appModule.frontendPath, 'pages');
+    let pageComTemplate = path.resolve(__dirname, 'template', 'client', 'pageComponent.js.swig');
+    let pageCom = swig.renderFile(pageComTemplate, locals);
+
+    fs.ensureDirSync(componentsPath);
+    fs.writeFileSync(path.join(componentsPath, `${pageComponent}.js`), pageCom);
+    api.log('info', `Created a new react page component "pages/${pageComponent}".`);
+};
+
+exports.createComponent = api => {
+    api.log('verbose', 'exec => mowa react createComponent');
+
+    let component = api.getOption('component');
+    let type = api.getOption('type');
+    assert: {
+        component, Util.Message.DBC_VAR_NOT_NULL;
+    }
+
+    component = _.upperFirst(_.camelCase(component));
+
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    let componentsPath = path.join(appModule.frontendPath, 'components');
+    let targetComponent = path.join(componentsPath, `${component}.js`);
+    if (fs.existsSync(targetComponent)) {
+        api.log('info', `React component "${component}.js" already exists.`);
+    } else {
+        let locals = {
+            component
+        };
+
+        const swig = require('swig-templates');
+
+        let componentJsTemplate = path.resolve(__dirname, 'template', 'client', type + 'Component.js.swig');
+        let componentJs= swig.renderFile(componentJsTemplate, locals);
+
+        fs.ensureDirSync(componentsPath);
+        fs.writeFileSync(targetComponent, componentJs);
+
+        api.log('info', `Created a new react component "components/${component}".`);
     }
 };

@@ -51,31 +51,34 @@ exports.getAvailableAppNames = function (api) {
 };
 
 /**
- * Get a list of mounted app names
- * @returns {Promise} Collection of app route and name pairs
- */
-exports.getMountedAppNames_ = function (api) {
-    let mounted = {};
-
-    return MowaHelper.loadServerConfig_(api).then(loader => {
-        _.forOwn(loader.data.routing, (config, route) => {
-            if (config.mod) {
-                mounted[route] = config.mod.name;
-            }
-        });
-
-        return mounted;
-    });
-};
-
-
-/**
  * Get a list of running app module instances
  * @param {MowaAPI} api
  * @returns {Array.<AppModule>}
  */
 exports.getRunningAppModules = function (api) {
     return _.values(api.server.childModules);
+};
+
+/**
+ * Get the app module object by the command line option "--app"
+ * @param {MowaAPI} api
+ * @returns {AppModule}
+ */
+exports.getAppModuleToOperate= function (api) {
+    let appName = api.getOption('app');
+    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
+
+    let appModule = api.server.childModules[appName];
+    if (!appModule) {
+        throw new Error(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
+    }
+
+    return appModule;
+};
+
+exports.getAppModuleDependencies = function (appModule) {
+    let pkg = require(appModule.toAbsolutePath('package.json'));
+    return pkg.dependencies;
 };
 
 /**

@@ -195,4 +195,10 @@ MowaServer.Literal = Literal;
  */
 MowaServer.OolongRuntime = OolongRuntime;
 
+/**
+ * Database service base class
+ * @memberof MowaServer
+ */
+MowaServer.DbService = require('./dbservice.js');
+
 module.exports = MowaServer;

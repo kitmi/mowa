@@ -47,8 +47,12 @@
     "supertest": "^3.0.0"
   },
   "dependencies": {
+    "archiver": "^2.1.0",
+    "babel-cli": "^6.26.0",
+    "babel-plugin-contracts": "^1.2.0",
+    "babel-preset-env": "^1.6.1",
     "compare-versions": "^3.1.0",
-    "debug": "^2.2.0",
+    "escodegen": "^1.9.0",
     "inflection": "^1.12.0",
     "inquirer": "^3.0.6",
     "koa": "^2.4.1",
@@ -80,18 +84,12 @@
     "tiny-xml": "^1.0.6",
     "topo-sort": "^1.0.0",
     "validator": "^7.0.0",
-    "webpack-dev-middleware": "^1.12.2",
+    "webpack": "^4.1.0",
+    "webpack-dev-middleware": "^3.0.0",
+    "webpack-merge": "^4.1.2",
     "winston": "^2.4.0",
     "winston-daily-rotate-file": "^1.7.2",
-    "winstonflight": "^1.0.1",
-    "archiver": "^2.1.0",
-    "babel-cli": "^6.26.0",
-    "babel-plugin-contracts": "^1.2.0",
-    "babel-preset-env": "^1.6.1",
-    "escodegen": "^1.9.0",
-    "uglifyjs-webpack-plugin": "^1.1.1",
-    "webpack": "^3.8.1",
-    "webpack-merge": "^4.1.1"
+    "winstonflight": "^1.0.1"
   },
   "main": "index",
   "engines": {

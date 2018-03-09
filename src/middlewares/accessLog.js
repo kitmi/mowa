@@ -5,6 +5,7 @@
  * @summary Add access log for every http request
  */
 
+const Mowa = require('../server.js');
 const Util = require('../util.js');
 
 class EnginePropsReader {

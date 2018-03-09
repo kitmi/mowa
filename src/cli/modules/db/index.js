@@ -1,7 +1,7 @@
 "use strict";
 
 const path = require('path');
-
+const shell = require('shelljs');
 const Util = require('../../../util.js');
 const _ = Util._;
 const fs = Util.fs;
@@ -9,7 +9,10 @@ const glob = Util.glob;
 const async = Util.async;
 
 const oolong = require('../../../oolong');
+const Mowa = require('../../../server.js');
 const MowaHelper = require('../../mowa-helper.js');
+
+const dbmsTypes = require('./dbms.js');
 
 /**
  * @module MowaCLI_Db
@@ -20,6 +23,7 @@ exports.moduleDesc = 'Provide commands to do database modeling.';
 
 exports.commandsDesc = {
     'list': 'List all database connections',
+    'enable': 'Enable a kind of database support',
     'add': 'Add a database connection'
 };
 
@@ -39,11 +43,12 @@ exports.help = function (api) {
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
             cmdOptions['dbms'] = {
-                desc: 'Select the target dbms',
+                desc: 'The dbms type',
+                promptMessage: 'Please select the target dbms:',
                 inquire: true,
                 promptType: 'list',
                 required: true,
-                choicesProvider: () => Promise.resolve(['mysql', 'mongodb'])
+                choicesProvider: () => Object.keys(dbmsTypes)
             };
             cmdOptions['db'] = {
                 desc: 'Specify the name of the database',
@@ -55,6 +60,25 @@ exports.help = function (api) {
                 desc: 'Specify the value of the connection string',
                 alias: [ 'c', 'connection' ],
                 inquire: true
+            };
+            break;
+
+        case 'enable':
+            cmdOptions['app'] = {
+                desc: 'The name of the app to operate',
+                promptMessage: 'Please select the target app:',
+                inquire: true,
+                promptType: 'list',
+                required: true,
+                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
+            };
+            cmdOptions['dbms'] = {
+                desc: 'The dbms type',
+                promptMessage: 'Please select the target dbms:',
+                inquire: true,
+                promptType: 'list',
+                required: true,
+                choicesProvider: () => Object.keys(dbmsTypes)
             };
             break;
 
@@ -73,7 +97,7 @@ exports.help = function (api) {
  * @param {MowaAPI} api
  * @returns {Promise}
  */
-exports.list = function (api) {
+exports.list = async api => {
     pre: api, Util.Message.DBC_ARG_REQUIRED;
 
     api.log('verbose', 'exec => mowa db list');
@@ -91,6 +115,46 @@ exports.list = function (api) {
     });
 };
 
+exports.enable = async api => {
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
+
+    api.log('verbose', 'exec => mowa db enable');
+
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    let dbms = api.getOption('dbms');
+    assert: {
+        dbms, Util.Message.DBC_VAR_NOT_NULL;
+    }
+
+    if (!dbmsTypes[dbms]) {
+        return Promise.reject(`Unknown dbms type: ${dbms}`);
+    }
+
+    let deps = MowaHelper.getAppModuleDependencies(appModule);
+    let pkgs = dbmsTypes[dbms];
+
+    shell.cd(appModule.absolutePath);
+
+    pkgs.forEach(p => {
+        if (!(p in deps)) {
+            let stdout = Util.runCmdSync(`npm i --save-dev ${p}`);
+            api.log('verbose', stdout);
+        }
+    });
+
+    shell.cd(api.base);
+
+    //copy feature
+    let templateFeature = path.join(__dirname, 'template', 'mysql.js.template');
+    let targetPath = appModule.toAbsolutePath(Mowa.Literal.FEATURES_PATH, 'mysql.js');
+    if (!fs.existsSync(targetPath)) {
+        fs.copySync(templateFeature, targetPath);
+    }
+
+    api.log('info', 'Enabled mysql feature.');
+};
+
 /**
  * Add a database connection
  * @example <caption>Create a database schema in oolong file</caption>
@@ -98,26 +162,22 @@ exports.list = function (api) {
  * @param api
  * @returns {*}
  */
-exports.add = function (api) {
+exports.add = async api => {
     pre: api, Util.Message.DBC_ARG_REQUIRED;
 
     api.log('verbose', 'exec => mowa db add');
 
-    let appName = api.getOption('app');
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    await exports.enable(api);
+
     let dbms = api.getOption('dbms');
     let dbName = api.getOption('db');
     assert: {
-        appName, Util.Message.DBC_VAR_NOT_NULL;
-        dbms, Util.Message.DBC_VAR_NOT_NULL;
         dbName, Util.Message.DBC_VAR_NOT_NULL;
     }
 
     let conn = api.getOption('conn') || 'to be defined';
-
-    let appModule = api.server.childModules[appName];
-    if (!appModule) {
-        return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
-    }
 
     return MowaHelper.writeConfigBlock_(appModule.configLoader, `${dbms}.${dbName}.connection`, conn);
 };

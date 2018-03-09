@@ -12,9 +12,28 @@ Mowa CLI is set of tools to assist application development with Mowa framework.
 
 The default cli module is "default" if the cli module paramter is not given. All cli module has a "help" command showing all supported commands of the module.
 
-##2. CLI Modules
+##2. Configuration
 
-###2.1 "default" Module
+Mowa CLI reads settings from server configuration file (by default, it's the "server.<env>.json" files in the etc folder).
+
+    "settings": {
+        "cli": {
+            "general": {
+                "consoleEnabled": true,
+                "consoleLogLevel": "verbose",
+                "consoleLogColorize": true,
+                "fileLogEnabled": true,
+                "fileLogLevel": "verbose",
+                "fileLogFilename": "mowa-cli.log",
+                "fileLogOverwrite": true,
+                "verbose": true
+            }
+        }
+    }
+
+##3. CLI Modules
+
+###3.1 "default" Module
 
 "default" module provides commands to initiate a new mowa project.
 

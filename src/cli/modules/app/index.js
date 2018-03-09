@@ -21,7 +21,7 @@ exports.moduleDesc = 'Provide commands to config a app.';
 exports.commandsDesc = {
     'list': "List all apps in the project",
     'create': 'Create a new app in the project',
-    'install': 'Install npm module for an app',
+    'require': 'Install npm module for an app and save as dependency',
     'bootstrap': 'Add a bootstrap file for an app',
     'remove': "Remove an app from the project",
     'pack': "Pack the app into a distributable archive"
@@ -49,7 +49,7 @@ exports.help = function (api) {
                 bool: true
             };
             break;
-        case 'install':
+        case 'require':
             cmdOptions['app'] = {
                 desc: 'The name of the app to operate',
                 required: true,
@@ -181,10 +181,15 @@ exports.create = function (api) {
     return MowaHelper.writeConfigBlock_(api.server.configLoader, 'routing', routing).then(() => {
         api.log('info', 'Mounted the app at: ' + mountingPoint);
 
+        const packageJson = path.resolve(api.base, 'package.json');
+        const pkg = require(packageJson);
+
+        const interpolates = { project: pkg.name, name: appName };
+
         const startSource = path.join(__dirname, 'template', 'standalone.template.js');
         const startDest = path.join(appDest, 'standalone.js');
         let startContent = fs.readFileSync(startSource, 'utf8');
-        startContent = Util.S(startContent).template({ name: appName }).s;
+        startContent = Util.S(startContent).template(interpolates).s;
         fs.writeFileSync(startDest, startContent, 'utf8');
         api.log('info', 'Generated standalone.js for smoke test.');
 
@@ -196,7 +201,7 @@ exports.create = function (api) {
         const packageSource = path.join(__dirname, 'template', 'package.template.json');
         const packageDest = path.join(appDest, 'package.json');
         let pkgContent = fs.readFileSync(packageSource, 'utf8');
-        pkgContent = Util.S(pkgContent).template({ name: appName }).s;
+        pkgContent = Util.S(pkgContent).template(interpolates).s;
         fs.writeFileSync(packageDest, pkgContent, 'utf8');
         api.log('info', 'Generated package.json for npm init.');
 
@@ -210,8 +215,8 @@ exports.create = function (api) {
     });
 };
 
-exports.install = function (api) {
-    api.log('verbose', 'exec => mowa app install');
+exports.require = function (api) {
+    api.log('verbose', 'exec => mowa app require');
 
     let appName = api.getOption('app');
     assert: appName, Util.Message.DBC_VAR_NOT_NULL;

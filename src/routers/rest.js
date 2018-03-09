@@ -21,7 +21,7 @@ const Router = require('koa-router');
  /:resource                      post           create
  /:resource/:id                  get            get
  /:resource/:id                  put            update
- /:resource/:id                  del            del
+ /:resource/:id                  del            remove
  */
 
 module.exports = function (appModule, baseRoute, options) {

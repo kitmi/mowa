@@ -6,10 +6,10 @@
  */
 
 const mysql = require('mysql2/promise');
-const Mowa = require('../server.js');
+const Mowa = require('mowa');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
-const DbService = require('../dbservice.js');
+const DbService = Mowa.DbService;
 
 const poolByConn = {};
 

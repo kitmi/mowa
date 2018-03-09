@@ -78,7 +78,13 @@ exports.help = function (api) {
                 required: true,
                 inquire: true,
                 promptType: 'list',
-                choicesProvider: () => Promise.resolve(MowaHelper.getAppDbConnections(api))
+                choicesProvider: () => {
+                    let conns = MowaHelper.getAppDbConnections(api);
+                    if (_.isEmpty(conns)) {
+                        throw new Error('Database connections not found. Config database connection first or run "mowa db add" first.');
+                    }
+                    return conns;
+                }
             };
             break;
 
@@ -174,8 +180,9 @@ exports.config = function (api) {
 
     let deployTo = Util.getValueByPath(appModule.config, configPath, []);
 
-    deployTo.push(dbName);
-    deployTo = _.unique(deployTo);
+    if (deployTo.indexOf(dbName) == -1) {
+        deployTo.push(dbName);
+    }
 
     return MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, { deployTo: deployTo }).then(() => {
         api.log('info', `Deployment of schema "${schemaName}" is configured.`);

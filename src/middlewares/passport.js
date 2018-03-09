@@ -1,10 +1,11 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
+const Mowa = require('../server.js');
+const Util = require('../util.js');
 
 let passportAuthenticate = (opt, appModule) => {
     if (!opt || !opt.strategy) {
-        appModule.invalidConfig('passportAuthenticate.strategy', 'Missing "strategy" name for middleware "passportAuthenticate"');
+        throw new Mowa.Error.InvalidConfiguration('Missing strategy name.', appModule, 'middlewares.passport.strategy');
     }
     
     let passport = appModule.getService('passport');

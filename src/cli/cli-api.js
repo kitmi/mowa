@@ -319,7 +319,7 @@ class MowaAPI {
 
                 if (inquire) {
                     let type;
-                    let q = { name: name, message: opts.desc };
+                    let q = { name: name, message: opts.promptMessage || opts.desc };
 
                     if (opts.promptType) {
                         type = opts.promptType;
@@ -348,6 +348,8 @@ class MowaAPI {
 
                     await doInquire(q);
                 }
+            } else if (name in this.argv && 'nonInquireFilter' in opts) {
+                this.argv[name] = await opts.nonInquireFilter(this.argv[name]);
             }
         });
     }

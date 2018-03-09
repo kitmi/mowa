@@ -23,23 +23,23 @@ module.exports = (options, appModule) => {
 
         switch (options.type) {
             case 'query':
-                return ctrl.query(ctx);
+                ctx.body = await ctrl.query(ctx);
                 break;
 
             case 'create':
-                return ctrl.create(ctx);
+                ctx.body = await ctrl.create(ctx);
                 break;
 
             case 'get':
-                return ctrl.get(ctx);
+                ctx.body = await ctrl.get(ctx);
                 break;
 
             case 'update':
-                return ctrl.update(ctx);
+                ctx.body = await ctrl.update(ctx);
                 break;
 
             case 'delete':
-                return ctrl.remove(ctx);
+                ctx.body = await ctrl.remove(ctx);
                 break;
 
             default:

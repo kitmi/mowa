@@ -2,8 +2,11 @@
 
 const path = require('path');
 const Util = require('../../../util.js');
+const _ = Util._;
 const fs = Util.fs;
 const Promise = Util.Promise;
+
+const MowaHelper = require('../../mowa-helper.js');
 
 /**
  * @module MowaCLI_Default
@@ -13,7 +16,8 @@ const Promise = Util.Promise;
 exports.moduleDesc = 'Provide commands to initiate a new project or create a new app.';
 
 exports.commandsDesc = {
-    'init': 'Run this command in a empty folder to initiate a new mowa project.'    
+    'init': 'Run this command in a empty folder to initiate a new mowa project.',
+    'install': 'Run this command install all the packages required by a app or all apps by default.'
 };
 
 exports.help = function (api) {
@@ -30,6 +34,12 @@ exports.help = function (api) {
             };
             break;
 
+        case 'install':
+            cmdOptions['app'] = {
+                desc: 'The name of the app to operate'
+            };
+            break;
+
         case 'help':
         default:
             //module general options
@@ -39,7 +49,7 @@ exports.help = function (api) {
     return cmdOptions;
 };
 
-exports.init = function (api) {
+exports.init = async api => {
     api.log('verbose', 'exec => mowa init');
 
     let skipNpmInstall = api.getOption('skip-npm-install') || false;
@@ -67,57 +77,108 @@ exports.init = function (api) {
     
     //generate a package.json if not exist
     const packageJson = path.resolve(api.base, 'package.json');
-    let npmInit = fs.existsSync(packageJson) ?
-        Promise.resolve() :
-        new Promise((resolve, reject) => {
-            Util.runCmd_('npm init -y', (error, output) => {
-                if (output.stdout) {
-                    api.log('verbose', output.stdout);
-                }
+    if (!fs.existsSync(packageJson)) {
+        let output = await Util.runCmd_('npm init -y');
 
-                if (output.stderr) {
-                    api.log('error', output.stderr);
-                }
-
-                if (error) return reject(error);
-
-                api.log('info', 'Created a package.json file under ' + api.base);
-
-                resolve();
-            });
-        });
-
-    return npmInit.then(() => new Promise((resolve, reject) => {
-        //generate server entry file
-        const serverJsTemplate = path.join(templateFolder, 'server.template.js');
-        const serverJsDst = path.join(api.base, 'server.js');
-        const pkg = require(packageJson);
-        let serverJsTemplateContent = fs.readFileSync(serverJsTemplate, 'utf8');
-        let serverJsContent = Util.S(serverJsTemplateContent).template({serverName: pkg.name}).s;
-        fs.writeFileSync(serverJsDst, serverJsContent, 'utf8');
-
-        pkg.dependencies || (pkg.dependencies = {});
-        pkg.dependencies['mowa'] = '*';
-        fs.writeJsonSync(packageJson, pkg, { spaces: 4, encoding: 'utf8' });
-
-        if (skipNpmInstall) {
-            return resolve();
+        if (output.stdout) {
+            api.log('verbose', output.stdout);
         }
 
-        Util.runCmd_('npm install', (error, output) => {
-            if (output.stdout) {
-                api.log('verbose', output.stdout);
+        if (output.stderr) {
+            api.log('error', output.stderr);
+        }
+
+        api.log('info', 'Created a package.json file under ' + api.base);
+    }
+
+    //generate server entry file
+    const serverJsTemplate = path.join(templateFolder, 'server.template.js');
+    const serverJsDst = path.join(api.base, 'server.js');
+    const pkg = require(packageJson);
+    let serverJsTemplateContent = fs.readFileSync(serverJsTemplate, 'utf8');
+    let serverJsContent = Util.S(serverJsTemplateContent).template({serverName: pkg.name}).s;
+    fs.writeFileSync(serverJsDst, serverJsContent, 'utf8');
+
+    pkg.dependencies || (pkg.dependencies = {});
+    pkg.dependencies['mowa'] = '*';
+    fs.writeJsonSync(packageJson, pkg, { spaces: 4, encoding: 'utf8' });
+
+    if (skipNpmInstall) {
+        return;
+    }
+
+    let output = await Util.runCmd_('npm install --no-save --no-package-lock');
+    if (output.stdout) {
+        api.log('verbose', output.stdout);
+    }
+
+    if (output.stderr) {
+        api.log('error', output.stderr);
+    }
+
+    api.log('info', 'Installed mowa as dependency.');
+};
+
+exports.install = async api => {
+    api.log('verbose', 'exec => mowa install');
+
+    let appName = api.getOption('app');
+    let appNames = api.getOption('app') ? [ appName ] : MowaHelper.getAvailableAppNames(api);
+
+    let depSet = {};
+
+    const compareVersions = require('compare-versions');
+
+    let mergeDeps = (deps) => {
+        _.forOwn(deps, (v, k) => {
+            if (k in depSet) {
+                let ov = depSet[k];
+
+                if (ov !== v) {
+                    if (ov.indexOf('/') > -1 || v.indexOf('/') > -1) {
+                        throw new Error(`Package "${k}" version conflict: ${v} & ${ov}!`);
+                    }
+
+                    let existingV = ov[0] === '^' ? ov[0].substr(1) : ov;
+                    let newV = v[0] === '^' ? v[0] : v;
+
+                    if (compareVersions(newV, existingV) > 0) {
+                        depSet[k] = v;
+                    }
+                }
+            } else {
+                depSet[k] = v;
             }
-
-            if (output.stderr) {
-                api.log('error', output.stderr);
-            }
-
-            if (error) return reject(error);
-
-            api.log('info', 'Installed mowa as dependency.');
-
-            resolve();
         });
-    }));
+    };
+
+    await Util.eachAsync_(appNames, async appPath => {
+        let pkgFile = path.join(api.base, 'app_modules', appPath, 'package.json');
+        let pkg = require(pkgFile);
+
+        if (!_.isEmpty(pkg.devDependencies)) {
+            mergeDeps(pkg.devDependencies);
+        }
+
+        if (!_.isEmpty(pkg.dependencies)) {
+            mergeDeps(pkg.dependencies);
+        }
+    });
+
+    return Util.eachAsync_(depSet, async (v,k) => {
+        let pkgDesc = v.indexOf('/') > -1 ? v : k+'@'+v;
+
+        api.log('info', `Installing package "${pkgDesc}".`);
+
+        let output = await Util.runCmd_('npm install --no-save --no-package-lock ' + pkgDesc);
+        if (output.stdout) {
+            api.log('verbose', output.stdout);
+        }
+
+        if (output.stderr) {
+            api.log('error', output.stderr);
+        }
+
+        api.log('info', `Package "${pkgDesc}" is successfully installed.`);
+    });
 };
