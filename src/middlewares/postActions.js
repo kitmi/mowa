@@ -8,6 +8,8 @@ const Util = require('../util.js');
  */
 
 module.exports = (opt, appModule) => {
+    appModule.hasPostActions = true;
+
     return async (ctx, next) => {
         ctx.postActions = [];
 

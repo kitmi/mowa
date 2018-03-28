@@ -14,39 +14,26 @@ const DbService = Mowa.DbService;
 const poolByConn = {};
 
 class MysqlService extends DbService {
-    constructor(name, options) {
-        super('mysql', name, options);
+    constructor(appModule, name, options) {
+        super(appModule, 'mysql', name, options);
     }
 
-    getConnection(ctx, autoRelease) {
-        if (autoRelease) {
-            if (!ctx) {
-                throw new Mowa.ServerError('"autoRelease" feature can only be used within a koa action.');
-            }
-
-            if (!('postActions' in ctx)) {
-                throw new Mowa.ServerError('"postAction" middleware is required for autoRelease feature of MysqlService.');
-            }
-        }
-
+    async getConnection() {
         let pool = poolByConn[this.connectionString];
 
         if (!pool) {
             pool = poolByConn[this.connectionString] = mysql.createPool(this.connectionString);
         }
 
-        if (autoRelease) {
-            return pool.getConnection().then(conn => {
-                ctx.postActions.push(() => Promise.resolve(conn.release()));
-                return conn;
-            });
-        }
+        this.appModule.serverModule.on('stopping', () => {
+            pool.end();
+        });
 
         return pool.getConnection();
     }
 
-    closeConnection(ctx, conn) {
-        conn.release();
+    closeConnection(conn) {
+        return conn.release();
     }
 }
 
@@ -72,7 +59,7 @@ module.exports = {
                 throw new Mowa.Error.InvalidConfiguration('Missing connection string.', appModule, `mysql.${db}.connection`);
             }
 
-            let service = new MysqlService(db, opt);
+            let service = new MysqlService(appModule, db, opt);
             appModule.registerService(service.serviceId, service);
         });
 

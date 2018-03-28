@@ -1,7 +1,5 @@
 "use strict";
 
-const inflection = require('inflection');
-
 const Util = require('../../util.js');
 const _ = Util._;
 
@@ -25,14 +23,14 @@ class OolongField {
          * @type {string}
          * @public
          */
-        this.name = inflection.camelize(name, true);
+        this.name = name;
 
         /**
          * The default name of the field
          * @type {string}
          * @public
          */
-        this.defaultName = this.name;
+        this.displayName = _.upperFirst(this.name);
 
         /**
          * The type of the field
@@ -41,39 +39,44 @@ class OolongField {
          */
         this.type = rawInfo.type;
 
-        if (rawInfo.validators) {
+        if (rawInfo.validators0) {
             /**
-             * Validators of this field
+             * Stage-0 validators of this field
              * @type {array}
              * @public
              */
-            this.validators = rawInfo.validators;
+            this.validators0 = rawInfo.validators0; //OolongField._transformValidators(rawInfo.validators);
         }
 
-        if (this.modifiers) {
+        if (rawInfo.validators1) {
             /**
-             * Modifiers of this field
+             * Stage-1 validators of this field
              * @type {array}
              * @public
              */
-            this.modifiers = rawInfo.modifiers;
+            this.validators1 = rawInfo.validators1; //OolongField._transformValidators(rawInfo.validators);
         }
 
-        if (this.type === 'enum') {
+        if (rawInfo.modifiers0) {
             /**
-             * Candidate values of this field
+             * Stage-0 modifiers of this field
              * @type {array}
              * @public
              */
-            this.values = OolUtils.translateOolObj(rawInfo.values);
+            this.modifiers0 = rawInfo.modifiers0;
         }
 
-        Object.assign(this, _.pick(rawInfo, [
-            'default', 'auto',
-            'digits', 'range', 'unsigned', 'totalDigits', 'decimalDigits',
-            'maxLength', 'fixedLength', 'untrim',
-            'readOnly', 'writeOnceOnly', 'optional',
-            'comment'
+        if (rawInfo.modifiers1) {
+            /**
+             * Stage-1 modifiers of this field
+             * @type {array}
+             * @public
+             */
+            this.modifiers1 = rawInfo.modifiers1;
+        }
+
+        Object.assign(this, _.omit(rawInfo, [
+            'type', 'subClass', 'validators0', 'validators1', 'modifiers0', 'modifiers1'
         ]));
     }
 
@@ -89,8 +92,10 @@ class OolongField {
 
         Object.assign(cl, this);
 
-        OolUtils.deepCloneField(this, cl, 'validators', stack);
-        OolUtils.deepCloneField(this, cl, 'modifiers', stack);
+        OolUtils.deepCloneField(this, cl, 'validators0', stack);
+        OolUtils.deepCloneField(this, cl, 'validators1', stack);
+        OolUtils.deepCloneField(this, cl, 'modifiers0', stack);
+        OolUtils.deepCloneField(this, cl, 'modifiers1', stack);
         OolUtils.deepCloneField(this, cl, 'default', stack);
         OolUtils.deepCloneField(this, cl, 'values', stack);
 

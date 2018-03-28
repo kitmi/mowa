@@ -23,7 +23,7 @@ const AST_OBJECT_TYPES = [
     'Identifier'
 ];
 
-function mapParams(params) {
+function astParams(params) {
     params = Array.isArray(params) ? params : [ params ];
 
     return params.map(p => {
@@ -31,8 +31,25 @@ function mapParams(params) {
              return astId(p);
          }
 
-        if (_.isPlainObject(p) && p.type === 'Identifier') {
-            return p;
+        if (_.isPlainObject(p)) {
+            if (p.type === 'Identifier' || p.type === 'AssignmentPattern') {
+                return p;
+            }
+
+            if (p.oolType === 'Parameter') {
+                if (p.defaultValue) {
+                    return {
+                        "type": "AssignmentPattern",
+                        "left": {
+                            "type": "Identifier",
+                            "name": p.name
+                        },
+                        "right": astLiteral(p.defaultValue)
+                    };
+                }
+
+                return astId(p.name);
+            }
         }
 
         throw new Error('Invalid param: ' + JSON.stringify(p));
@@ -41,6 +58,8 @@ function mapParams(params) {
 
 function mapArgs(args) {
     args = Array.isArray(args) ? args : [ args ];
+
+    if (_.isEmpty(args)) return [];
 
     return args.map(a => {
         if (_.isPlainObject(a) && 'type' in args) {
@@ -71,13 +90,13 @@ function astProgram(strict = true) {
     };
 }
 
-function astRequire(varName, requirePath) {
+function astRequire(varName, requirePath, isObjDestruct = false) {
     return {
         "type": "VariableDeclaration",
         "declarations": [
             {
                 "type": "VariableDeclarator",
-                "id": astId(varName),
+                "id": isObjDestruct ? astObjPat(varName) : astId(varName),
                 "init": astCall('require', [ astValue(requirePath) ])
             }
         ],
@@ -85,26 +104,55 @@ function astRequire(varName, requirePath) {
     };
 }
 
-function astDeclare(left, right, isConstant = false) {
+function astVarDeclare(left, right, isConstant = false, isObjDestruct = false) {
     return {
         "type": "VariableDeclaration",
         "declarations": [
             {
                 "type": "VariableDeclarator",
-                "id": astId(left),
-                "init": astValue(right)
+                "id": isObjDestruct ? astObjPat(left) : astId(left),
+                "init": _.isNil(right) ? null : astValue(right)
             }
         ],
         "kind": isConstant ? "const" : "let"
     };
 }
 
+function astClassDeclare(className, superClassName, body) {
+    let ast = {
+        "type": "ClassDeclaration",
+        "id": astId(className)
+    };
+
+    if (superClassName) {
+        ast['superClass'] = astId(superClassName);
+    }
+
+    ast['body'] = {
+        "type": "ClassBody",
+        "body": body ? (Array.isArray(body) ? body : [ body ]) : []
+    };
+
+    return ast;
+}
+
+function astMemberMethod(name, params, body, generator = false, async = false, isStatic = false) {
+    return {
+        "type": "MethodDefinition",
+        "key": astId(name),
+        "computed": false,
+        "value": astAnonymousFunction(params, body, generator, async),
+        "kind": "method",
+        "static": isStatic
+    };
+}
+
 function astIf(test, consequent, alternate) {
     return {
         "type": "IfStatement",
-        "test": test,
+        "test": astValue(test),
         "consequent": mapBody(consequent),
-        "alternate": mapBody(alternate)
+        "alternate": _.isNil(alternate) ? null : mapBody(alternate)
     };
 }
 
@@ -140,7 +188,32 @@ function astAwait(functionName, args) {
     };
 }
 
-function astVarRef(name) {    
+function astArrayAccess(name, index) {
+    return {
+        "type": "MemberExpression",
+        "computed": true,
+        "object": astVarRef(name),
+        "property": {
+            "type": "Literal",
+            "value": index,
+            "raw": `${index}`
+        }
+    }
+}
+
+function astVarRef(name) {
+    if (_.isPlainObject(name)) {
+        if (name.type === 'MemberExpression' || name.type === 'Identifier') {
+            return name;
+        }
+
+        if (name.oolType === 'ObjectReference') {
+            return astVarRef(name.name);
+        }
+
+        throw new Error('Invalid reference: ' + JSON.stringify(name));
+    }
+
     let p = name.split('.');
     if (p.length > 1) {
         //p.reverse();
@@ -182,9 +255,26 @@ function astId(name) {
             "type": "Identifier",
             "name": name
         };
+    } else if (_.isPlainObject(name) && name.type === 'Identifier') {
+        return name;
     }
 
     throw new Error('Invalid identifier name: ' + JSON.stringify(name));
+}
+
+function astObjPat(keys) {
+    return {
+        "type": "ObjectPattern",
+        "properties": _.map(keys, (k) => ({
+            "type": "Property",
+            "key": astId(k),
+            "computed": false,
+            "value": astId(k),
+            "kind": "init",
+            "method": false,
+            "shorthand": true
+        }))
+    };
 }
 
 function astMember(key, any, shorthand = false) {
@@ -212,32 +302,34 @@ function astValue(value) {
             return value;
         }
 
-        if (value.type === 'ObjectReference' || value.type === 'Variable') {
+        if (value.oolType === 'ObjectReference') {
             return astVarRef(value.name);
         }
 
-        if (value.type === 'Array') {
-            return astValue(value.value);
+        /*
+        if (value.type === 'FunctionCall') {
+            return astCall(value.name, value.args);
         }
 
-        if (value.type === 'Object') {
-            let props = [];
-
-            _.forOwn(value.value, (any, key) => {
-                props.push(astMember(key, astValue(any)));
-            });
-
-            return {
-                "type": "ObjectExpression",
-                "properties": props
-            };
+        if (value.type === 'Functor') {
+            return astArrowFunction(value.args, astValue(value.body), false, value.async);
         }
+        */
 
-        return astValue({type: 'Object', value});
+        let props = [];
+
+        _.forOwn(value, (any, key) => {
+            props.push(astMember(key, astValue(any)));
+        });
+
+        return {
+            "type": "ObjectExpression",
+            "properties": props
+        };
     }
 
     if (_.isObject(value)) {
-        throw new Error('Invalid value: ' + JSON.stringify(value));
+        throw new Error('Only plain object supported. Given: ' + JSON.stringify(value));
     }
 
     return astLiteral(value);
@@ -257,9 +349,20 @@ function astAddMember(obj, member) {
 
 function astPushInBody(obj, expr) {
     if (Array.isArray(obj.body)) {
-        obj.body.push(expr);
+        obj.body = obj.body.concat(_.castArray(expr));
     } else {
-        obj.body.body.push(expr);
+        obj.body.body = obj.body.body.concat(_.castArray(expr));
+    }
+}
+
+function astMethod(name, params, body, isStatic = false, generator = false, async = false) {
+    return {
+        "type": "MethodDefinition",
+        "key": astId(name),
+        "computed": false,
+        "value": astAnonymousFunction(params, body, generator, async),
+        "kind": "method",
+        "static": isStatic
     }
 }
 
@@ -271,7 +374,7 @@ function astFunction(name, params, body, generator = false, async = false) {
         "expression": false,
         "async": async,
         "defaults": [],
-        "params": mapParams(params),
+        "params": astParams(params),
         "body": astBlock(body)
     };
 }
@@ -280,7 +383,7 @@ function astAnonymousFunction(params, body, generator = false, async = false) {
     return {
         "type": "FunctionExpression",
         "id": null,
-        "params": mapParams(params),
+        "params": astParams(params),
         "defaults": [],
         "body": astBlock(body),
         "generator": generator,
@@ -293,7 +396,7 @@ function astArrowFunction(params, body, generator = false, async = false) {
     return {
         "type": "ArrowFunctionExpression",
         "id": null,
-        "params": mapParams(params),
+        "params": astParams(params),
         "body": mapBody(body),
         "generator": generator,
         "expression": true,
@@ -337,7 +440,7 @@ function astAssign(left, right) {
         "type": "AssignmentExpression",
         "operator": "=",
         "left": astVarRef(left),
-        "right": right
+        "right": astValue(right)
     });
 }
 
@@ -346,10 +449,7 @@ function astThrow(name, args) {
         "type": "ThrowStatement",
         "argument": {
             "type": "NewExpression",
-            "callee": {
-                "type": "Identifier",
-                "name": name
-            },
+            "callee": astVarRef(name),
             "arguments": mapArgs(args)
         }
     };
@@ -374,7 +474,9 @@ function astReturn(val) {
 module.exports = {
     astProgram,
     astRequire,
-    astDeclare,    
+    astVarDeclare,
+    astClassDeclare,
+    astMemberMethod,
     astCall,
     astYield,
     astAwait,
@@ -397,5 +499,8 @@ module.exports = {
     astThrow,
     astNot,
     astReturn,
-    astLiteral
+    astLiteral,
+    astParams,
+    astArrayAccess,
+    astMethod
 };

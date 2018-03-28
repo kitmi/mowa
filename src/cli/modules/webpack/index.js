@@ -180,6 +180,10 @@ exports.babel = function (api) {
     api.log('info', 'Babel plugins installed');
     api.log('info', 'Add below plugins into the plugin list of babel-loader in webpack config file to enable these features.');
     api.log('info', "plugins: [ '" + plugins.join("', '") + "' ]");
+
+    if (plugins.indexOf("transform-decorators-legacy") > -1 || plugins.indexOf("transform-class-properties") > -1) {
+        api.log('info', 'Notice: "transform-decorators-legacy" should appear before "transform-class-properties"');
+    }
 };
 
 exports.build = function (api) {

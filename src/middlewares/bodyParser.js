@@ -6,5 +6,6 @@
  */
 
 const koaBetterBody = require('koa-better-body');
+const convert = require('koa-convert');
 
-module.exports = koaBetterBody;
+module.exports = options => convert(koaBetterBody(options));

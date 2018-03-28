@@ -15,7 +15,7 @@ module.exports = {
             }
 
             let service = {
-                dbmsType: 'mongodb',
+                dbType: 'mongodb',
                 dbmsSpec: opt.dbms,
                 connectionString: opt.connection,
                 getConnection: () => new Promise((resolve, reject) => {

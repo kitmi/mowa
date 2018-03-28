@@ -19,7 +19,8 @@ function initialize(entity, options) {
         name: 'createdAt',
         type: 'datetime',
         auto: true,
-        readOnly: true
+        readOnly: true,
+        fixedValue: true
     };
 
     if (options) {
@@ -33,8 +34,7 @@ function initialize(entity, options) {
     let fieldName = typeInfo.name;
     delete typeInfo.name;
 
-    entity.addFeature({
-        name: FEATURE_NAME,
+    entity.addFeature(FEATURE_NAME, {
         field: fieldName
     }).on('afterFields', () => {
         entity.addField(fieldName, typeInfo);

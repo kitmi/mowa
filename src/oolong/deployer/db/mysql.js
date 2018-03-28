@@ -11,17 +11,6 @@ const path = require('path');
 
 const OolongDbDeployer = require('../db.js');
 
-class ActionContext {
-    constructor(appModule) {
-        this.appModule = appModule;
-
-        let i18n = appModule.getService('i18n');
-        if (i18n) {
-            this.__ = i18n.getI18n();
-        }
-    }
-}
-
 function checkInsertResult(logger, result) {
     console.log(result);
 }
@@ -31,15 +20,14 @@ class MysqlDeployer extends OolongDbDeployer {
      * Oolong mysql deployer
      * @constructs OolongMysqlDeployer
      * @param {object} context
-     * @param {string} schemaName
      * @param {object} dbService
      */
-    constructor(context, schemaName, dbService) {
-        super(context, schemaName, dbService);
+    constructor(context, dbService) {
+        super(context, dbService);
     }
 
     deploy(reset) {
-        let dbScriptDir = path.join(this.appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, 'mysql', this.schemaName);
+        let dbScriptDir = path.join(this.appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, this.dbService.dbType, this.dbService.name);
 
         let connStr = this.dbService.connectionString;
         let connInfo = URL.parse(connStr);
@@ -86,7 +74,7 @@ class MysqlDeployer extends OolongDbDeployer {
 
             entitiesSqlFile = path.join(dbScriptDir, 'entities.sql');
             if (!fs.existsSync(entitiesSqlFile)) {
-                dbConnection.release();
+                this.dbService.closeConnection(dbConnection);
                 return Promise.reject('No database scripts found. Try run "mowa oolong build" first');
             }
 
@@ -114,32 +102,39 @@ class MysqlDeployer extends OolongDbDeployer {
                 this.logger.log('info', `The table structure of database "${realDbName}" is created.`);
             }
 
-            dbConnection.release();
+            this.dbService.closeConnection(dbConnection);
+        }).catch(err => {
+            if (dbConnection) {
+                this.dbService.closeConnection(dbConnection);
+            }
+
+            throw err;
         });
     }
 
-    loadData(dataFile) {
-        let { logger, currentApp } = context;
-
+    async loadData(dataFile) {
         let ext = path.extname(dataFile);
         let content = fs.readFileSync(dataFile, {encoding: 'utf8'});
+
+        let db = this.appModule.db(this.dbService.serviceId);
 
         if (ext == '.json') {
             let data = JSON.parse(content);
             let querys = [];
-            let ctx = new ActionContext(currentApp);
 
-            _.forOwn(data, (records, tableName) => {
-                console.log(dbName + '.' + tableName);
-                let model = currentApp.getModel(dbName + '.' + tableName);
+            return Util.eachAsync_(data, async (records, entityName) => {
 
-                _.each(records, record => {
-                    querys.push(co(model.create.bind(ctx)(record)));
+                let Model = db.model(entityName);
+
+                let items = Array.isArray(records) ? records : [ records ];
+
+                return Util.eachAsync_(items, async item => {
+                    let model = new Model(item);
+                    return model.save();
                 });
             });
-
-            return Promise.all(querys);
         } else if (ext == '.sql') {
+            /*
             let dbService = currentApp.getService('mysql:' + dbName);
             if (!dbService) {
                 return Promise.reject(`"mysql:${dbName}" service not found.`);
@@ -165,10 +160,11 @@ class MysqlDeployer extends OolongDbDeployer {
                     checkInsertResult(logger, result);
                 }
 
-                dbConnection.release();
+                dbConnection.closeConnection();
 
                 return Promise.resolve();
             });
+            */
 
         } else {
             throw new Error('Unsupported data file format.');

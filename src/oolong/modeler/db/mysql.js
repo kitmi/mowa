@@ -84,9 +84,13 @@ class MysqlModeler extends OolongDbModeler {
             }
 
             if (entity.features) {
-                _.each(entity.features, (f => {
-                    this._featureReducer(entity, f);
-                }));
+                _.forOwn(entity.features, (f, featureName) => {
+                    if (Array.isArray(f)) {
+                        f.forEach(ff => this._featureReducer(entity, featureName, ff));
+                    } else {
+                        this._featureReducer(entity, featureName, f);
+                    }
+                });
             }
             
             _.forOwn(this._references, (refs, entityName) => {
@@ -176,10 +180,10 @@ class MysqlModeler extends OolongDbModeler {
         ));
     }
 
-    _featureReducer(entity, feature) {
+    _featureReducer(entity, featureName, feature) {
         let field;
 
-        switch (feature.name) {
+        switch (featureName) {
             case 'autoId':
                 field = entity.fields[feature.field];
 
@@ -216,7 +220,7 @@ class MysqlModeler extends OolongDbModeler {
                 break;
 
             default:
-                throw new Error('Unsupported feature "' + feature.name + '".');
+                throw new Error('Unsupported feature "' + featureName + '".');
         }
     }
 
@@ -616,7 +620,7 @@ class MysqlModeler extends OolongDbModeler {
     }
 
     static enumColumnDefinition(info) {
-        return 'ENUM(' + _.map(OolUtil.translateOolObj(info.values), (v) => MysqlModeler.quoteString(v)).join(', ') + ')';
+        return 'ENUM(' + _.map(info.values, (v) => MysqlModeler.quoteString(v)).join(', ') + ')';
     }
 
     static columnNullable(info) {
@@ -642,8 +646,10 @@ class MysqlModeler extends OolongDbModeler {
 
         if (info.isUpdateTimestamp) {
             sql += ' ON UPDATE CURRENT_TIMESTAMP';
+            info.updateByDb = true;
         }
 
+        /*
         if (info.hasOwnProperty('default') && typeof info.default !== 'object') {
             let defaultValue = info.default;
             delete info.default;
@@ -678,10 +684,10 @@ class MysqlModeler extends OolongDbModeler {
                     sql += ' DEFAULT ' + Util.quote(defaultValue);
                 }
             } else if (info.type === 'json') {
-                if (_.isPlainObject(defaultValue)) {
-                    sql += ' DEFAULT ' + Util.quote(JSON.stringify(OolUtil.mapOolObject(defaultValue)));
-                } else {
+                if (typeof defaultValue === 'string') {
                     sql += ' DEFAULT ' + Util.quote(defaultValue);
+                } else {
+                    sql += ' DEFAULT ' + Util.quote(JSON.stringify(defaultValue));
                 }
             } else if (info.type === 'xml' || info.type === 'enum' || info.type === 'csv') {
                 sql += ' DEFAULT ' + Util.quote(defaultValue);
@@ -689,7 +695,8 @@ class MysqlModeler extends OolongDbModeler {
                 throw new Error('Unexpected path');
             }
         }        
-
+        */
+        
         return sql;
     }
 }

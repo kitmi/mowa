@@ -6,12 +6,19 @@ const Util = require('./util.js');
 const Promise = Util.Promise;
 
 class I18n {
-
+    /**
+     * An app module object.
+     * @constructs I18n
+     * @param {object} [config] - The i18n configuration.
+     * @property {array} [config.supportedLocales] - The default locale
+     * @property {bool} [config.reverseUpdate=false] - Reverse update when
+     * @property {bool} [config.updateWithMeta=false] -
+     * @property {string} [config.timezone] - Timezone
+     */
     constructor(config) {
         config || (config = {});
 
         this.supportedLocales = config.supportedLocales ? config.supportedLocales.map(l => I18n.normalizeLocale(l)) : [ 'en_AU', 'en_US', 'zh_CN' ];
-        this.defaultLocale = config.defaultLocale || this.supportedLocales[0];
         this.reverseUpdate = util.isNullOrUndefined(config.reverseUpdate) ? false : Util.S(config.reverseUpdate).toBoolean();
         this.updateWithMeta = util.isNullOrUndefined(config.updateWithMeta) ? false : Util.S(config.updateWithMeta).toBoolean();
         this.timezone = config.timezone;
@@ -23,16 +30,16 @@ class I18n {
         return this.supportedLocales.some(l => n === l);
     }
 
-    setupAsync(locale) {
+    async setupAsync(locale) {
         if (!this.isLocaleSupported(locale)) return Promise.reject('unsupported_locale');
 
         this.dictionary = {};
 
-        this.locale = I18n.normalizeLocale(locale || this.defaultLocale);
+        this.locale = I18n.normalizeLocale(locale || this.supportedLocales[0]);
         this.momentLocale = I18n.localeToDash(this.locale).toLowerCase();
         this.momentTimezone = Util.timezone;
 
-        return Promise.resolve(this);
+        return this;
     }
 
     getText(token, values, defaultText) {
@@ -88,6 +95,10 @@ class I18n {
         if (this.reverseUpdate) { this.save(); }
     }
 
+    get dashForm() {
+        return I18n.localeToDash(this.locale);
+    }
+
     static normalizeLocale(locale) {
         var l = locale.replace('-', '_').split('_');
         var l2 = l[0].toLowerCase();
@@ -113,11 +124,7 @@ class I18n {
         if (pos == -1) return '';
 
         return locale.substr(pos + 1);
-    }
-
-    static mapDefaultTimezone(locale) {
-
-    }
+    }    
 }
 
 class FileI18n extends I18n {
@@ -130,7 +137,7 @@ class FileI18n extends I18n {
         this.directory = config.directory || './locale';
     }
 
-    setupAsync(locale) {
+    async setupAsync(locale) {
         const self = this;
 
         function loadDir(dict, dir, finish) {

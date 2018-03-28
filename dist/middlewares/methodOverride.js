@@ -1,1 +1,1 @@
-'use strict';const koaMethodOverride=require('koa-methodoverride');const Util=require('../util.js');module.exports=opt=>koaMethodOverride(opt.getter,Util._.omit(opt,'getter'));
+'use strict';const koaMethodOverride=require('koa-methodoverride'),Util=require('../util.js');module.exports=opt=>koaMethodOverride(opt.getter,Util._.omit(opt,'getter'));

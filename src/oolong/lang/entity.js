@@ -172,17 +172,11 @@ class OolongEntity {
         // load features
         if (this.info.features) {
             this.info.features.forEach(feature => {
-                let featureName, featureOptions;
-                if (_.isPlainObject(feature) && feature.type == 'FunctionCall') {
-                    featureName = feature.name;
-                    let args = OolUtils.translateOolObj(feature.args);
-                    featureOptions = args.length == 1 ? args[0] : args;
-                } else {
-                    featureName = feature;
-                }
+                
+                let featureName = feature.name;
 
                 let fn = require(path.resolve(__dirname, `./features/${featureName}.js`));
-                fn(this, featureOptions);
+                fn(this, feature.options);
             });
         }
 
@@ -211,7 +205,15 @@ class OolongEntity {
         }
 
         if (this.info.interface) {
-            this.interfaces = this.info.interface;
+            this.interfaces = _.cloneDeep(this.info.interface);
+
+            _.forOwn(this.interfaces, (intf) => {
+                if (!_.isEmpty(intf.accept)) {
+                    intf.accept = _.map(intf.accept, param => {
+                        return _.omit(Object.assign({}, this.linker.trackBackType(this.oolModule, param)), ['subClass']);
+                    });
+                }
+            });
         }
 
         this.initialized = true;
@@ -261,7 +263,7 @@ class OolongEntity {
                 index.fields = [ index.fields ];
             }
 
-            let fields = OolUtils.translateOolObj(index.fields);
+            let fields = index.fields; //OolUtils.translateOolObj(index.fields);
 
             index.fields = _.map(fields, field => {
 
@@ -358,20 +360,33 @@ class OolongEntity {
 
     /**
      * Add a feature into the entity, e.g. auto increment id
-     * @param {object} feature
+     * @param {string} name
+     * @param {*} feature
+     * @param {bool} [allowMultiple=false] - Allow multiple occurrence
      * @returns {OolongEntity}
      */
-    addFeature(feature) {
+    addFeature(name, feature, allowMultiple) {
         pre: {
+            name, Util.Message.DBC_ARG_REQUIRED;
             feature, Util.Message.DBC_ARG_REQUIRED;
-            feature.name, Util.Message.DBC_INVALID_ARG;
         }
 
         if (!this.features) {
-            this.features = [];
+            this.features = {};
         }
 
-        this.features.push(feature);
+        if (allowMultiple) {
+            if (!this.features[name]) {
+                this.features[name] = [];
+            }
+
+            this.features[name].push(feature);
+        } else {
+            if (feature.name in this.features) {
+                throw new Error(`Duplicate feature found: ${name}. Turn on allowMultiple to enable multiple occurrence of a feature.`);
+            }
+            this.features[name] = feature;
+        }
 
         return this;
     }

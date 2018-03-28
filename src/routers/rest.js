@@ -21,10 +21,10 @@ const Router = require('koa-router');
  /:resource                      post           create
  /:resource/:id                  get            get
  /:resource/:id                  put            update
- /:resource/:id                  del            remove
+ /:resource/:id                  delete         remove
  */
 
-module.exports = function (appModule, baseRoute, options) {
+module.exports = async (appModule, baseRoute, options) => {
     let resourcePath = path.join(appModule.backendPath, Mowa.Literal.RESOURCES_PATH);
     
     let router = baseRoute === '/' ? new Router() : new Router({prefix: baseRoute});
@@ -45,11 +45,9 @@ module.exports = function (appModule, baseRoute, options) {
 
     appModule.addRoute(router, 'get', '/:resource', { restAction: { type: 'query', controllers: ctrlsMap } });
     appModule.addRoute(router, 'post', '/:resource', { restAction: { type: 'create', controllers: ctrlsMap } });
-    appModule.addRoute(router, 'get', '/:resource/:id', { restAction: { type: 'get', controllers: ctrlsMap } });
+    appModule.addRoute(router, 'get', '/:resource/:id', { restAction: { type: 'detail', controllers: ctrlsMap } });
     appModule.addRoute(router, 'put', '/:resource/:id', { restAction: { type: 'update', controllers: ctrlsMap } });
-    appModule.addRoute(router, 'del', '/:resource/:id', { restAction: { type: 'delete', controllers: ctrlsMap } });
+    appModule.addRoute(router, 'delete', '/:resource/:id', { restAction: { type: 'remove', controllers: ctrlsMap } });
 
     appModule.addRouter(router);
-
-    return Promise.resolve();
 };

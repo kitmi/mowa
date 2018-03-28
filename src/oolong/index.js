@@ -4,7 +4,9 @@ const path = require('path');
 
 const Mowa = require('../server.js');
 const Util = require('../util.js');
+const fs = Util.fs;
 const _ = Util._;
+const S = Util.S;
 const Linker = require('./lang/linker.js');
 
 /**
@@ -26,7 +28,7 @@ function prepareLinkerContext(context, schemaFile) {
     let linker = new Linker(context);
     linker.link(schemaFile);
 
-    if (_.isEmpty(linker.schemas)) {
+    if (!linker.schema) {
         throw new Error('No schema found in the linker.');
     }
 
@@ -42,41 +44,43 @@ function prepareLinkerContext(context, schemaFile) {
  * @property {AppModule} context.currentApp - Current app module
  * @property {bool} context.verbose - Verbose mode
  * @param {string} schemaFile
+ * @param {string} [restify]
  */
-exports.build = function (context, schemaFile) {
+exports.build = function (context, schemaFile, restify) {
     let oolongConfig = prepareLinkerContext(context, schemaFile);
 
     let buildPath = path.join(context.currentApp.backendPath, Mowa.Literal.DB_SCRIPTS_PATH);
     
-    let schemas = [];
+    let schemaDeployments = [];
 
     if (!oolongConfig.schemas) {
         throw new Error('Schemas config not found! Try run "mowa ooloon config" first.');
     }
     
-    _.forOwn(context.linker.schemas, (schema, schemaName) => {
-        if (!(schemaName in oolongConfig.schemas)) {
-            throw new Error('Schema "' + schemaName + '" not exist in oolong config.');
-        }
+    let schema = context.linker.schema;
+    let schemaName = schema.name;
 
-        let schemaOolongConfig = oolongConfig.schemas[schemaName];
-        let deployment = _.isArray(schemaOolongConfig.deployTo) ? schemaOolongConfig.deployTo : [ schemaOolongConfig.deployTo ];
+    if (!(schemaName in oolongConfig.schemas)) {
+        throw new Error('Schema "' + schemaName + '" not exist in oolong config.');
+    }
 
-        _.each(deployment, dbServiceKey => {
-            let service = context.currentApp.getService(dbServiceKey);
-            let dbmsOptions = Object.assign({}, service.dbmsSpec);
+    let schemaOolongConfig = oolongConfig.schemas[schemaName];
+    let deployment = _.isArray(schemaOolongConfig.deployTo) ? schemaOolongConfig.deployTo : [ schemaOolongConfig.deployTo ];
 
-            let DbModeler = require(`./modeler/db/${service.dbmsType}.js`);
-            let dbModeler = new DbModeler(context, dbmsOptions);
+    _.each(deployment, dbServiceKey => {
+        let service = context.currentApp.getService(dbServiceKey);
+        let dbmsOptions = Object.assign({}, service.dbmsSpec);
 
-            schemas.push(dbModeler.modeling(schema, buildPath));
-        });
+        let DbModeler = require(`./modeler/db/${service.dbType}.js`);
+        let dbModeler = new DbModeler(context, dbmsOptions);
+
+        schemaDeployments.push(dbModeler.modeling(schema, buildPath));
     });
 
     const DaoModeler = require('./modeler/dao.js');
     let daoModeler = new DaoModeler(context, path.resolve(context.currentApp.backendPath, Mowa.Literal.MODELS_PATH));
 
-    _.each(schemas, schema => {
+    _.each(schemaDeployments, schema => {
         let schemaOolongConfig = oolongConfig.schemas[schema.name];
         assert: schemaOolongConfig, Util.Message.DBC_VAR_NOT_NULL;
 
@@ -88,8 +92,15 @@ exports.build = function (context, schemaFile) {
             daoModeler.modeling(schema, service);
         });
     });
+    
+    if (restify) {
+        const RestifyModeler = require('./modeler/restify.js');
+        let restifyModeler = new RestifyModeler(context, path.resolve(context.currentApp.backendPath, Mowa.Literal.RESOURCES_PATH));
 
-    return Promise.resolve();
+        let service = context.currentApp.getService(restify);
+
+        restifyModeler.modeling(schema, service);
+    }
 };
 
 /**
@@ -107,61 +118,64 @@ exports.deploy = function (context, schemaFile, reset = false) {
 
     let promises = [];
 
-    _.forOwn(context.linker.schemas, (schema, schemaName) => {
-        if (!(schemaName in oolongConfig.schemas)) {
-            throw new Error('Schema "' + schemaName + '" not exist in oolong config.');
-        }
+    let schema = context.linker.schema;
+    let schemaName = schema.name;
 
-        let schemaOolongConfig = oolongConfig.schemas[schemaName];
-        let deployment = _.isArray(schemaOolongConfig.deployTo) ? schemaOolongConfig.deployTo : [ schemaOolongConfig.deployTo ];
+    if (!(schemaName in oolongConfig.schemas)) {
+        throw new Error('Schema "' + schemaName + '" not exist in oolong config.');
+    }
 
-        _.each(deployment, (dbServiceKey) => {
-            let service = context.currentApp.getService(dbServiceKey);
+    let schemaOolongConfig = oolongConfig.schemas[schemaName];
+    let deployment = _.isArray(schemaOolongConfig.deployTo) ? schemaOolongConfig.deployTo : [ schemaOolongConfig.deployTo ];
 
-            let Deployer = require(`./deployer/db/${service.dbmsType}.js`);
-            let deployer = new Deployer(context, schemaName, service);
-            
-            promises.push(() => deployer.deploy(reset));
-        });
-    });    
+    _.each(deployment, (dbServiceKey) => {
+        let service = context.currentApp.getService(dbServiceKey);
+
+        let Deployer = require(`./deployer/db/${service.dbType}.js`);
+        let deployer = new Deployer(context, service);
+
+        promises.push(() => deployer.deploy(reset));
+    });
 
     return Util.eachPromise_(promises);
 };
 
-exports.import = function (appModule, context, schemaFile, mode) {
-    let linker = new Linker(context);
-    let schemaModule = linker.loadModule(schemaFile);
+/**
+ * Import a data set into database
+ * @param {object} context
+ * @property {Logger} context.logger - Logger object
+ * @property {AppModule} context.currentApp - Current app module
+ * @property {bool} context.verbose - Verbose mode
+ * @param {string} db
+ * @param {string} dataSetDir
+ * @returns {Promise}
+ */
+exports.import = async (context, db, dataSetDir) => {
+    let [ dbType, ] = db.split(':');
 
-    let promises = [];
+    let dataListFile = path.join(dataSetDir, 'index.list');
 
-    _.forOwn(schemaModule.database, (db, dbName) => {
-        let dataDir = path.join(appModule.backendPath, 'db', db.type, dbName, mode);
-        let dataListFile = path.join(dataDir, 'index.list');
+    if (!fs.existsSync(dataListFile)) {
+        return Promise.reject(`Data entry list file "${dataListFile}" not found.`);
+    }
 
-        if (!fs.existsSync(dataListFile)) {
-            promises.push(Promise.reject(`Data entry list file "${dataListFile}" not found.`));
-            return;
-        }
+    let dataList = S(fs.readFileSync(dataListFile)).lines();
+    let Deployer = require(`./deployer/db/${dbType}.js`);
+    let service = context.currentApp.getService(db);
+    let deployer = new Deployer(context, service);
 
-        let dataList = S(fs.readFileSync(dataListFile)).lines();
-        let dbDeployer = require(`./db/${db.type}.js`);
+    return Util.eachAsync_(dataList, async line => {
+        line = line.trim();
 
-        _.each(dataList, line => {
-            line = line.trim();
-
-            if (line.length > 0) {
-                let dataFile = path.join(dataDir, line);
-                if (!fs.existsSync(dataFile)) {
-                    promises.push(Promise.reject(`Data file "${dataFile}" not found.`));
-                    return;
-                }
-
-                promises.push(dbDeployer.importData(appModule, context, dbName, db, dataFile));
+        if (line.length > 0) {
+            let dataFile = path.join(dataSetDir, line);
+            if (!fs.existsSync(dataFile)) {
+                return Promise.reject(`Data file "${dataFile}" not found.`);
             }
-        });
-    });
 
-    return Promise.all(promises);
+            await deployer.loadData(dataFile);
+        }
+    });
 };
 
 exports.Linker = Linker;

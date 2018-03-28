@@ -21,15 +21,12 @@ function initialize(entity, fields) {
 
     Array.isArray(fields) || (fields = [ fields ]);
 
-    entity.addFeature({
-        name: FEATURE_NAME,
-        fields: fields
-    }).on('afterFields', () => {
+    entity.addFeature(FEATURE_NAME, fields, true).on('afterFields', () => {
         fields.forEach(fieldName => {
             let field = entity.fields[fieldName];
 
             if (!field) {
-                throw new Error('Required field "' + f + '" not exist.');
+                throw new Error('Required field "' + fieldName + '" not exist.');
             }
 
             field.optional = true;

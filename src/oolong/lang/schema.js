@@ -12,11 +12,9 @@ class OolongSchema {
      * Oolong schema
      * @constructs OolongSchema
      * @param {OolongLinker} linker
-     * @param {string} name
      * @param {*} oolModule
-     * @param {object} info
      */
-    constructor(linker, name, oolModule, info) {
+    constructor(linker, oolModule) {
         /**
          * Linker to process this schema
          * @type {OolongLinker}
@@ -29,7 +27,7 @@ class OolongSchema {
          * @type {string}
          * @public
          */
-        this.name = name;
+        this.name = oolModule.name;
 
         /**
          * Owner oolong module
@@ -43,7 +41,7 @@ class OolongSchema {
          * @type {object}
          * @public
          */
-        this.info = info;
+        this.info = oolModule.schema;
 
         /**
          * Entities in this schema
@@ -83,7 +81,7 @@ class OolongSchema {
      */
     clone(stack) {
         if (!stack) stack = new Map();
-        let cl = new OolongSchema(this.linker, this.name, this.oolModule, this.info);
+        let cl = new OolongSchema(this.linker, this.oolModule);
         stack.set(this, cl);
         
         cl.entities = OolUtils.deepClone(this.entities, stack);
@@ -113,8 +111,8 @@ class OolongSchema {
         this.info.entities.forEach(entityEntry => {
             let entity = this.linker.loadEntity(this.oolModule, entityEntry.entity);
 
-            let entityName = entityEntry.alias || entity.name;
-            this.addEntity(entityName, entity);
+            let entityInstanceName = entityEntry.alias || entity.name;
+            this.addEntity(entityInstanceName, entity);
         });
 
         this.initialized = true;

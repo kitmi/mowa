@@ -2,7 +2,13 @@
   "comments": false,
   "env": {
     "production": {
-      "minified": true
+      "minified": true,
+      "plugins": [
+        "transform-inline-consecutive-adds",
+        "transform-merge-sibling-variables",
+        "minify-flip-comparisons",
+        "minify-constant-folding"
+      ]
     }
   },
   "ignore": [
@@ -22,6 +28,9 @@
         "invariant": "invariant",
         "return": "it"
       }
-    }]
+    }],
+    ["transform-object-rest-spread", { "useBuiltIns": true }],
+    "transform-decorators-legacy",
+    "transform-class-properties"
   ]
 }

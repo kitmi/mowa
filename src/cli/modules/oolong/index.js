@@ -3,7 +3,7 @@
 const path = require('path');
 
 const oolong = require('../../../oolong');
-
+const Mowa = require('../../../server.js');
 const Util = require('../../../util.js');
 const fs = Util.fs;
 const _ = Util._;
@@ -17,6 +17,29 @@ const MowaHelper = require('../../mowa-helper.js');
  * @summary Oolong module of Mowa CLI program.
  */
 
+function listAvailableDataSet(api, db) {
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    let [ dbType, dbName ] = db.split(':');
+
+    let dataSetPath = path.join(appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, dbType, dbName, 'data');
+
+    if (!fs.existsSync(dataSetPath)) {
+        return [];
+    } else {
+        let dataSets = fs.readdirSync(dataSetPath);
+        let validDs = [];
+        dataSets.forEach(ds => {
+            let indexFile = path.join(dataSetPath, ds, 'index.list');
+            if (fs.existsSync(indexFile)) {
+                validDs.push(ds);
+            }
+        });
+
+        return validDs;
+    }
+}
+
 exports.moduleDesc = 'Provide commands to do database modeling.';
 
 exports.commandsDesc = {
@@ -24,7 +47,9 @@ exports.commandsDesc = {
     'create': 'Create database schema',
     'config': 'Enable oolong feature and add deploy config',
     'build': 'Generate database script and access models',
-    'deploy': 'Create database structure'
+    'deploy': 'Create database structure',
+    'listDataSet': 'List available data set',
+    'importDataSet': 'Import data set'
 };
 
 exports.help = function (api) {
@@ -48,9 +73,9 @@ exports.help = function (api) {
                 promptType: 'list',
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
-            cmdOptions['s'] = {
+            cmdOptions['schema'] = {
                 desc: 'Specify the schema name of the database',
-                alias: [ 'schema' ],
+                alias: [ 's' ],
                 required: true,
                 inquire: true
             };
@@ -64,9 +89,10 @@ exports.help = function (api) {
                 promptType: 'list',
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
-            cmdOptions['s'] = {
-                desc: 'The name of the schema to deploy',
-                alias: [ 'schema' ],
+            cmdOptions['schema'] = {
+                desc: 'The name of the schema',
+                promptMessage: 'Please select the target schema:',
+                alias: [ 's' ],
                 required: true,
                 inquire: true,
                 promptType: 'list',
@@ -74,6 +100,7 @@ exports.help = function (api) {
             };
             cmdOptions['db'] = {
                 desc: 'The name of the db to be deployed',
+                promptMessage: 'Please select the target db:',
                 alias: [ 'database' ],
                 required: true,
                 inquire: true,
@@ -90,7 +117,7 @@ exports.help = function (api) {
 
         case 'deploy':
             cmdOptions['app'] = {
-                desc: 'Specify the name of the app to operate',
+                desc: 'The name of the app to operate',
                 inquire: true,
                 promptType: 'list',
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
@@ -106,12 +133,71 @@ exports.help = function (api) {
 
         case 'build':
             cmdOptions['app'] = {
-                desc: 'Specify the name of the app to operate',
+                desc: 'The name of the app to operate',
+                promptMessage: 'Please select the target app:',
                 inquire: true,
                 promptType: 'list',
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
+            cmdOptions['restify'] = {
+                desc: 'Flag to generate restful endpoints',
+                promptMessage: 'Whether to generate restful endpoints:',
+                alias: [ 'rest' ],
+                inquire: true,
+                bool: true,
+                promptDefault: false
+            };
+            cmdOptions['db'] = {
+                desc: 'The name of the db to be restified',
+                promptMessage: 'Please select the db to be restified:',
+                inquire: () => api.getOption('restify'),
+                promptType: 'list',
+                choicesProvider: () => MowaHelper.getAppDbConnections(api)
+            };
             break;
+
+        case 'listDataSet':
+            cmdOptions['app'] = {
+                desc: 'The name of the app to operate',
+                promptMessage: 'Please select the target app:',
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => MowaHelper.getAvailableAppNames(api)
+            };
+            cmdOptions['db'] = {
+                desc: 'The name of the db to operate',
+                promptMessage: 'Please select the target db:',
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => MowaHelper.getAppDbConnections(api)
+            };
+            break;
+
+        case 'importDataSet':
+            cmdOptions['app'] = {
+                desc: 'The name of the app to operate',
+                promptMessage: 'Please select the target app:',
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => MowaHelper.getAvailableAppNames(api)
+            };
+            cmdOptions['db'] = {
+                desc: 'The name of the db to operate',
+                promptMessage: 'Please select the target db:',
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => MowaHelper.getAppDbConnections(api)
+            };
+            cmdOptions['dataSet'] = {
+                desc: 'The name of the data set to import',
+                promptMessage: 'Please select the target data set:',
+                alias: [ 'ds', 'data' ],
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => listAvailableDataSet(api, api.getOption('db'))
+            };
+            break;
+
 
         case 'help':
         default:
@@ -122,69 +208,54 @@ exports.help = function (api) {
     return cmdOptions;
 };
 
-exports.list = function (api) {
+exports.list = async (api) => {
     pre: api, Util.Message.DBC_ARG_REQUIRED;
 
     api.log('verbose', 'exec => mowa oolong list');
 
-    let appName = api.getOption('app');
+    let appModule = MowaHelper.getAppModuleToOperate(api);
 
-    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
+    let schemas = MowaHelper.getAppSchemas(api);
 
-    let appModule = api.server.childModules[appName];
-    if (!appModule) {
-        return Promise.reject(`App "${appName}" is not mounted in the project.`);
-    }
-
-    let schemas = [];
-
-    return new Promise((resolve, reject) => {
-        Util.glob('*.ool', { cwd: appModule.oolongPath }, (err, files) => {
-            if (err) return reject(err);
-
-            files.forEach(f => {
-                let linker = new oolong.Linker({ logger: api.logger, currentApp: appModule });
-                linker.link(path.join(appModule.oolongPath, f));
-
-                schemas = schemas.concat(_.values(linker.schemas));
-            });
-
-            api.log('info', `Defined schemas in app "${appName}":\n${schemas.map(s => s.name + ' in ' + s.oolModule.name + '.ool').join('\n')}\n`);
-
-            resolve();
-        });
-    });
+    api.log('info', `Schemas in app [${appModule.name}]:\n${schemas.join('\n')}\n`);
 };
 
-exports.config = function (api) {
+exports.config = async (api) => {
     pre: api, Util.Message.DBC_ARG_REQUIRED;
 
     api.log('verbose', 'exec => mowa oolong config');
 
-    let appName = api.getOption('app');
-    let schemaName = api.getOption('s');
-    let dbName = api.getOption('db');
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    let schemaName = api.getOption('schema');
+    let db = api.getOption('db');
 
     assert: {
-        appName, Util.Message.DBC_VAR_NOT_NULL;
         schemaName, Util.Message.DBC_VAR_NOT_NULL;
-        dbName, Util.Message.DBC_VAR_NOT_NULL;
+        db, Util.Message.DBC_VAR_NOT_NULL;
+        db.indexOf(':') > 0, Util.Message.DBC_INVALID_ARG;
     }
 
-    let appModule = api.server.childModules[appName];
-    if (!appModule) {
-        return Promise.reject(`App "${appName}" is not mounted in the project.`);
+    let [dbType, dbName] = db.split(':');
+
+    let dbOfSchemaPath = `${dbType}.${dbName}.schema`;
+    let dbOfSchema = Util.getValueByPath(appModule.config, dbOfSchemaPath);
+
+    if (dbOfSchema && dbOfSchema !== schemaName) {
+        return Promise.reject(`Database "${db}" has already been deployed with schema "${dbOfSchema}".`);
     }
 
-    let configPath = `oolong.schemas.${schemaName}`;
+    let configPath = `oolong.schemas.${schemaName}.deployTo`;
 
     let deployTo = Util.getValueByPath(appModule.config, configPath, []);
 
-    if (deployTo.indexOf(dbName) == -1) {
-        deployTo.push(dbName);
+    if (deployTo.indexOf(db) == -1) {
+        deployTo.push(db);
     }
 
-    return MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, { deployTo: deployTo }).then(() => {
+    return MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, deployTo).then(() => {
+        return MowaHelper.writeConfigBlock_(appModule.configLoader, dbOfSchemaPath, schemaName);
+    }).then(() => {
         api.log('info', `Deployment of schema "${schemaName}" is configured.`);
     });
 };
@@ -201,17 +272,12 @@ exports.create  = function (api) {
 
     api.log('verbose', 'exec => mowa oolong create');
 
-    let appName = api.getOption('app');
-    let schemaName = api.getOption('s');
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    let schemaName = api.getOption('schema');
 
     assert: {
-        appName, Util.Message.DBC_VAR_NOT_NULL;
         schemaName, Util.Message.DBC_VAR_NOT_NULL;
-    }
-
-    let appModule = api.server.childModules[appName];
-    if (!appModule) {
-        return Promise.reject(`App "${appName}" is not mounted in the project.`);
     }
     
     let entitiesPath = path.join(appModule.oolongPath, 'entities');
@@ -232,20 +298,14 @@ exports.create  = function (api) {
     api.log('info', 'Created "sampleEntity.ool" file.');
 };
 
-exports.build = function (api) {
+exports.build = async api => {
     pre: api, Util.Message.DBC_ARG_REQUIRED;
 
     api.log('verbose', 'exec => mowa oolong build');
 
-    let appName = api.getOption('app');
-    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
+    let appModule = MowaHelper.getAppModuleToOperate(api);
 
-    let appModule = api.server.childModules[appName];
-    if (!appModule) {
-        return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
-    }
-
-    api.log('info', `Start building oolong dsl for app [${appName}] ...`);
+    api.log('info', `Start building oolong dsl ...`);
 
     let oolongDir = appModule.oolongPath;
 
@@ -255,29 +315,28 @@ exports.build = function (api) {
 
     let schemaFiles = glob.sync(path.join(appModule.oolongPath, '*.ool'), {nodir: true});
 
+    let restify;
+    if (api.getOption('restify')) {
+        restify = api.getOption('db');
+    }
+
     return Util.eachPromise_(_.map(schemaFiles, schemaFile => (() => oolong.build({
         logger: api.logger,
         currentApp: appModule,
         verbose: api.server.options.verbose
-    }, schemaFile))));
+    }, schemaFile, restify))));
 };
 
-exports.deploy = function (api) {
+exports.deploy = async api => {
     pre: api, Util.Message.DBC_ARG_REQUIRED;
 
     api.log('verbose', 'exec => mowa oolong deploy');
 
-    let appName = api.getOption('app');
-    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
+    let appModule = MowaHelper.getAppModuleToOperate(api);
 
     let reset = api.getOption('reset');
 
-    let appModule = api.server.childModules[appName];
-    if (!appModule) {
-        return Promise.reject(`App "${appName}" is not mounted in the project. Run "mowa app mount" first.`);
-    }
-
-    api.log('info', `Start deploying database for app [${appName}] ...`);
+    api.log('info', `Start deploying database ...`);
 
     let oolongDir = appModule.oolongPath;
 
@@ -292,4 +351,57 @@ exports.deploy = function (api) {
         currentApp: appModule,
         verbose: api.server.options.verbose
     }, schemaFile, reset))));
+};
+
+exports.listDataSet = function (api) {
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
+
+    api.log('verbose', 'exec => mowa oolong listDataSet');
+
+    let db = api.getOption('db');
+
+    let validDataSet = listAvailableDataSet(api, db);
+
+    if (_.isEmpty(validDataSet)) {
+        api.log('info', `No dataset available for "${db}".`);
+    } else {
+        api.log('info', 'Available data set:\n' + validDataSet.join('\n') + '\n');
+    }
+};
+
+exports.importDataSet = async api => {
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
+
+    api.log('verbose', 'exec => mowa oolong importDataSet');
+
+    let db = api.getOption('db');
+    let dataSet = api.getOption('dataSet');
+
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    let [ dbType, dbName ] = db.split(':');
+
+    let dbOfSchemaPath = `${dbType}.${dbName}.schema`;
+    let dbOfSchema = Util.getValueByPath(appModule.config, dbOfSchemaPath);
+
+    if (!dbOfSchema) {
+        return Promise.reject(`Database "${db}" has not been configured to deploy a schema. Try run "mowa oolong config" first.`);
+    }
+
+    let dataSetPath = path.join(appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, dbType, dbName, 'data', dataSet);
+
+    if (!fs.existsSync(dataSetPath)) {
+        return Promise.reject(`Data set "${dataSet}" not found in database "${db}".`);
+    }
+
+    let indexFile = path.join(dataSetPath, 'index.list');
+    if (!fs.existsSync(indexFile)) {
+        return Promise.reject(`Index list of data set "${dataSet}" not found in database "${db}".`);
+    }
+
+    return oolong.import({
+        logger: api.logger,
+        currentApp: appModule,
+        verbose: api.server.options.verbose
+    }, db, dataSetPath);
 };

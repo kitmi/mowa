@@ -7,7 +7,7 @@ const RkUtil = require('rk-utils');
  * @summary Collection of utilities.
  */
 
-const U = module.exports = RkUtil._.assignIn({}, RkUtil, {
+const U = RkUtil._.assignIn({}, RkUtil, {
 
     /**
      * A lightweight JavaScript date library for parsing, validating, manipulating, and formatting dates.
@@ -28,7 +28,13 @@ const U = module.exports = RkUtil._.assignIn({}, RkUtil, {
      * @param {object} options
      * @returns {LRUCache}
      */
-    createLRUCache(options) { var LRU = require("lru-cache"); return new LRU(options); },    
+    createLRUCache(options) { var LRU = require("lru-cache"); return new LRU(options); },
+
+    /**
+     * Create a toposort algorithm object.
+     * @returns {TopoSort}
+     */
+    createTopoSort() { let TopoSort = require("./utils/toposort"); return new TopoSort(); },
 
     /**
      * Error messages.
@@ -36,3 +42,5 @@ const U = module.exports = RkUtil._.assignIn({}, RkUtil, {
      */
     Message: require('./message.js')
 });
+
+module.exports = U;

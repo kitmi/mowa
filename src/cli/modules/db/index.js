@@ -12,7 +12,7 @@ const oolong = require('../../../oolong');
 const Mowa = require('../../../server.js');
 const MowaHelper = require('../../mowa-helper.js');
 
-const dbmsTypes = require('./dbms.js');
+const dbTypes = require('./dbms.js');
 
 /**
  * @module MowaCLI_Db
@@ -42,16 +42,17 @@ exports.help = function (api) {
                 required: true,
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
-            cmdOptions['dbms'] = {
-                desc: 'The dbms type',
-                promptMessage: 'Please select the target dbms:',
+            cmdOptions['type'] = {
+                desc: 'The database type',
+                promptMessage: 'Please select the target database type:',
                 inquire: true,
                 promptType: 'list',
                 required: true,
-                choicesProvider: () => Object.keys(dbmsTypes)
+                choicesProvider: () => Object.keys(dbTypes)
             };
             cmdOptions['db'] = {
-                desc: 'Specify the name of the database',
+                desc: 'The name of the database',
+                promptMessage: 'Please input the name of the database:',
                 inquire: true,
                 required: true,
                 alias: [ 'database' ]
@@ -78,7 +79,7 @@ exports.help = function (api) {
                 inquire: true,
                 promptType: 'list',
                 required: true,
-                choicesProvider: () => Object.keys(dbmsTypes)
+                choicesProvider: () => Object.keys(dbTypes)
             };
             break;
 
@@ -127,12 +128,12 @@ exports.enable = async api => {
         dbms, Util.Message.DBC_VAR_NOT_NULL;
     }
 
-    if (!dbmsTypes[dbms]) {
+    if (!dbTypes[dbms]) {
         return Promise.reject(`Unknown dbms type: ${dbms}`);
     }
 
     let deps = MowaHelper.getAppModuleDependencies(appModule);
-    let pkgs = dbmsTypes[dbms];
+    let pkgs = dbTypes[dbms];
 
     shell.cd(appModule.absolutePath);
 
@@ -171,7 +172,7 @@ exports.add = async api => {
 
     await exports.enable(api);
 
-    let dbms = api.getOption('dbms');
+    let type = api.getOption('type');
     let dbName = api.getOption('db');
     assert: {
         dbName, Util.Message.DBC_VAR_NOT_NULL;
@@ -179,5 +180,5 @@ exports.add = async api => {
 
     let conn = api.getOption('conn') || 'to be defined';
 
-    return MowaHelper.writeConfigBlock_(appModule.configLoader, `${dbms}.${dbName}.connection`, conn);
+    return MowaHelper.writeConfigBlock_(appModule.configLoader, `${type}.${dbName}.connection`, conn);
 };

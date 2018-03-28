@@ -1,1 +1,1 @@
-"use strict";class DbDeployer{constructor(context,schemaName,dbService){this.logger=context.logger;this.appModule=context.currentApp;this.schemaName=schemaName;this.dbService=dbService}deploy(reset){}loadData(dataFile,mode){}}module.exports=DbDeployer;
+"use strict";let DbDeployer=class DbDeployer{constructor(context,dbService){this.logger=context.logger;this.appModule=context.currentApp;this.dbService=dbService}};module.exports=DbDeployer;

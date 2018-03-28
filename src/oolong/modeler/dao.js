@@ -5,409 +5,20 @@ const _ = Util._;
 const fs = Util.fs;
 
 const path = require('path');
-const inflection = require('inflection');
-const Oolong = require('../lang/oolong.js');
 const OolUtil = require('../lang/ool-utils.js');
 const JsLang = require('./util/ast.js');
+const OolongField = require('../lang/field.js');
+const OolongModifiers = require('../runtime/modifiers.js');
+const OolongValidators = require('../runtime/validators.js');
+const Snippets = require('./dao/snippets');
 
 const escodegen = require('escodegen');
 const TopoSort = require('topo-sort');
+const Trie = require('trie').Trie;
 
-function allDependenciesResolved(context, modifier) {
-    if (!_.isEmpty(modifier.args)) {
-        let hasUnresolvedDependency = _.find(modifier.args.value, arg => {
-            if (arg.type === 'ObjectReference') {
-                let refTo = OolUtil.extractMemberAccess(arg.name).shift();
-                return !context[refTo];
-            }
+const OolToAst = require('./util/oolToAst.js');
 
-            return false;
-        });
-
-        return !hasUnresolvedDependency;
-    }
-
-    return true;
-}
-
-function applyModifier(varName, modifier) {
-    let args = [ JsLang.astId(varName) ];
-
-    if (!_.isEmpty(modifier.args)) {
-        args = args.concat(_.map(modifier.args.value, a => JsLang.astValue(a)));
-    }
-
-    return JsLang.astAssign(varName, JsLang.astCall(
-        modifier.name,
-        args
-    ));
-}
-
-const fieldModifierContextSource = {
-    'existing': 'existingData',
-    'new': 'newData',
-    'raw': 'rawData'
-};
-
-function applyFieldModifier(fieldName, modifier, astBody) {
-    let args = [ JsLang.astVarRef('newData.' + fieldName) ];
-    let thenDo = [];
-
-    if (!_.isEmpty(modifier.args)) {
-        args = args.concat(_.map(modifier.args.value, a => {
-            if (_.isPlainObject(a) && a.type == 'ObjectReference') {
-                let  p = a.name.split('.');
-                if (p.length < 2) {
-                    p = [ 'new' ].concat(p);
-                }
-
-                if (p[0] in fieldModifierContextSource) {
-                    p[0] = fieldModifierContextSource[p[0]];
-                } else {
-                    throw new Error('Unsupported field modifier data source: ' + p[0]);
-                }
-
-                thenDo.push(JsLang.astIf(
-                    JsLang.astNot(JsLang.astBinExp(JsLang.astValue(p[1]), 'in', JsLang.astId(p[0]))),
-                    JsLang.astThrow('ModelOperationError', [
-                        JsLang.astVarRef('ModelOperationError.REFERENCE_NON_EXIST_VALUE'),
-                        JsLang.astValue(fieldName)
-                    ])
-                ));
-
-                return JsLang.astVarRef(p.join('.'));
-            } else {
-                return JsLang.astValue(a);
-            }
-        }));
-    }
-
-    thenDo.push(JsLang.astAssign('newData.' + fieldName, JsLang.astCall(
-        modifier.name,
-        args
-    )));
-
-    astBody.push(JsLang.astIf(
-        JsLang.astBinExp(JsLang.astValue(fieldName), 'in', JsLang.astId('newData')),
-        thenDo
-    ));
-}
-
-function processModifiersQueue(context, modifiersQueue, astBody) {
-    if (modifiersQueue.length == 0) return;
-
-    let processed = new Set();
-
-    while (modifiersQueue.length > 0 && !processed.has(modifiersQueue[0])) {
-        let modifierEntry = modifiersQueue.shift();
-        processed.add(modifierEntry);
-
-        do {
-            if (allDependenciesResolved(context, modifierEntry.modifier)) {
-                astBody.push(applyModifier(modifierEntry.variable, modifierEntry.modifier));
-
-                if (modifierEntry.following.length == 0) {
-                    context[modifierEntry.variable] = true;
-                } else {
-                    modifierEntry.modifier = modifierEntry.following.shift();
-                }
-            } else {
-                modifiersQueue.push(modifierEntry);
-
-                break;
-            }
-        } while (modifierEntry.following.length > 0);
-    }
-
-    return modifiersQueue.length == 0;
-}
-
-function prepareDbConnection(body) {
-    body.push(JsLang.astDeclare('dbService', JsLang.astCall('this.appModule.getService', [
-        JsLang.astVarRef('ModelMeta.connectionId')
-    ])));
-    body.push(JsLang.astDeclare('db', JsLang.astYield(JsLang.astCall('dbService.getConnection', [
-        JsLang.astValue(true)
-    ]))));
-}
-
-function processPopulate(context, op, astBody) {
-    let mainTable;
-    let columns = [];
-    let joining = {};
-    
-    _.each(op.projection, collection => {
-        let names = OolUtil.extractMemberAccess(collection);
-        
-        if (!mainTable) {
-            mainTable = names[0];
-        } else if (mainTable !== names[0]) {
-            throw new Error('unsupported relationship.');
-        }
-        
-        if (names.length > 2) {
-            //joining exist
-            throw new Error('tbd');
-        } else {
-            if (names[1] == '*') {
-                columns.push('*');
-            } else {
-                columns.push(names[1]);
-            }
-        }        
-    });
-
-    let sql, queryValues;
-
-    if (columns.length == 1 && columns[0] == '*') {
-        sql = 'SELECT * FROM ??';
-        columns = [];
-        queryValues = [ mainTable ];
-    } else {
-        sql = 'SELECT ?? FROM ??';
-        queryValues = [ columns, mainTable ];
-    }
-
-    let filter = processFilter(op.filter);
-    if (!_.isEmpty(filter.dependency)) {
-        let unresovledDep = _.find(filter.dependency, item => !context[item]);
-        if (unresovledDep) {
-            throw new Error('The populate operation has unresolved dependency: ' + unresovledDep);
-        }
-    }
-
-    sql += ' WHERE ' + filter.statement;
-
-    if (!_.isEmpty(filter.values)) {
-        queryValues = queryValues.concat(filter.values);
-    }
-
-    let sqlVarName = op.output + 'Sql';
-    astBody.push(JsLang.astDeclare(sqlVarName, JsLang.astValue(sql)));
-    astBody.push(JsLang.astDeclare(op.output, JsLang.astYield(
-        JsLang.astCall('db.query', [
-            JsLang.astVarRef(sqlVarName),
-            JsLang.astValue({ type: 'Array', value: queryValues })
-        ])
-    )));
-
-    context[op.output] = true;
-}
-
-function processFilter(filter) {
-    if (filter.type === 'BinaryExpression') {
-        return processBinaryExpression(filter);
-    } else if (filter.type === 'UnaryExpression') {
-        return processUnaryExpression(filter);
-    }
-
-    let statement, values, dependency;
-
-    if (_.isPlainObject(filter)) {
-        if (filter.type === 'Variable') {
-            statement = '??';
-            values = [ filter.name ];
-        } else if (filter.type === 'ObjectReference') {
-            statement = '?';
-            values = [ filter ];
-            dependency = [ OolUtil.extractMemberAccess(filter.name).shift() ];
-        } else if (filter.type === 'Object') {
-            throw new Error('unsupported');
-        } else if (filter.type === 'Array') {
-            statement = '?';
-            values = [ filter.value ];
-        } else {
-            throw new Error('unsupported');
-        }
-    } else {
-        statement = '?';
-        values = [ filter ];
-    }
-
-    return { statement, values, dependency };
-}
-    
-function processBinaryExpression(filter) {
-    let statement, values = [], dependency = [];
-
-    let left = processFilter(filter.left);
-    let right = processFilter(filter.right);
-    let operator;
-
-    switch (filter.operator) {
-        case '>':
-        case '<':
-        case '>=':
-        case '<=':
-        case '=':
-        case 'in':
-        case 'and':
-        case 'or':
-            operator = filter.operator;
-            break;
-
-        case '!=':
-            operator = '<>';
-            break;
-
-        default:
-            throw new Error('unsupported filter operator: ' + filter.operator);
-    }
-
-    statement = `(${left.statement} ${operator} ${right.statement})`;
-
-    if (!_.isEmpty(left.values)) {
-        values = values.concat(left.values);
-    }
-    if (!_.isEmpty(right.values)) {
-        values = values.concat(right.values);
-    }
-
-    if (!_.isEmpty(left.dependency)) {
-        dependency = dependency.concat(left.dependency);
-    }
-    if (!_.isEmpty(right.dependency)) {
-        dependency = dependency.concat(right.dependency);
-    }
-
-    return { statement, values, dependency };
-}
-
-function processUnaryExpression(filter) {
-    let statement, values = [], dependency = [];
-
-    let processed = processFilter(filter.argument);
-
-    switch (filter.operator) {
-        case 'exists':
-        case 'is-not-null':
-            statement = '(' + processed.statement + ' IS NOT NULL)';
-            break;
-
-        case 'not-exists':
-        case 'is-null':
-            statement = '(' + processed.statement + ' IS NULL)';
-            break;
-
-        case 'not':
-            statement = '(NOT ' + processed.statement + ')';
-            break;
-
-        default:
-            throw new Error('unsupported filter operator: ' + filter.operator);
-    }
-
-    if (!_.isEmpty(processed.values)) {
-        values = values.concat(processed.values);
-    }
-
-    if (!_.isEmpty(processed.dependency)) {
-        dependency = dependency.concat(processed.dependency);
-    }
-
-    return { statement, values, dependency };
-}
-
-function translateTestToAst(context, test) {
-    if (_.isPlainObject(test)) {
-        if (test.type === 'BinaryExpression') {
-            let op;
-
-            switch (test.operator) {
-                case '>':
-                case '<':
-                case '>=':
-                case '<=':
-                case 'in':
-                    op = test.operator;
-                    break;
-
-                case 'and':
-                    op = '&&';
-                    break;
-
-                case 'or':
-                    op = '||';
-                    break;
-
-                case '=':
-                    op = '===';
-                    break;
-
-                case '!=':
-                    op = '!==';
-                    break;
-
-                default:
-                    throw new Error('unsupported test operator: ' + test.operator);
-            }
-
-            return {
-                "type": "BinaryExpression",
-                "operator": op,
-                "left": translateTestToAst(context, test.left),
-                "right": translateTestToAst(context, test.right)
-            };
-        } else if (test.type === 'UnaryExpression') {
-            let astTest;
-
-            switch (test.operator) {
-                case 'exists':
-                    astTest = JsLang.astNot(JsLang.astCall('Mowa._.isEmpty', [
-                        translateTestToAst(context, test.argument)
-                    ]));
-                    break;
-
-                case 'is-not-null':
-                    astTest = JsLang.astNot(JsLang.astCall('Mowa._.isNil', [
-                        translateTestToAst(context, test.argument)
-                    ]));
-                    break;
-
-                case 'not-exists':
-                    astTest = JsLang.astCall('Mowa._.isEmpty', [
-                        translateTestToAst(context, test.argument)
-                    ]);
-                    break;
-
-                case 'is-null':
-                    astTest = JsLang.astCall('Mowa._.isNil', [
-                        translateTestToAst(context, test.argument)
-                    ]);
-                    break;
-
-                case 'not':
-                    astTest = JsLang.astNot(translateTestToAst(context, test.argument));
-                    break;
-
-                default:
-                    throw new Error('unsupported test operator: ' + test.operator);
-            }
-
-            return astTest;
-        } else {
-            if (test.type == 'ObjectReference') {
-                let ref = OolUtil.extractMemberAccess(test.name).shift();
-                if (!context[ref]) {
-                    throw new Error('Returned uninitialized object: ' + ref);
-                }
-            }
-
-            return JsLang.astValue(test);
-        }
-    }
-
-    return JsLang.astValue(test);
-}
-
-function processExceptionalReturn(context, excp, astBody) {
-    if (excp.type != 'ConditionalStatement') {
-        throw new Error('unsupported exceptional type: ' + excp.type);
-    }
-
-    let test = translateTestToAst(context, excp.test);
-    astBody.push(JsLang.astIf(test, JsLang.astReturn(JsLang.astValue(excp.then))));
-}
+const swig  = require('swig-templates');
 
 class DaoModeler {
     /**
@@ -432,52 +43,554 @@ class DaoModeler {
 
         this._generateSchemaModel(schema, dbService);
 
-        _.forOwn(schema.entities, (entity, entityName) => {
-            let capitalized = Util.S('-' + entityName).camelize().s;
+        _.forOwn(schema.entities, (entity, entityInstanceName) => {
+            let capitalized = _.upperFirst(entityInstanceName);
 
-            let ast = JsLang.astProgram(/*[
-                JsLang.astRequire('Mowa', 'mowa'),
-                JsLang.astDeclare('Oolong', JsLang.astVarRef('Mowa.OolongRuntime'), true),
-                JsLang.astDeclare('Util', JsLang.astVarRef('Mowa.Util'), true),
-                JsLang.astDeclare('_', JsLang.astVarRef('Util._'), true),
-                JsLang.astMatchObject(['ModelValidationError', 'ModelOperationError'], JsLang.astVarRef('Oolong'))
-            ]*/);
+            let ast = JsLang.astProgram();
 
-            let modifiersQueue = this._generateModifiers(entity, entityName, schema.name, ast);
+            JsLang.astPushInBody(ast, JsLang.astRequire('Mowa', 'mowa'));
+            JsLang.astPushInBody(ast, JsLang.astVarDeclare('Util', 'Mowa.Util', true));
+            JsLang.astPushInBody(ast, JsLang.astVarDeclare('_', 'Util._', true));
+            JsLang.astPushInBody(ast, JsLang.astVarDeclare([ 'InvalidRequest', 'ServerError' ], 'Mowa.Error', true, true));
+            JsLang.astPushInBody(ast, JsLang.astRequire('Model', `mowa/dist/oolong/runtime/models/${dbService.dbType}`));
+            JsLang.astPushInBody(ast, JsLang.astRequire('validators', 'mowa/dist/oolong/runtime/validators'));
+            JsLang.astPushInBody(ast, JsLang.astRequire('modifiers', 'mowa/dist/oolong/runtime/modifiers'));
+            JsLang.astPushInBody(ast, JsLang.astRequire([ 'ModelValidationError', 'ModelOperationError', 'ModelResultError' ], 'mowa/dist/oolong/runtime/errors', true));
+
+            let astClassMain = this._processFieldsValidatorsAndModifiers(dbService, entity, capitalized);
+
+            //console.dir(entity.fields, {depth: 8, colors: true});
+            //console.dir(entity.interfaces, {depth: 8, colors: true});
+
+            let uniqueKeys = [ [ entity.key ] ];
+
+            entity.indexes.forEach(index => {
+                if (index.unique) {
+                    uniqueKeys.push(index.fields);
+                }
+            });
 
             let modelMetaInit = {
                 schemaName: schema.name,
-                name: entityName,
+                name: entityInstanceName,
                 keyField: entity.key,
-                fields: _.mapValues(entity.fields, f => f.toJSON())
+                fields: _.mapValues(entity.fields, f => f.toJSON()),
+                indexes: entity.indexes,
+                features: entity.features,
+                uniqueKeys
             };
 
-            if (this.verbose) {
-                this.logger.log('verbose', JSON.stringify(modelMetaInit, null, 4));
+            if (entity.interfaces) {
+                let astInterfaces = this._buildInterfaces(entity, dbService, modelMetaInit);
+                let astClass = astClassMain[astClassMain.length-1];
+                JsLang.astPushInBody(astClass, astInterfaces);
             }
 
-            let modelMeta = JsLang.astValue({type: 'Object', value: modelMetaInit});
+            let modelMeta = JsLang.astValue(modelMetaInit);
 
-            //this._generateCreateMethod(modifiersQueue, entity, modelMeta);
-            //this._generateFindMethod(modifiersQueue, entity, modelMeta);
-
-            /*
-            if (entity.interfaces) {
-                this._generateInterfaces(entity, dbService, modelMeta);
-            }*/
-
-            JsLang.astPushInBody(ast, JsLang.astDeclare(capitalized, modelMeta, true));
+            JsLang.astPushInBody(ast, astClassMain);
+            JsLang.astPushInBody(ast, JsLang.astAssign(capitalized + '.meta', modelMeta));
             JsLang.astPushInBody(ast, JsLang.astAssign('module.exports', JsLang.astVarRef(capitalized)));
 
-            let modelFilePath = path.resolve(this.buildPath, schema.name, entityName + '.js');
-            this._exportSourceCode(ast, modelFilePath);
+            let modelFilePath = path.resolve(this.buildPath, dbService.dbType, dbService.name, entityInstanceName + '.js');
+            fs.writeFileSync(modelFilePath + '.json', JSON.stringify(ast, null, 4));
 
+            DaoModeler._exportSourceCode(ast, modelFilePath);
 
-            //fs.writeFileSync(modelFilePath + '.json', JSON.stringify(ast, null, 4));
+            this.logger.log('info', 'Generated entity model: ' + modelFilePath);
         });
     }
 
-    _exportSourceCode(ast, modelFilePath) {
+    _processFieldsValidatorsAndModifiers(dbService, entity, capitalized) {
+        let ast = [];
+
+        let mapTopoIdToAst = {};
+        let mapValidatorToFile = {};
+        let mapModifierToFile = {};
+        let trie = new Trie();
+        let tsort = new TopoSort();
+
+        //check validators of stage-0
+        this._processValidators(dbService, entity, 0, mapValidatorToFile, mapModifierToFile, mapTopoIdToAst, tsort, trie);
+        //check modifiers of stage-0
+        this._processModifiers(dbService, entity, 0, mapModifierToFile, mapTopoIdToAst, tsort, trie);
+
+        //check validators of stage-1
+        this._processValidators(dbService, entity, 1, mapValidatorToFile, mapModifierToFile, mapTopoIdToAst, tsort, trie);
+        //check modifiers of stage-1
+        this._processModifiers(dbService, entity, 1, mapModifierToFile, mapTopoIdToAst, tsort, trie);
+
+        if (!_.isEmpty(mapValidatorToFile)) {
+            _.forOwn(mapValidatorToFile, (jsFile, varName) => {
+                ast.push(JsLang.astRequire(varName, './validators/' + jsFile));
+            });
+        }
+
+        if (!_.isEmpty(mapModifierToFile)) {
+            _.forOwn(mapModifierToFile, (jsFile, varName) => {
+                ast.push(JsLang.astRequire(varName, './modifiers/' + jsFile));
+            });
+        }
+
+        let dependencyOrder = tsort.sort();
+        let methodBodyCreate = [], methodBodyUpdate = [], lastFieldName, methodBodyUpdateCache = [];
+
+        _.each(dependencyOrder, dep => {
+            if (trie.lookup(dep)) {
+                let [ fieldName, stage, state ] = dep.split(':');
+                if (fieldName[0] === '@') return;
+                if (state) {
+                    if (stage.length > 1) return;
+
+                    let astDep = mapTopoIdToAst[dep];
+                    if (astDep) {
+                        let casted = _.castArray(astDep);
+                        methodBodyCreate = methodBodyCreate.concat(casted);
+
+                        if (lastFieldName && lastFieldName !== fieldName) {
+                            methodBodyUpdate = methodBodyUpdate.concat(Snippets._preUpdateCheckPendingUpdate(lastFieldName, methodBodyUpdateCache));
+                            methodBodyUpdateCache = [];
+                        }
+
+                        lastFieldName = fieldName;
+                        methodBodyUpdateCache = methodBodyUpdateCache.concat(casted);
+                    }
+                }
+            }
+        });
+
+        if (!_.isEmpty(methodBodyUpdateCache)) {
+            methodBodyUpdate = methodBodyUpdate.concat(Snippets._preUpdateCheckPendingUpdate(lastFieldName, methodBodyUpdateCache));
+        }
+
+        //generate _preCreate and _preUpdate functions
+        ast.push(JsLang.astClassDeclare(capitalized, 'Model', [
+            JsLang.astMemberMethod('_preCreate', [],
+                Snippets._preCreateHeader.concat(methodBodyCreate).concat([ JsLang.astReturn(JsLang.astId('context')) ]),
+                false, true, false
+            ),
+            JsLang.astMemberMethod('_preUpdate', [],
+                Snippets._preUpdateHeader.concat(methodBodyUpdate).concat([ JsLang.astReturn(JsLang.astId('context')) ]),
+                false, true, false
+            )
+        ]));
+
+        return ast;
+    };
+
+    _generateSchemaModel(schema, dbService) {
+        let capitalized = Util.S('-' + schema.name).camelize().s;
+
+        let locals = {
+            className: capitalized,
+            dbName: dbService.name,
+            dbType: dbService.dbType,
+            serviceId: dbService.serviceId,
+            models: Object.keys(schema.entities).map(e => `"${e}"`).join(', ')
+        };
+
+        let classTemplate = path.resolve(__dirname, 'dao', 'db.js.swig');
+        let classCode = swig.renderFile(classTemplate, locals);
+
+        let modelFilePath = path.resolve(this.buildPath, dbService.dbType, dbService.name + '.js');
+        fs.ensureFileSync(modelFilePath);
+        fs.writeFileSync(modelFilePath, classCode);
+
+        this.logger.log('info', 'Generated database access object: ' + modelFilePath);
+    }
+
+    _generateFunctionTemplateFile(functionCall, dbService, entityName, fieldName, type) {
+        assert: type === 'validator' || type === 'modifier', 'Invalid function type.';        
+
+        let baseFileName = entityName + '-' + functionCall.name + '.js';
+
+        let filePath = path.resolve(
+            this.buildPath,
+            dbService.dbType,
+            dbService.name,
+            type === 'validator' ? 'validators' : 'modifiers',
+            baseFileName
+        );
+
+        if (fs.existsSync(filePath)) {
+            //todo: analyse code
+            this.logger.log('info', `${ type === 'validator' ? 'Validator' : 'Modifier' } "${baseFileName}" exists. File generating skipped.`);
+
+            return baseFileName;
+        }
+
+        let params = [ fieldName ];
+
+        if (!_.isEmpty(functionCall.args)) {
+
+            _.each(functionCall.args, p => {
+                let name;
+
+                if (p.oolType === 'ValueWithModifier') {
+                    if (_.isPlainObject(p.value)) {
+                        name = DaoModeler._extractReferenceBaseName(p.value);
+                    }
+                } else if (_.isPlainObject(p)) {
+                    name = DaoModeler._extractReferenceBaseName(p);
+                } else {
+                    name = 'param' + params.length + 1;
+                }
+
+                if (params.indexOf(name) !== -1) {
+                    throw new Error('Conflict: duplicate parameter name: ' + name);
+                }
+
+                if (name) params.push(name);
+            });
+        }
+
+        let ast = JsLang.astProgram();
+        JsLang.astPushInBody(ast, JsLang.astRequire('Mowa', 'mowa'));
+        JsLang.astPushInBody(ast, JsLang.astFunction(functionCall.name, _.map(params, p => JsLang.astId(p)), type === 'validator' ? [ JsLang.astReturn(true) ] : [ JsLang.astReturn(JsLang.astId(fieldName)) ]));
+        JsLang.astPushInBody(ast, JsLang.astAssign('module.exports', JsLang.astVarRef(functionCall.name)));
+
+        DaoModeler._exportSourceCode(ast, filePath);
+        this.logger.log('info', `Generated ${ type } file: ${filePath}`);
+
+        return baseFileName;
+    }
+
+    _processValidators(dbService, entity, stage, mapValidatorToFile, mapModifierToFile, mapTopoIdToAst, tsort, trie) {
+        let key = 'validators' + stage.toString();
+
+        _.forOwn(entity.fields, (field, fieldName) => {
+            if (_.isEmpty(field[key])) return;
+
+            let lastTopoId, astOfThis;
+            let astCallValidators, astBlock = [];
+
+            if (stage > 0) {
+                lastTopoId = fieldName + ':' + (stage-1).toString();
+            }
+
+            _.each(field[key], (validator, i) => {
+                if (validator.args) {
+                    Array.isArray(validator.args) || (validator.args = [validator.args]);
+                }
+
+                let topoId = this._processValidator(
+                    validator,
+                    dbService,
+                    entity.name,
+                    fieldName,
+                    mapValidatorToFile,
+                    mapModifierToFile,
+                    stage,
+                    mapTopoIdToAst,
+                    tsort,
+                    i,
+                    trie
+                );
+
+                astOfThis = mapTopoIdToAst[topoId];
+
+                if (i > 0) {
+                    astCallValidators = JsLang.astBinExp(astCallValidators, '&&', astOfThis);
+                }
+
+                if (lastTopoId) {
+                    DaoModeler._addDependency(tsort, trie, topoId, lastTopoId);
+                }
+
+                lastTopoId = topoId;
+            });
+
+            if (!astCallValidators) {
+                astCallValidators = astOfThis;
+            }
+
+            delete field[key];
+            let stageFinish = fieldName + ':' + stage.toString();
+            let validatedStatusKey = stageFinish + ':validated';
+            DaoModeler._addDependency(tsort, trie, validatedStatusKey, lastTopoId);
+            DaoModeler._addDependency(tsort, trie, stageFinish, validatedStatusKey);
+            DaoModeler._addDependency(tsort, trie, '@latest.' + fieldName, stageFinish);
+
+            let validatedVar = 'valid' + _.upperFirst(fieldName);
+            astBlock.push(JsLang.astVarDeclare(validatedVar, astCallValidators));
+            astBlock.push(Snippets._preCreateValidateCheck(validatedVar, fieldName));
+
+            mapTopoIdToAst[validatedStatusKey] = astBlock;
+        });
+    }
+
+    _processValidator(validator, dbService, entityName, fieldName, mapValidatorToFile, mapModifierToFile, stage, mapTopoIdToAst, tsort, index, trie) {
+        let validatorId = this._extractAndGenerateFunctor(validator, 'validator', mapValidatorToFile, dbService, entityName, fieldName);
+
+        let topoId = fieldName + ':' + stage + '~' + index + '>' + validatorId;
+
+        //extract dependencies information
+        let args = this._extractDependencies(validator, topoId, dbService, entityName, mapModifierToFile, mapTopoIdToAst, tsort, trie);
+
+        mapTopoIdToAst[topoId] = JsLang.astCall(validatorId, [JsLang.astVarRef('latest.' + fieldName)].concat(args));
+
+        return topoId;
+    };
+
+    _extractAndGenerateFunctor(functor, functorType, mapFunctorToFile, dbService, entityName, fieldName) {
+        let functorBaseName, functorJsFile, functorId;
+
+        //extract validator naming and import information
+        if (OolUtil.isMemberAccess(functor.name)) {
+            let names = OolUtil.extractMemberAccess(functor.name);
+            if (names.length > 2) {
+                throw new Error('Not supported reference type: ' + functor.name);
+            }
+
+            //reference to other entity file
+            let refEntityName = names[0];
+            functorBaseName = names[1];
+            functorJsFile = refEntityName + '-' + functorBaseName + '.js';
+            functorId = refEntityName + _.upperFirst(functorBaseName);
+            if (mapFunctorToFile[functorId] && mapFunctorToFile[functorId] !== functorJsFile) {
+                throw new Error(`Conflict: External ${functorType} naming conflict "${functorId}"!`);
+            }
+            mapFunctorToFile[functorId] = functorJsFile;
+        } else {
+            functorBaseName = functor.name;
+
+            let builtins = functorType === 'validator' ? OolongValidators : OolongModifiers;
+
+            if (!(functorBaseName in builtins)) {
+                functorJsFile = this._generateFunctionTemplateFile(functor, dbService, entityName, fieldName, functorType);
+
+                //not a builtin validator, generate the validator file template
+                if (mapFunctorToFile[functorBaseName] && mapFunctorToFile[functorBaseName] !== functorJsFile) {
+                    throw new Error(`Conflict: Internal ${functorType} naming conflict "${functorBaseName}"!`);
+                }
+
+                mapFunctorToFile[functorBaseName] = functorJsFile;
+                functorId = functorBaseName;
+            } else {
+                functorId = functorType + 's.' + functorBaseName;
+            }
+        }
+
+        return functorId;
+    };
+
+    //extract dependencies information from arguments and return a array of param in AST form
+    _extractDependencies(functionCall, topoId, dbService, entityName, mapModifierToFile, mapTopoIdToAst, tsort, trie) {
+        if (!_.isEmpty(functionCall.args)) {
+            let params = [];
+
+            _.each(functionCall.args, (arg, i) => {
+                if (_.isPlainObject(arg)) {
+
+                    if (arg.oolType === 'ObjectReference') {
+                        //'latest.' + fieldName depends on arg.name
+                        DaoModeler._addDependency(tsort, trie, topoId, '@' + arg.name);
+                        params.push(JsLang.astVarRef(arg.name));
+
+                    } else if (arg.oolType === 'ValueWithModifiers') {
+                        //like <value> | modifier
+
+                        let lastTopoId, fieldName, astValue;
+
+                        if (_.isPlainObject(arg.value)) {
+                            fieldName = DaoModeler._extractReferenceBaseName(arg.value);
+
+                            if (arg.value.oolType === 'ObjectReference') {
+                                //'latest.' + fieldName depends on arg.name
+                                lastTopoId = '@' + arg.value.name;
+                                DaoModeler._addDependency(tsort, trie, topoId, lastTopoId);
+                                astValue = JsLang.astVarRef(arg.value.name);
+                            } else {
+                                fieldName = 'value';
+                                astValue = JsLang.astValue(arg.value);
+                            }
+                        } else {
+                            fieldName = 'value';
+                            astValue = JsLang.astValue(arg.value);
+                        }
+
+                        let modifiersFinished = this._processValueModifiers(dbService, arg, entityName, fieldName,
+                            0, mapModifierToFile, lastTopoId, topoId + '$' + (i+1).toString(), mapTopoIdToAst, tsort, trie, astValue);
+
+                        let astOfThis = mapTopoIdToAst[modifiersFinished];
+                        if (astOfThis) {
+                            params.push(astOfThis);
+                        }
+
+                        if (modifiersFinished) {
+                            DaoModeler._addDependency(tsort, trie, topoId, modifiersFinished);
+                        }
+                    }
+                } else {
+                    params.push(JsLang.astValue(arg));
+                }
+            });
+
+            return params;
+        }
+
+        return [];
+    };
+
+    _processValueModifiers(dbService, varMeta, entityName, fieldName, stage,
+                           mapModifierToFile, dependsOnTopoId, topoIdPrefix, mapTopoIdToAst, tsort, trie, astValue) {
+        let key = 'modifiers' + stage.toString();
+        if (_.isEmpty(varMeta[key])) return;
+
+        let lastTopoId = dependsOnTopoId;
+        let ast = [], lastAstValue = astValue;
+
+        _.each(varMeta[key], (modifier, i) => {
+            if (modifier.args) {
+                Array.isArray(modifier.args) || (modifier.args = [modifier.args]);
+            }
+
+            let topoId = this._processModifier(
+                modifier,
+                dbService,
+                entityName,
+                fieldName,
+                mapModifierToFile,
+                mapTopoIdToAst,
+                tsort,
+                i,
+                topoIdPrefix,
+                trie,
+                lastAstValue
+            );
+
+            lastAstValue = mapTopoIdToAst[topoId];
+
+            if (lastTopoId) {
+                DaoModeler._addDependency(tsort, trie, topoId, lastTopoId);
+            }
+
+            lastTopoId = topoId;
+        });
+
+        delete varMeta[key];
+
+        let finishOfThisStage = topoIdPrefix + ':modified';
+        DaoModeler._addDependency(tsort, trie, finishOfThisStage, lastTopoId);
+
+        if (varMeta instanceof OolongField) {
+            mapTopoIdToAst[finishOfThisStage] = JsLang.astAssign(astValue, lastAstValue);
+        } else {
+            mapTopoIdToAst[finishOfThisStage] = lastAstValue;
+        }
+
+        return finishOfThisStage;
+    }
+
+    _processModifiers(dbService, entity, stage, mapModifierToFile, mapTopoIdToAst, tsort, trie) {
+        _.forOwn(entity.fields, (field, fieldName) => {
+            let topoIdPrefix = fieldName + ':' + stage.toString();
+            let dependsOnTopoId = topoIdPrefix + ':validated';
+
+            let finishOfThisStage = this._processValueModifiers(dbService, field, entity.name, fieldName,
+                stage, mapModifierToFile, trie.lookup(dependsOnTopoId) ? dependsOnTopoId : undefined, topoIdPrefix, mapTopoIdToAst, tsort, trie,
+                JsLang.astVarRef('latest.' + fieldName)
+            );
+
+            if (finishOfThisStage) {
+                DaoModeler._addDependency(tsort, trie, topoIdPrefix, finishOfThisStage);
+                DaoModeler._addDependency(tsort, trie, '@latest.' + fieldName, topoIdPrefix);
+            }
+        });
+    }
+
+    _processModifier(modifier, dbService, entityName, fieldName, mapModifierToFile, mapTopoIdToAst, tsort, index, topoIdPrefix, trie, astValue) {
+        let modifierId = this._extractAndGenerateFunctor(modifier, 'modifier', mapModifierToFile, dbService, entityName, fieldName);
+
+        let topoId = topoIdPrefix + '|' + index + '>' + modifierId;
+
+        //extract dependencies information
+        let args = this._extractDependencies(modifier, topoId, dbService, entityName, mapModifierToFile, mapTopoIdToAst, tsort, trie);
+
+        mapTopoIdToAst[topoId] = JsLang.astCall(modifierId, [astValue].concat(args));
+
+        return topoId;
+    }
+
+    _buildInterfaces(entity, dbService, modelMetaInit) {
+        let ast = [];
+
+        _.forOwn(entity.interfaces, (method, name) => {
+            let compileContext = {
+                entityName: entity.name,
+                dbServiceId: dbService.serviceId,
+                topoSort: Util.createTopoSort(),
+                astMap: {},
+                includes: new Set(),
+                refDependencies: {},
+                modelVars: new Set(),
+                astBody: [
+                    JsLang.astVarDeclare('$meta', JsLang.astVarRef('this.meta.interfaces.' + name), true)
+                ],
+                mapOfFunctorToFile: {},
+                newFunctorFiles: []
+            };
+
+            //scan all used models in advance
+            _.each(method.implementation, (operation) => {
+                compileContext.modelVars.add(operation.model);
+            });
+
+            let lastOpTopoId = '$op:start';
+            let returnTopoId = '$return';
+            
+            let params = [], paramMeta = [];
+
+            if (method.accept) {
+                method.accept.forEach((param, i) => {
+                    let topoId = OolToAst.translateParam(i, param, compileContext);
+                    compileContext.topoSort.add(topoId, returnTopoId);
+                    compileContext.topoSort.add(param.name, lastOpTopoId);
+
+                    params.push(param.name);
+                    paramMeta[i] = _.omit(param, [ 'validators0', 'modifiers0', 'validators1', 'modifiers1' ]);
+                });
+            }
+
+            modelMetaInit['interfaces'] || (modelMetaInit['interfaces'] = {});
+            modelMetaInit['interfaces'][name] = { params: paramMeta };
+
+            _.each(method.implementation, (operation, index) => {
+                let topoId = OolToAst.translateDbOperation(index, operation, compileContext);
+                compileContext.topoSort.add(lastOpTopoId, [topoId]);
+                lastOpTopoId = topoId;
+                compileContext.topoSort.add(lastOpTopoId, returnTopoId);
+                compileContext.includes.add(topoId);
+            });
+
+            if (method.return) {
+                OolToAst.translateReturn(returnTopoId, method.return, compileContext);
+                compileContext.includes.add(returnTopoId);
+            }
+
+            let deps = compileContext.topoSort.sort();
+
+            //console.log(deps);
+
+            _.each(deps, dep => {
+                if (compileContext.includes.has(dep)) {
+                    //console.log(dep);
+                    //console.dir(compileContext.astMap[dep], {depth: 10, colors: true});
+                    //console.log('---------------------------------------------------------');
+
+                    compileContext.astBody = compileContext.astBody.concat(_.castArray(compileContext.astMap[dep]));
+                }
+            });
+
+            //compileContext.astBody = compileContext.astBody.concat(_.castArray(compileContext.astMap[dep]));
+            
+            ast.push(JsLang.astMethod(name, params, compileContext.astBody, true, false, true));
+        });
+
+        return ast;
+    };
+
+    static _exportSourceCode(ast, modelFilePath) {
         let content = escodegen.generate(ast, {
             format: {
                 indent: {
@@ -502,425 +615,25 @@ class DaoModeler {
 
         fs.ensureFileSync(modelFilePath);
         fs.writeFileSync(modelFilePath, content);
-
-        this.logger.log('info', 'Generated data access model: ' + modelFilePath);
     }
 
-    _generateSchemaModel(schema, dbService) {
-        let capitalized = Util.S('-' + schema.name).camelize().s;
+    static _extractReferenceBaseName(p) {
+        pre: _.isPlainObject(p), 'p should be a plain object.';
 
-        let ast = JsLang.astProgram([
-            JsLang.astRequire('ModelOperator', '')
-        ]);
-
-        let meta = {
-            name: schema.name,
-            dbType: dbService.dbmsType,
-            serviceId: dbService.serviceId,
-            getMeta: JsLang.astArrowFunction(['name'], JsLang.astCall('require', JsLang.astBinExp(JsLang.astBinExp(`./${schema.name}/`, '+', JsLang.astId('name')), '+', '.js')), false, false),
-            getService: JsLang.astArrowFunction(['ctx'], JsLang.astCall('ctx.appModule.getService',  dbService.serviceId), false, false),
-            getModel: JsLang.astArrowFunction(['name'], JsLang.astCall('ctx.appModule.getService',  dbService.serviceId), false, false),
-        };
-
-        JsLang.astPushInBody(ast, JsLang.astDeclare(capitalized, JsLang.astValue(meta), true));
-        JsLang.astPushInBody(ast, JsLang.astAssign('module.exports', JsLang.astVarRef(capitalized)));
-
-        console.log(JSON.stringify(ast, null, 4));
-
-        let modelFilePath = path.resolve(this.buildPath, schema.name + '.js');
-        this._exportSourceCode(ast, modelFilePath);
-    }
-
-    _generateModifierFile(m, schemaName, entityName, fieldName) {
-        let modifierFilePath = path.resolve(
-            this.buildPath,
-            schemaName,
-            'modifiers',
-            entityName + '-' + m.name + '.js'
-        );
-
-        if (fs.existsSync(modifierFilePath)) {
-            //todo: analyse code
-            return;
+        if (p.oolType === 'ObjectReference') {
+            if (OolUtil.isMemberAccess(p.name)) {
+                return OolUtil.extractMemberAccess(p.name).pop();
+            }
         }
 
-        let params = [ fieldName ];
-
-        _.each(m.args, p => {
-            let name;
-
-            if (p.type == 'ObjectReference') {
-                if (OolUtil.isMemberAccess(p.name)) {
-                    name = OolUtil.extractMemberAccess(p.name).pop();
-                } else {
-                    name = p.name;
-                }
-            } else {
-                name = 'arg' + params.length + 1;
-            }
-
-            if (params.indexOf(name) != -1) {
-                throw new Error('need change param name.');
-            }
-
-            params.push(name);
-        });
-
-
-        let ast = JsLang.astProgram([
-            JsLang.astRequire('Mowa', 'mowa'),
-            JsLang.astFunction(m.name, _.map(params, p => JsLang.astId(p)), []),
-            JsLang.astAssign('module.exports', JsLang.astVarRef(m.name))
-        ]);
-
-        this._exportSourceCode(ast, modifierFilePath);
-        this.logger.log('info', 'Generated field modifier file: ' + modifierFilePath);
-    }
-
-    _generateCreateMethod(modifiersQueue, entity, modelMeta) {
-        let createBody = [
-            JsLang.astMatchObject(
-                ['errors', 'warnings', 'newData', 'dbFunctionCalls'],
-                JsLang.astYield(
-                    JsLang.astCall(
-                        'Oolong.modelPreCreate',
-                        [ JsLang.astVarRef('this.appModule'), JsLang.astId('ModelMeta'), JsLang.astId('rawData') ]
-                    )
-                )
-            )
-        ];
-
-        if (!_.isEmpty(entity.extraValidationRules)) {
-            _.each(entity.extraValidationRules, rule => {
-                if (rule.name == 'atLeastOneNotNull') {
-                        
-                }       
-            }); 
-        }
-
-        createBody.push(JsLang.astIf(
-            JsLang.astId('errors'),
-            [ {
-                "type": "ThrowStatement",
-                "argument": JsLang.astCall('ModelValidationError.fromErrors', [
-                    JsLang.astId('errors'),
-                    JsLang.astId('warnings'),
-                    JsLang.astBinExp(JsLang.astVarRef('ModelMeta.modelName'), '+', JsLang.astValue('.create'))
-                ])
-            } ]
-        ));
-
-        createBody.push(JsLang.astIf(
-            JsLang.astBinExp(JsLang.astVarRef('warnings.length'), '>', JsLang.astValue(0)),
-            [
-                JsLang.astExpression(
-                    JsLang.astCall(
-                        'this.appModule.log',
-                        [ JsLang.astValue('warn'), JsLang.astCall({
-                            "type": "MemberExpression",
-                            "computed": false,
-                            "object": JsLang.astCall('Mowa.Util._.map', [
-                                JsLang.astId('warnings'),
-                                JsLang.astArrowFunction(['w'], JsLang.astVarRef('w.message'))
-                            ]),
-                            "property": JsLang.astId('join')
-                        }, [ JsLang.astValue('\n') ]) ]
-                    )
-                )
-            ]
-        ));
-
-        _.each(modifiersQueue, field => {
-            let p = field.split('.');
-            let [ stage, fieldName ] = p.length > 1 ? p : ['new', p[0]];
-
-            if (stage == 'existing' || stage == 'raw') return;
-
-            if (stage != 'new') {
-                throw new Error('Unsupported data stage: ' + stage);
-            }
-
-            if (fieldName in entity.fieldModifiers) {
-                let modifiers = entity.fieldModifiers[fieldName];
-
-                _.each(modifiers, m => {
-                    applyFieldModifier(fieldName, m, createBody);
-                });
-            }
-        });
-
-        createBody.push(
-            JsLang.astReturn(JsLang.astYield(
-                JsLang.astCall(
-                    'Oolong.mysqlModelCreate',
-                    [ JsLang.astVarRef('this.appModule'), JsLang.astId('ModelMeta'), JsLang.astId('rawData'), JsLang.astId('newData'), JsLang.astId('dbFunctionCalls') ]
-                )
-            ))
-        );
-
-        JsLang.astAddMember(modelMeta, JsLang.astMember('create', JsLang.astAnonymousFunction([JsLang.astId('rawData')], createBody, true)));
+        return p.name;
     };
 
-    _generateFindMethod(modifiersQueue, entity, modelMeta) {
-        let createBody = [
-            JsLang.astMatchObject(
-                ['errors', 'warnings', 'newData', 'dbFunctionCalls'],
-                JsLang.astYield(
-                    JsLang.astCall(
-                        'Oolong.modelPreCreate',
-                        [ JsLang.astVarRef('this.appModule'), JsLang.astId('ModelMeta'), JsLang.astId('rawData') ]
-                    )
-                )
-            )
-        ];
+    static _addDependency(tsort, trie, id, dependsOnId) {
+        tsort.add(dependsOnId, [id]);
+        trie.addWord(id);
+    }   
 
-        if (!_.isEmpty(entity.extraValidationRules)) {
-            _.each(entity.extraValidationRules, rule => {
-                if (rule.name == 'atLeastOneNotNull') {
-
-                }
-            });
-        }
-
-        createBody.push(JsLang.astIf(
-            JsLang.astId('errors'),
-            [ {
-                "type": "ThrowStatement",
-                "argument": JsLang.astCall('ModelValidationError.fromErrors', [
-                    JsLang.astId('errors'),
-                    JsLang.astId('warnings'),
-                    JsLang.astBinExp(JsLang.astVarRef('ModelMeta.modelName'), '+', JsLang.astValue('.create'))
-                ])
-            } ]
-        ));
-
-        createBody.push(JsLang.astIf(
-            JsLang.astBinExp(JsLang.astVarRef('warnings.length'), '>', JsLang.astValue(0)),
-            [
-                JsLang.astExpression(
-                    JsLang.astCall(
-                        'this.appModule.log',
-                        [ JsLang.astValue('warn'), JsLang.astCall({
-                            "type": "MemberExpression",
-                            "computed": false,
-                            "object": JsLang.astCall('Mowa.Util._.map', [
-                                JsLang.astId('warnings'),
-                                JsLang.astArrowFunction([ JsLang.astId('w') ], JsLang.astVarRef('w.message'))
-                            ]),
-                            "property": JsLang.astId('join')
-                        }, [ JsLang.astValue('\n') ]) ]
-                    )
-                )
-            ]
-        ));
-
-        _.each(modifiersQueue, field => {
-            let p = field.split('.');
-            let [ stage, fieldName ] = p.length > 1 ? p : ['new', p[0]];
-
-            if (stage == 'existing' || stage == 'raw') return;
-
-            if (stage != 'new') {
-                throw new Error('Unsupported data stage: ' + stage);
-            }
-
-            if (fieldName in entity.fieldModifiers) {
-                let modifiers = entity.fieldModifiers[fieldName];
-
-                _.each(modifiers, m => {
-                    applyFieldModifier(fieldName, m, createBody);
-                });
-            }
-        });
-
-        createBody.push(
-            JsLang.astReturn(JsLang.astYield(
-                JsLang.astCall(
-                    'Oolong.mysqlModelCreate',
-                    [ JsLang.astVarRef('this.appModule'), JsLang.astId('ModelMeta'), JsLang.astId('rawData'), JsLang.astId('newData'), JsLang.astId('dbFunctionCalls') ]
-                )
-            ))
-        );
-
-        JsLang.astAddMember(modelMeta, JsLang.astMember('create', JsLang.astAnonymousFunction([JsLang.astId('rawData')], createBody, true)));
-    };
-
-    _generateModifiers(entity, entityName, schemaName, ast) {
-        let modifiersTable = {}; // name -> file
-        let modifierReverseMappingTable = {}; // file -> name
-        let tsort = new TopoSort();
-
-        if (entity.fieldModifiers) {
-            console.log(fieldName);
-
-            _.forOwn(entity.fieldModifiers, (mods, fieldName) => {
-                let modEntityName, modRefName, modJsFile;
-
-                _.each(mods, m => {
-                    //extract modifier naming and import information
-                    if (OolUtil.isMemberAccess(m.name)) {
-                        let names = OolUtil.extractMemberAccess(m.name);
-                        if (names.length > 2) {
-                            throw new Error('not supported yet.');
-                        }
-
-                        modEntityName = names[0];
-                        modRefName = names[1];
-                    } else {
-                        modEntityName = entityName;
-                        modRefName = m.name;
-
-                        this._generateModifierFile(m, schemaName, entityName, fieldName);
-                    }
-
-                    modJsFile = modEntityName + '-' + modRefName + '.js';
-
-                    if (modifiersTable[modRefName] && modifiersTable[modRefName] != modJsFile) {
-                        modRefName = modEntityName + inflection.camelize(modRefName);
-
-                        if (modifiersTable[modRefName]) {
-                            throw new Error('need change modifier name.');
-                        }
-                    }
-
-                    modifiersTable[modRefName] = modJsFile;
-                    modifierReverseMappingTable[modJsFile] = modRefName;
-
-                    //extract dependencies information
-                    if (_.isPlainObject(m.args)) {
-                        if (m.args.type != 'Array') {
-                            throw new Error('Invalid modifier arguments.');
-                        }
-
-                        _.each(m.args.value, arg => {
-                            if (_.isPlainObject(arg) && arg.type == 'ObjectReference') {
-                                tsort.add(arg.name, [ 'new.' + fieldName ]);
-                            }
-                        });
-                    }
-                });
-            });
-        }
-
-        if (!_.isEmpty(modifiersTable)) {
-            _.forOwn(modifiersTable, (jsFile, varName) => {
-                JsLang.astPushInBody(ast, JsLang.astRequire(varName, './modifiers/' + jsFile));
-            });
-        }
-
-        return tsort.sort();
-    };
-
-    _generateInterfaces(entity, dbService, modelMeta) {
-        _.forOwn(entity.interfaces, (method, name) => {
-            let body = [], params = [], modifiersQueue = [], context = {};
-
-            if (method.accept) {
-                params = _.map(method.accept, variable => {
-                    if (variable.type === 'Variable') {
-                        if (!('optional' in variable) || !variable.optional) {
-                            body.push(JsLang.astIf(
-                                JsLang.astCall('Util._.isNil', JsLang.astVarRef(variable.name)),
-                                JsLang.astThrow('ModelValidationError', [
-                                    JsLang.astVarRef('ModelValidationError.MISSING_REQUIRED_VALUE'),
-                                    JsLang.astValue(variable.name)
-                                ])
-                            ));
-                        }
-
-                        if (variable.modifiers) {
-                            //discover dependency
-                            while (variable.modifiers.length > 0) {
-                                let modifier = variable.modifiers.shift();
-
-                                if (allDependenciesResolved(context, modifier)) {
-                                    body.push(applyModifier(variable.name, modifier));
-
-                                    if (variable.modifiers.length == 0) {
-                                        context[variable.name] = true;
-                                    }
-                                } else {
-                                    modifiersQueue.push({
-                                        variable: variable.name,
-                                        modifier: modifier,
-                                        following: variable.modifiers
-                                    });
-
-                                    break;
-                                }
-                            }
-                        } else {
-                            context[variable.name] = true;
-                        }
-
-                        return JsLang.astValue(variable);
-                    } else {
-                        throw new Error('not implemented yet');
-                    }
-                });
-
-                processModifiersQueue(context, modifiersQueue, body);
-            }
-
-            let preparedDb = false;
-
-            _.each(method.implementation, operation => {
-                switch (operation.type) {
-                    case 'populate':
-                        if (!preparedDb) {
-                            prepareDbConnection(body);
-                            preparedDb = true;
-                        }
-                        processPopulate(context, operation, body);
-                        //console.log(context);
-                        processModifiersQueue(context, modifiersQueue, body);
-                        break;
-
-                    case 'update':
-                        if (!preparedDb) {
-                            prepareDbConnection(body);
-                            preparedDb = true;
-                        }
-                        break;
-
-                    case 'create':
-                        if (!preparedDb) {
-                            prepareDbConnection(body);
-                            preparedDb = true;
-                        }
-                        break;
-
-                    case 'delete':
-                        if (!preparedDb) {
-                            prepareDbConnection(body);
-                            preparedDb = true;
-                        }
-                        break;
-
-                    case 'javascript':
-                        break;
-
-                    case 'assignment':
-                        break;
-
-                    default:
-                        throw new Error('unsupported operation type: ' + operation.type);
-                }
-            });
-
-            if (method.return) {
-                if (!_.isEmpty(method.return.exceptions)) {
-                    _.each(method.return.exceptions, excp => {
-                        processExceptionalReturn(context, excp, body);
-                    });
-                }
-
-                body.push(JsLang.astReturn(JsLang.astValue(method.return.value)));
-            }
-
-            JsLang.astAddMember(modelMeta, JsLang.astMember(name, JsLang.astAnonymousFunction(params, body, false, true)));
-        });
-    };
 }
 
 module.exports = DaoModeler;

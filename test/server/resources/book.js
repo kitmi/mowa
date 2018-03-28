@@ -6,18 +6,18 @@ let books = [ { id: 1, title: 'Book 1' }, { id: 2, title: 'Book 2' } ];
 let maxid = 2;
 
 exports.query = (ctx) => {
-    ctx.body = books;
+    return books;
 };
 
 exports.create = (ctx) => {
     let newBook = {id: ++maxid, title: ctx.request.fields.title};
     books.push(newBook);
-    ctx.body = newBook;
+    return newBook;
 };
 
-exports.get = (ctx) => {
+exports.detail = (ctx) => {
     let id = ctx.params.id;
-    ctx.body = Mw.Util._.find(books, book => book.id == id) || {};
+    return Mw.Util._.find(books, book => book.id == id) || {};
 };
 
 exports.update = (ctx) => {
@@ -25,11 +25,11 @@ exports.update = (ctx) => {
     let bookFound = Mw.Util._.find(books, book => book.id == id);
 
     bookFound.title = ctx.request.fields.title;
-    ctx.body = bookFound;
+    return bookFound;
 };
 
 exports.remove = (ctx) => {
     let id = ctx.params.id;
     let idx = Mw.Util._.findIndex(books, book => book.id == id);
-    ctx.body  = books.splice(idx, 1);
+    return books.splice(idx, 1);
 };

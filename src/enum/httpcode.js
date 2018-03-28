@@ -53,6 +53,10 @@ const HttpCodes = module.exports = {
      */
     HTTP_METHOD_NOT_ALLOWED: 405,
     /**
+     * 429
+     */
+    HTTP_TOO_MANY_REQUESTS: 429,
+    /**
      * 500
      */
     HTTP_INTERNAL_SERVER_ERROR: 500,

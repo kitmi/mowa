@@ -4,7 +4,7 @@ const DOUBLE_QUOTE = "\"";
 const ESCAPED_DOUBLE_QUOTE = "\"\"";
 const CHARACTERS_THAT_MUST_BE_QUOTED = /,|"|\n/;
 
-const escapeCsv = function (s) {
+exports.escapeCsv = function (s) {
     if (s.indexOf(DOUBLE_QUOTE) !== -1) {
         s = s.replace(DOUBLE_QUOTE, ESCAPED_DOUBLE_QUOTE);
     }
@@ -16,7 +16,7 @@ const escapeCsv = function (s) {
     return s;
 };
 
-const unescapeCsv = function (s) {
+exports.unescapeCsv = function (s) {
     if (s.startsWith(DOUBLE_QUOTE) && s.endsWith(DOUBLE_QUOTE)) {
         s = s.substr(1, s.Length - 2);
 

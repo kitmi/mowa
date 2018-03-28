@@ -10,6 +10,7 @@
         this.comment = false;
         this.brackets = [];
         this.parsed = {};
+        this.stateStack = [];
     }
 
     ParserState.prototype = {
@@ -45,6 +46,28 @@
             this.indents = [0];
         },
 
+        enterObject() {
+            this.stateStack.push('object');
+        },
+
+        exitObject() {
+            let current = this.stateStack.pop();
+            if (current !== 'object') {
+                throw new Error('Unmatched object bracket!');
+            }
+        },
+
+        enterArray() {
+            this.stateStack.push('array');
+        },
+
+        exitArray() {
+            let current = this.stateStack.pop();
+            if (current !== 'array') {
+                throw new Error('Unmatched array bracket!');
+            }
+        },
+
         isTypeExist(type) {
             return this.parsed.type && (type in this.parsed.type);
         },
@@ -63,14 +86,6 @@
             }
 
             this.parsed.type[type] = def;
-        },
-
-        addModifier(type, modifier) {
-            if (!this.parsed.type[type].modifiers) {
-                this.parsed.type[type].modifiers = [];
-            }
-
-            this.parsed.type[type].modifiers.push(modifier);
         },
 
         isEntityExist(entity) {
@@ -96,16 +111,9 @@
             }
         },
 
-        isSchemaExist(schema) {
-            return this.parsed.schema && (schema in this.parsed.schema);
-        },
-
-        defSchema(schema, def, lineInfo) {
-            if (!this.parsed.schema) {
-                this.parsed.schema = {};
-            }
-
-            this.parsed.schema[schema] = def;
+        defSchema(schema, def) {
+            def.name = schema;
+            this.parsed.schema = def;
         },
 
         validate() {
@@ -144,29 +152,28 @@
         return str.substr(quotes, str.length-quotes*2);
     }
 
-    function translateValidators(vs) {
-        return vs.map(v => {
-            if (typeof v === 'string') {
-                return { name: v };
-            } else if (v.type === 'FunctionCall') {
-                return { name: v.name, args: v.args };
-            }
+    function normalizeIdentifier(id) {
+        return id[0] === '^' ? id.substr(1) : id;
+    }
 
-            throw new Error('Invalid validator syntax: ' + v.toString());
-        });
+    function normalizeDotName(name) {
+        return name.split('.').map(n => normalizeIdentifier(n.trim())).join('.');
+    }
+
+    function normalizeReference(ref) {
+        return { oolType: 'ObjectReference', name: ref.substr(1) };
     }
 
     var KEYWORDS = new Set([
         "not", "and", "or", "xor", "mod", "div", "in", "is", "like", //operators
         'int', 'integer', 'number', 'text', 'bool', 'boolean', 'blob', 'binary', 'datetime', 'date', 'time', 'year', 'timestamp', 'json', 'xml', 'enum', 'csv',
-        'exact', 'fixed', 'untrim', 'unsigned', "only",
+        'exact', 'untrim', 'unsigned', "only", "fixedLength",
         "use", "type", "entity", "schema", "database", "relation", "default", "auto", "entities", "data",
         "with", "has", "have", "key", "index", "as", "unique", "its", "own", "for",
-        "every", "may", "a", "several", "many", "great", "of", "one", "connect", "deploy", "to", "url",
-        "optional", "readOnly", "writeOnceOnly",
-        "interface", "accept", "do", "select", "where", "return", "exists", "otherwise", "unless", "populate", "by",
-        "skip", "limit", "update", "create", "delete", "set",
-        "encoding"
+        "every", "may", "a", "several", "many", "great", "of", "one", "to",
+        "optional", "readOnly", "fixedValue", "forceUpdate",
+        "interface", "accept", "do", "select", "where", "return", "exists", "null", "otherwise", "unless", "find", "by", "case",
+        "skip", "limit", "update", "create", "delete", "set", "throw", "error"
     ]);
 
     var BRACKET_PAIRS = {
@@ -195,18 +202,20 @@ uppercase               [A-Z]
 lowercase               [a-z]
 digit                   [0-9]
 
+space           		\ |\t
+newline		            \n|\r\n|\r|\f
+
 // identifiers
-member_access           {identifier}((\ |\t|\f)*"."{identifier})+
-column_range            {variable}(\ |\t|\f)*".""*"
+member_access           {identifier}"."{identifier}+
+column_range            {variable}".""*"
 variable                {member_access}|{identifier}
 object_reference        "@"{variable}
 
 identifier              ({xid_start})({xid_continue})*
-xid_start               "_"|"$"|({uppercase})|({lowercase})
+xid_start               "_"|"$"|"^"|({uppercase})|({lowercase})
 xid_continue            {xid_start}|{digit}
 
 bool_value              ("true")|("false")
-null_value              "null"
 
 // numbers
 bit_integer             {integer}("K"|"M"|"G"|"B")
@@ -234,13 +243,16 @@ regexp_flag             "i"|"g"|"m"|"y"
 // reserved
 symbol_operators        {syntax_operators}|{relation_operators}|{math_operators}
 word_operators          {logical_operators}|{math_operators2}|{relation_operators2}
-braket_operators        "("|")"|"["|"]"|"{"|"}"
-syntax_operators        "~"|","|":"|"|"|"--"|"->"|"<->"|"<-"
+bracket_operators       "("|")"|"["|"]"|"{"|"}"
+syntax_operators        "~"|","|":"|"|"|"--"|"->"|"=>"|"<->"|"<-"
 relation_operators      "!="|">="|"<="|">"|"<"|"="
 logical_operators       "not"|"and"|"or"|"xor"
 math_operators          "+"|"-"|"*"|"/"
 math_operators2         "mod"|"div"
 relation_operators2     "in"|"is"|"like"
+square_bracket_left     "["
+bracket_left            "{"
+parentheses_left        "("
 
 // strings
 longstring              {longstring_double}|{longstring_single}
@@ -258,17 +270,27 @@ shortstringchar_single  [^\\\n\']
 shortstringchar_double  [^\\\n\"]
 escapeseq               \\.
 
+// INITIAL program start
+// EMPTY new line start
+// DEDENTS after DEDENTS
+// INLINE inline
+// OBJECT_KEY inside a object, key part
+// OBJECT_VALUE inside a array, value part
+// ARRAY inside a array
+// FUNCTION
 %s INITIAL EMPTY DEDENTS INLINE
 
 %%
 
 <INITIAL><<EOF>>        %{  return 'EOF';  %}
-<INITIAL>.|\n           %{
+
+<INITIAL>.|\n           %{  //start the program
                             this.unput(yytext);
                             this.begin('EMPTY');
 
                             state = new ParserState();
                         %}
+
 <EMPTY,INLINE><<EOF>>   %{
                             if (this.topState(0) === 'INLINE' && !state.comment && !state.eof) {
                                 this.unput(' ');
@@ -333,7 +355,15 @@ escapeseq               \\.
                                 this.begin('INLINE');
                             }
                         %}
-<INLINE>\n              %{
+<INLINE>{longstring}    %{
+                            yytext = unquoteString(yytext, 3);
+                            return 'STRING';
+                        %}
+<INLINE>{shortstring}   %{
+                            yytext = unquoteString(yytext, 1);
+                            return 'STRING';
+                        %}
+<INLINE>{newline}       %{
                             // implicit line joining
                             if (!state.hasBrackets) {
                                 state.indent = 0;
@@ -346,8 +376,9 @@ escapeseq               \\.
                                 }
                             }
                         %}
-<INLINE>[\ \t\f]+       /* skip whitespace, separate tokens */
-<INLINE>{braket_operators}     %{
+<INLINE>{space}+       /* skip whitespace, separate tokens */
+
+<INLINE>{bracket_operators}     %{
                             if (yytext == '{' || yytext == '[' || yytext == '(') {
                                 state.brackets.push(yytext);
                             } else if (yytext == '}' || yytext == ']' || yytext == ')') {
@@ -372,38 +403,41 @@ escapeseq               \\.
                             yytext = parseSize(yytext);
                             return 'INTEGER';
                         %}
-<INLINE>{longstring}    %{
-                            yytext = unquoteString(yytext, 3);
-                            return 'STRING';
-                        %}
-<INLINE>{shortstring}   %{
-                            yytext = unquoteString(yytext, 1);
-                            return 'STRING';
-                        %}
-<INLINE>{member_access}    return 'DOTNAME';
+
+<INLINE>{member_access}    %{
+                                yytext = normalizeDotName(yytext);
+                                return 'DOTNAME';
+                           %}
 <INLINE>{object_reference} %{
-                                yytext = { type: 'ObjectReference', name: yytext.substr(1) };
+                                yytext = normalizeReference(yytext);
                                 return 'REFERENCE';
                            %}
-<INLINE>{column_range}     return 'COLUMNS';
+<INLINE>{column_range}     %{
+                                yytext = normalizeReference(yytext);
+                                return 'COLUMNS';
+                           %}
 <INLINE>{bool_value}       %{
                                 yytext = (yytext === 'true');
                                 return 'BOOL';
                            %}
-<INLINE>{null_value}       %{
-                                yytext = null;
-                                return 'NULL';
-                           %}
 <INLINE>{symbol_operators}  return yytext;
 <INLINE>{identifier}    %{
-                            return KEYWORDS.has(yytext)
-                                ? yytext
-                                : 'NAME';
+                            if (KEYWORDS.has(yytext)) {
+                                if (state.brackets.indexOf('{') !== -1) {
+                                    return 'NAME';
+                                }
+
+                                return yytext;
+                            }
+
+                            yytext = normalizeIdentifier(yytext);
+                            return 'NAME';
                         %}
 
 /lex
 
 %right "<-"
+%left "=>"
 %left "or"
 %left "xor"
 %left "and"
@@ -412,16 +446,21 @@ escapeseq               \\.
 %left "!=" ">=" "<=" ">" "<" "="
 %left "+" "-"
 %left "*" "/" "mod" "div"
-%nonassoc NEG
 
-%start expr
+%ebnf
+
+%start program
 
 %%
 
 /** grammar **/
-expr
+program
     : input
-        { var r = state; state = null; return r ? r.validate().build() : ''; }
+        {
+            var r = state;
+            state = null;
+            return r ? r.validate().build() : '';
+        }
     ;
 
 input
@@ -431,39 +470,40 @@ input
 
 input0
     : NEWLINE
-    | stmt
+    | statement
     | NEWLINE input0
-    | stmt input0
+    | statement input0
     ;
 
-stmt
-    : use_stmt
-    | type_stmt
-    | entity_stmt
-    | schema_stmt
-    | relation_stmt
+statement
+    : use_statement
+    | type_statement
+    | entity_statement
+    | schema_statement
+    | relation_statement
     ;
 
-use_stmt
+use_statement
     : "use" STRING NEWLINE
         { state.use($2); }
-    | "use" NEWLINE INDENT use_stmt_blk DEDENT
+    | "use" NEWLINE INDENT use_statement_block DEDENT
     ;
 
-use_stmt_blk
+use_statement_block
     : STRING NEWLINE
         { state.use($1); }
-    | STRING NEWLINE use_stmt_blk
+    | STRING NEWLINE use_statement_block
         { state.use($1); }
     ;
 
-type_stmt
-    : "type" type_stmt_itm NEWLINE
-    | "type" NEWLINE INDENT type_stmt_blk DEDENT
+type_statement
+    : "type" type_statement_item NEWLINE
+    | "type" NEWLINE INDENT type_statement_block DEDENT
     ;
 
-type_stmt_itm
-    : identifier type_base_or_not type_qualifiers_or_not
+type_statement_item
+    /* type definition can only contain 0-stage validators */
+    : identifier type_base_or_not type_validators0_or_not
         {
             var n = $1;
             if (state.isTypeExist(n)) throw new Error('Duplicate type definition detected at line ' + @1.first_line + '.');
@@ -542,7 +582,7 @@ text_type
         { $$ = { type: 'text' }; }
     | 'text' '(' INTEGER ')'
         { $$ = { type: 'text', maxLength: parseInt($3) }; }
-    | 'text' '(' INTEGER ')' 'fixed'
+    | 'text' '(' INTEGER ')' 'fixedLength'
         { $$ = { type: 'text', fixedLength: parseInt($3) }; }
     ;
 
@@ -562,7 +602,7 @@ binary_type
         { $$ = { type: 'binary' }; }
     | binary_keyword '(' INTEGER ')'
         { $$ = { type: 'binary', maxLength: $3 }; }
-    | binary_keyword '(' INTEGER ')' 'fixed'
+    | binary_keyword '(' INTEGER ')' 'fixedLength'
         { $$ = { type: 'binary', fixedLength: $3 }; }
     ;
 
@@ -571,39 +611,37 @@ binary_keyword
     | 'binary'
     ;
 
-type_qualifiers_or_not
+type_validators0_or_not
     :
-    | type_validator
+    | type_validators0
     ;
 
-type_validator
-    : "~" identifier_function
-        { $$ = { validators: translateValidators([ $2 ]) }; }
-    | "~" identifier_function_array
-        { $$ = { validators: translateValidators($2) }; }
+type_validators0
+    : type_validators
+        { $$ = { validators0: $1.validators }; }
     ;
 
-type_stmt_blk
-    : type_stmt_itm NEWLINE
-    | type_stmt_itm NEWLINE type_stmt_blk
+type_statement_block
+    : type_statement_item NEWLINE
+    | type_statement_item NEWLINE type_statement_block
     ;
 
-entity_stmt
-    : entity_stmt_hd NEWLINE
-    | entity_stmt_hd NEWLINE INDENT entity_stmt_blk DEDENT
+entity_statement
+    : entity_statement_hd NEWLINE
+    | entity_statement_hd NEWLINE INDENT entity_statement_block DEDENT
         {
             state.defEntity($1, $4);
         }
     ;
 
-entity_stmt_hd
-    : entity_stmt_hd0
+entity_statement_hd
+    : entity_statement_hd0
         { state.defEntity($1); $$ = $1; }
-    | entity_stmt_hd0 "is" identifier_or_member_access
+    | entity_statement_hd0 "is" identifier_or_member_access
         { state.defEntity($1, { base: $3 }); $$ = $1; }
     ;
 
-entity_stmt_hd0
+entity_statement_hd0
     : "entity" identifier
         {
             if (state.isEntityExist($2)) throw new Error('Duplicate entity definition detected at line ' + @1.first_line + '.');
@@ -611,7 +649,7 @@ entity_stmt_hd0
         }
     ;
 
-entity_stmt_blk
+entity_statement_block
     : with_stmt_or_not has_stmt_or_not key_stmt_or_not index_stmt_or_not data_stmt_or_not interface_stmt_or_not
         { $$ = Object.assign({}, $1, $2, $3, $4, $5, $6); }
     ;
@@ -647,16 +685,16 @@ interface_stmt_or_not
     ;
 
 with_stmt
-    : "with" identifier_function NEWLINE
+    : "with" feature_inject NEWLINE
         { $$ = { features: [ $2 ] }; }
     | "with" NEWLINE INDENT with_stmt_blk DEDENT
         { $$ = { features: $4 }; }
     ;
 
 with_stmt_blk
-    : identifier_function NEWLINE
+    : feature_inject NEWLINE
         { $$ = [$1]; }
-    | identifier_function NEWLINE with_stmt_blk
+    | feature_inject NEWLINE with_stmt_blk
         { $$ = [$1].concat($3); }
     ;
 
@@ -668,8 +706,12 @@ has_stmt
     ;
 
 has_stmt_itm
-    : identifier type_base_or_not field_qualifiers_or_not variable_modifier_or_not
-        { $$ = [$1, Object.assign({ type: $1 }, $2, $3, $4)]; }
+    : identifier type_base_or_not type_validators0_or_not field_qualifiers_or_not field_modifiers0_or_not
+        { $$ = [$1, Object.assign({ type: $1 }, $2, $3, $4, $5)]; }
+    | identifier type_base_or_not type_validators0_or_not field_qualifiers_or_not field_modifiers0 field_validators1 
+        { $$ = [$1, Object.assign({ type: $1 }, $2, $3, $4, $5, $6)]; } 
+    | identifier type_base_or_not type_validators0_or_not field_qualifiers_or_not field_modifiers0 field_validators1 field_modifiers1 
+        { $$ = [$1, Object.assign({ type: $1 }, $2, $3, $4, $5, $6, $7)]; } 
     | identifier field_reference optional_qualifier_or_not
         { $$ = [$1, Object.assign({}, $2, $3) ]; }
     ;
@@ -684,6 +726,36 @@ field_default_value
 field_qualifiers_or_not
     :
     | field_qualifiers
+    ;
+
+field_modifiers0_or_not
+    :
+    | field_modifiers0
+    ;
+
+field_modifiers0
+    : variable_modifiers
+        { $$ = { modifiers0: $1.modifiers }; }
+    ;
+
+field_validators1_or_not
+    :
+    | field_validators1
+    ;
+
+field_validators1
+    : type_validators
+        { $$ = { validators1: $1.validators }; }
+    ;
+
+field_modifiers1_or_not
+    :
+    | field_modifiers1
+    ;
+
+field_modifiers1
+    : variable_modifiers
+        { $$ = { modifiers1: $1.modifiers }; }
     ;
 
 variable_modifier_or_not
@@ -712,17 +784,22 @@ field_qualifiers
 field_restriction
     : "readOnly"
         { $$ = { readOnly: true }; }
-    | "writeOnceOnly"
-        { $$ = { writeOnceOnly: true }; }
+    | "fixedValue"
+        { $$ = { fixedValue: true }; }
+    | "forceUpdate"
+        { $$ = { forceUpdate: true }; }
+    ;
+
+field_comment_or_not
+    :
+    | "--" STRING
+        { $$ = { comment: $2 }; }
     ;
 
 field_qualifier
     : field_default_value
-    | type_validator
     | optional_qualifier
     | field_restriction
-    | "--" STRING
-        { $$ = { comment: $2 }; }
     ;
 
 optional_qualifier
@@ -740,8 +817,24 @@ variable_modifiers
     ;
 
 variable_modifier
-    : "|" identifier_function
+    : "|" identifier_or_member_access
+        { $$ = { name: $2 }; }
+    | "|" function_call
         { $$ = $2; }
+    ;
+
+type_validators
+    : type_validator
+    | type_validator type_validators
+        { $$ = { validators: $1.validators.concat($2.validators) }; }
+    ;
+
+type_validator
+    : "~" identifier_or_member_access
+        { $$ = { validators: [ { name: $2 } ] }; }
+    | "~" function_call
+        { $$ = { validators: [ $2 ] }; }
+    | "~" "(" INTEGER ")"
     ;
 
 field_reference
@@ -765,7 +858,7 @@ key_stmt
 
 index_stmt_itm
     : identifier
-        { $$ = { fields: { type: 'Array', value: $1 } }; }
+        { $$ = { fields: $1 }; }
     | identifier_or_str_array
         { $$ = { fields: $1 }; }
     | index_stmt_itm index_qualifiers
@@ -827,15 +920,25 @@ accept_or_not
     ;
 
 interface_accept_blk
-    : interface_accept_param NEWLINE
+    : parameter_with_modifier NEWLINE
         { $$ = [ $1 ]; }
-    | interface_accept_param NEWLINE interface_accept_blk
+    | parameter_with_modifier NEWLINE interface_accept_blk
         { $$ = [ $1 ].concat($3); }
     ;
 
-interface_accept_param
-    : identifier variable_modifier_or_not
-        { $$ = Object.assign({ type: 'Variable', name: $1 }, $2); }
+parameter_with_modifier
+    : parameter type_base_or_not type_validators0_or_not parameter_qualifiers_or_not field_modifiers0_or_not
+        { $$ = Object.assign($1, { type: $1.name }, $2, $3, $4, $5); }
+    | parameter type_base_or_not type_validators0_or_not parameter_qualifiers_or_not field_modifiers0 field_validators1 
+        { $$ = Object.assign($1, { type: $1.name }, $2, $3, $4, $4, $5); }
+    | parameter type_base_or_not type_validators0_or_not parameter_qualifiers_or_not field_modifiers0 field_validators1 field_modifiers1 
+        { $$ = Object.assign($1, { type: $1.name }, $2, $3, $4, $5, $6, $7); }
+    ;
+
+parameter_qualifiers_or_not
+    :
+    | "default" "(" literal ")"
+        { $$ = { 'default': $3 }; }
     ;
 
 implementation
@@ -846,47 +949,60 @@ implementation
     ;
 
 operation
-    : populate_operation
-    | update_operation
+    : find_one_operation
+/*    | update_operation
     | create_operation
     | delete_operation
     | coding_block
-    | assign_operation
+    | assign_operation */
     ;
 
-populate_operation
-    : "populate" identifier "by" select_stm NEWLINE
-        { $$ = Object.assign({ type: 'populate', output: $2}, $4 ); }
+find_one_operation
+    : "find" "one" identifier "by" select_stm NEWLINE
+        { $$ = Object.assign({ oolType: 'findOne', model: $3}, $5 ); }
+    | "find" "one" identifier "by" "case" NEWLINE INDENT case_condition_block DEDENT
+        { $$ = { oolType: 'findOne', model: $3, case: { items: $8 } }; }
+    | "find" "one" identifier "by" "case" NEWLINE INDENT case_condition_block "otherwise" condition_as_result_expression NEWLINE DEDENT
+            { $$ = { oolType: 'findOne', model: $3, case: { items: $8, else: $10 } }; }
+    | "find" "one" identifier "by" query_condition_expression NEWLINE
+        { $$ = { oolType: 'findOne', model: $3, condition: $5}; }
     ;
 
 update_operation
     : "update" identifier_or_string "with" inline_object where_expr NEWLINE
-        { $$ = { type: 'update', target: $2, data: $4, filter: $5 }; }
+        { $$ = { oolType: 'update', target: $2, data: $4, filter: $5 }; }
     ;
 
 create_operation
     : "create" identifier_or_string "with" inline_object NEWLINE
-        { $$ = { type: 'create', target: $2, data: $4 }; }
+        { $$ = { oolType: 'create', target: $2, data: $4 }; }
     ;
 
 delete_operation
     : "delete" identifier_or_string where_expr NEWLINE
-        { $$ = { type: 'delete', target: $2, filter: $3 }; }
+        { $$ = { oolType: 'delete', target: $2, filter: $3 }; }
     ;
 
 coding_block
     : "do" "{" javascript "}" NEWLINE
-        { $$ = { type: 'javascript', script: $3 }; }
+        { $$ = { oolType: 'javascript', script: $3 }; }
     ;
 
 assign_operation
     : "set" identifier_or_member_access "<-" value variable_modifier_or_not NEWLINE
-        { $$ = { type: 'assignment', left: $2, right: Object.assign({ argument: $4 }, $5) }; }
+        { $$ = { oolType: 'assignment', left: $2, right: Object.assign({ argument: $4 }, $5) }; }
     ;
 
 select_stm
     : "select" column_range_list where_expr skip_or_not limit_or_not
         { $$ = Object.assign({ projection: $2, filter: $3 }, $4, $5); }
+    ;
+
+case_condition_block
+    : simple_conditional_arrow_expr NEWLINE
+        { $$ = [ $1 ]; }
+    | simple_conditional_arrow_expr NEWLINE case_condition_block
+        { $$ = [ $1 ].concat($3); }
     ;
 
 skip_or_not
@@ -913,8 +1029,7 @@ where_expr
     ;
 
 where_expr_condition
-    : conditional_expression
-    | conditional_where_expr
+    : query_condition_expression
     ;
 
 where_expr_condition_blk
@@ -924,45 +1039,50 @@ where_expr_condition_blk
         { $$ = [ $1 ].concat($3); }
     ;
 
-conditional_where_expr
-    : conditional_expression "->" conditional_expression
-        { $$ = { type: 'ConditionalStatement', test: $1, then: $3 } }
-    | conditional_expression "->" conditional_expression "otherwise" conditonal_expression
-        { $$ = { type: 'ConditionalStatement', test: $1, then: $3, 'else': $4 } }
+simple_conditional_arrow_expr
+    : conditional_expression "=>" condition_as_result_expression
+        { $$ = { oolType: 'ConditionalStatement', test: $1, then: $3 } }
     ;
+/*
+conditional_where_expr
+    : simple_conditional_arrow_expr
+    | conditional_expression "=>" query_condition_expression "otherwise" query_condition_expression
+        { $$ = { oolType: 'ConditionalStatement', test: $1, then: $3, 'else': $4 } }
+    ;
+*/
 
 return_or_not
     :
-    | "return" value NEWLINE
+    | "return" concrete_value NEWLINE
         { $$ = { 'return': { value: $2 } }; }
-    | "return" value "unless" NEWLINE INDENT return_condition_blk DEDENT
+    | "return" concrete_value "unless" NEWLINE INDENT return_condition_blk DEDENT
         { $$ = { 'return': { value: $2, exceptions: $6 } }; }
     ;
 
 return_condition_blk
-    : conditional_expression "->" value NEWLINE
-        { $$ = { type: 'ConditionalStatement', test: $1, then: $3 } }
-    | conditional_expression "->" value NEWLINE return_condition_blk
-        { $$ = [ { type: 'ConditionalStatement', test: $1, then: $3 } ].concat($5); }
+    : conditional_expression "=>" concrete_value NEWLINE
+        { $$ = { oolType: 'ConditionalStatement', test: $1, then: $3 } }
+    | conditional_expression "=>" concrete_value NEWLINE return_condition_blk
+        { $$ = [ { oolType: 'ConditionalStatement', test: $1, then: $3 } ].concat($5); }
     ;
 
-relation_stmt
-    : "relation" relation_stmt_itm NEWLINE
+relation_statement
+    : "relation" relation_statement_itm NEWLINE
         { state.defRelation($2); }
-    | "relation" NEWLINE INDENT relation_stmt_blk DEDENT
+    | "relation" NEWLINE INDENT relation_statement_blk DEDENT
         { state.defRelation($4); }
     ;
 
-relation_stmt_blk
-    : relation_stmt_itm NEWLINE
+relation_statement_blk
+    : relation_statement_itm NEWLINE
         { $$ = [ $1 ]; }
-    | relation_stmt_itm NEWLINE relation_stmt_blk
+    | relation_statement_itm NEWLINE relation_statement_blk
         { $$ = [ $1 ].concat($3); }
     ;
 
-relation_stmt_itm
-    : relation_stmt_itm1
-    | relation_stmt_itm1 "to" related_entity
+relation_statement_itm
+    : relation_statement_itm1
+    | relation_statement_itm1 "to" related_entity
         {
             if ($1.right === $3.right) {
                 throw new Error('Invalid relation declaration at line ' + @1.first_line + '.');
@@ -975,7 +1095,7 @@ relation_stmt_itm
             delete $$.relationship;
             delete $$.size;
         }
-    | relation_stmt_itm1 "for" "a" identifier_or_member_access
+    | relation_statement_itm1 "for" "a" identifier_or_member_access
         {
             let right1Name2 = $1.left;
             let right2Name2 = $4;
@@ -984,9 +1104,9 @@ relation_stmt_itm
         }
     ;
 
-relation_stmt_itm1
-    : relation_stmt_itm0
-    | relation_stmt_itm0 "of" "its" "own"
+relation_statement_itm1
+    : relation_statement_itm0
+    | relation_statement_itm0 "of" "its" "own"
         { $$ = Object.assign({}, $1, { relationship: $1.relationship.replace('n:', '1:') }); }
     ;
 
@@ -995,7 +1115,7 @@ related_entity
         { $$ = Object.assign({}, $1, { right: $2 }); }
     ;
 
-relation_stmt_itm0
+relation_statement_itm0
     : "every" identifier_or_member_access "has" related_entity
         { $$ = Object.assign({ left: $2 }, $4); }
     | "a" identifier_or_member_access "may" "have" related_entity
@@ -1013,30 +1133,30 @@ relation_qualifier
         { $$ = { relationship: 'n:n', size: 'large' }; }
     ;
 
-schema_stmt
-    : "schema" identifier_or_string NEWLINE INDENT schema_stmt_blk DEDENT
+schema_statement
+    : "schema" identifier_or_string NEWLINE INDENT schema_statement_blk DEDENT
         {
-            if (state.isSchemaExist($2)) throw new Error('Duplicate schema definition detected at line ' + @1.first_line + '.');
+            if (state.parsed.schema) throw new Error('Only one schema definition allowed in a schema file. Extra schema definition detected at line ' + @1.first_line + '.');
             state.defSchema($2, $5);
         }
     ;
 
-schema_stmt_itm
+schema_statement_itm
     : identifier_or_member_access
         { $$ = { entity: $1 }; }
-    | schema_stmt_itm entity_qualifier
+    | schema_statement_itm entity_qualifier
         { $$ = Object.assign({}, $1, $2); }
     ;
 
-schema_stmt_blk
+schema_statement_blk
     : "entities" NEWLINE INDENT schema_entities_blk DEDENT
         { $$ = { entities: $4 }; }
     ;
 
 schema_entities_blk
-    : schema_stmt_itm NEWLINE
+    : schema_statement_itm NEWLINE
         { $$ = [ $1 ]; }
-    | schema_stmt_itm NEWLINE schema_entities_blk
+    | schema_statement_itm NEWLINE schema_entities_blk
         { $$ = [ $1 ].concat($3); }
     ;
 
@@ -1049,7 +1169,8 @@ literal
     : INTEGER
     | FLOAT
     | BOOL
-    | NULL
+    | "null"
+        { $$ = null; }
     | inline_object
     | inline_array
     | REGEXP
@@ -1058,34 +1179,6 @@ literal
 
 identifier
     : NAME
-    | "exact" | "fixed" | "untrim" | "unsigned" | "only"
-    | 'date' | 'time' | 'year' | 'timestamp'
-    | "use"
-    | "type"
-    | "entity"
-    | "schema"
-    | "database"
-    | "relation"
-    | "default"
-    | "auto"
-    | "entities"
-    | "data"
-    | "with"
-    | "has"
-    | "have"
-    | "key"
-    | "index"
-    | "as"
-    | "unique"
-    | "its"
-    | "own"
-    | "for"
-    | "every"
-    | "may" | "a" | "several" | "many" | "great" | "of" | "one" | "connect" | "deploy" | "to" | "url"
-    | "optional" | "readOnly" | "writeOnceOnly"
-    | "interface" | "accept" | "do" | "select" | "where" | "return" | "exists" | "otherwise" | "unless" | "populate" | "by"
-    | "skip" | "limit" | "update" | "create" | "delete" | "set"
-    | "encoding"
     ;
 
 identifier_or_member_access
@@ -1093,24 +1186,48 @@ identifier_or_member_access
     | DOTNAME
     ;
 
-variable
-    : identifier_or_member_access
-        { $$ = { type: 'Variable', name: $1 }; }
-    | REFERENCE
+parameter
+    : identifier
+        { $$ = { name: $1 }; }
     ;
 
 function_call
     : identifier_or_member_access "(" ")"
-        { $$ = { type: 'FunctionCall', name: $1 }; }
-    | identifier_or_member_access "(" value_list ")"
-        { $$ = { type: 'FunctionCall', name: $1, args: { type: 'Array', value: $3 } }; }
+        { $$ = { name: $1 }; }
+    | identifier_or_member_access "(" modifiable_value_list ")"
+        { $$ = { name: $1, args: $3 }; }
+    ;
+    
+feature_inject
+    : identifier_or_member_access
+        { $$ = { name: $1 }; }
+    | identifier_or_member_access "(" ")"
+        { $$ = { name: $1 }; }
+    | identifier_or_member_access "(" feature_param_list ")"
+        { $$ = { name: $1, options: $3 }; }
+    ;    
+    
+feature_param
+    : literal
+    | identifier
     ;
 
 value
-    : literal
-    | number_value
-    | variable
+    : concrete_value
+    | identifier_or_member_access
     | function_call
+        { $$ = Object.assign({ oolType: 'FunctionCall' }, $1); }
+    ;
+
+concrete_value
+    : literal
+    | REFERENCE
+    ;
+
+modifiable_value
+    : concrete_value
+    | concrete_value variable_modifiers
+        { $$ = Object.assign({ oolType: 'ValueWithModifiers', value: $1 }, { modifiers0: $2.modifiers }) }
     ;
 
 identifier_or_string
@@ -1118,16 +1235,11 @@ identifier_or_string
     | STRING
     ;
 
-identifier_function
-    : identifier_or_member_access
-    | function_call
-    ;
-
 inline_object
     : "{" "}"
-        { $$ = { type: 'Object', value: {} }; }
+        { $$ = {}; }
     | "{" kv_pairs "}"
-        { $$ = { type: 'Object', value: $2 }; }
+        { $$ = $2; }
     ;
 
 kv_pair_itm
@@ -1150,14 +1262,14 @@ kv_pairs0
 
 inline_array
     : "[" "]"
-        { $$ = { type: 'Array', value: [] }; }
+        { $$ = []; }
     | "[" value_list "]"
-        { $$ = { type: 'Array', value: $2 }; }
+        { $$ = $2; }
     ;
 
 value_list
     : value
-        { $$ = [ $1 ]; }
+        { $$ = $1; }
     | value value_list0
         { $$ = [ $1 ].concat( $2 ); }
     ;
@@ -1166,12 +1278,40 @@ value_list0
     : ',' value
         { $$ = [ $2 ]; }
     | ',' value value_list0
-        { $$ = [ $2 ].concat($3); }
+        { $$ = [ $2 ].concat( $3 ); }
     ;
+
+modifiable_value_list
+    : modifiable_value
+        { $$ = $1; }
+    | modifiable_value modifiable_value_list0
+        { $$ = [ $1 ].concat( $2 ); }
+    ;
+
+modifiable_value_list0
+    : ',' modifiable_value
+        { $$ = [ $2 ]; }
+    | ',' modifiable_value modifiable_value_list0
+        { $$ = [ $2 ].concat( $3 ); }
+    ;
+    
+feature_param_list
+    : feature_param
+        { $$ = $1; }
+    | feature_param feature_param_list0
+        { $$ = [ $1 ].concat( $2 ); }
+    ;
+
+feature_param_list0
+    : ',' feature_param
+        { $$ = [ $2 ]; }
+    | ',' feature_param feature_param_list0
+        { $$ = [ $2 ].concat( $3 ); }
+    ;    
 
 identifier_or_str_array
     : "[" identifier_or_str_list "]"
-        { $$ = { type: 'Array', value: $2 }; }
+        { $$ = $2; }
     ;
 
 identifier_or_str_list
@@ -1188,63 +1328,75 @@ identifier_or_str_list0
         { $$ = [ $2 ].concat( $3 ); }
     ;
 
-identifier_function_array
-    : "[" identifier_function_list "]"
-        { $$ = { type: 'Array', value: $2 }; }
-    ;
-
-identifier_function_list
-    : identifier_function
-        { $$ = [ $1 ]; }
-    | identifier_function identifier_function_list0
-        { $$ = [ $1 ].concat($2); }
-    ;
-
-identifier_function_list0
-    : ',' identifier_function
-        { $$ = [ $2 ]; }
-    | ',' identifier_function identifier_function_list0
-        { $$ = [ $2 ].concat( $3 ); }
-    ;
-
 conditional_expression
     : logical_expression
     | simple_expression
     ;
 
+query_condition_expression
+    : logical_query_expression
+    | binary_expression
+    ;
+
+condition_as_result_expression
+    : concrete_value
+    | throw_error_expression
+    ;
+
 simple_expression
     : unary_expression
     | binary_expression
+    | concrete_value_expression
+    ;
+
+concrete_value_expression
+    : concrete_value type_validators0_or_not field_modifiers0_or_not
+        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3); }
+    | concrete_value type_validators0_or_not field_modifiers0 field_validators1
+        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3, $4); }
+    | concrete_value type_validators0_or_not field_modifiers0 field_validators1 field_modifiers1
+        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3, $4, $5); }
+    ;
+
+throw_error_expression
+    : "throw" "error"
+        { $$ = { oolType: 'throw' }; }
+    | "throw" "error" "(" STRING ")"
+        { $$ = { oolType: 'throw', message: $4 }; }
+    | "throw" "error" "(" identifier ")"
+        { $$ = { oolType: 'throw', errorType: $4 }; }
+    | "throw" "error" "(" identifier "," STRING  ")"
+        { $$ = { oolType: 'throw', errorType: $4, message: $6 }; }
     ;
 
 unary_expression
     : value "exists"
-        { $$ = { type: 'UnaryExpression', operator: 'exists', argument: $1 }; }
+        { $$ = { oolType: 'UnaryExpression', operator: 'exists', argument: $1 }; }
     | value "not" "exists"
-        { $$ = { type: 'UnaryExpression', operator: 'not-exists', argument: $1 }; }
-    | value "is" NULL
-        { $$ = { type: 'UnaryExpression', operator: 'is-null', argument: $1 }; }
-    | value "is" "not" NULL
-        { $$ = { type: 'UnaryExpression', operator: 'is-not-null', argument: $1 }; }
-    | not "(" binary_expression ")"
-        { $$ = { type: 'UnaryExpression', operator: 'not', argument: $3, prefix: true }; }
+        { $$ = { oolType: 'UnaryExpression', operator: 'not-exists', argument: $1 }; }
+    | value "is" "null"
+        { $$ = { oolType: 'UnaryExpression', operator: 'is-null', argument: $1 }; }
+    | value "is" "not" "null"
+        { $$ = { oolType: 'UnaryExpression', operator: 'is-not-null', argument: $1 }; }
+    | not "(" simple_expression ")"
+        { $$ = { oolType: 'UnaryExpression', operator: 'not', argument: $3, prefix: true }; }
     ;
 
 binary_expression
     : value ">" value
-        { $$ = { type: 'BinaryExpression', operator: '>', left: $1, right: $3 }; }
+        { $$ = { oolType: 'BinaryExpression', operator: '>', left: $1, right: $3 }; }
     | value "<" value
-        { $$ = { type: 'BinaryExpression', operator: '<', left: $1, right: $3 }; }
+        { $$ = { oolType: 'BinaryExpression', operator: '<', left: $1, right: $3 }; }
     | value ">=" value
-        { $$ = { type: 'BinaryExpression', operator: '>=', left: $1, right: $3 }; }
+        { $$ = { oolType: 'BinaryExpression', operator: '>=', left: $1, right: $3 }; }
     | value "<=" value
-        { $$ = { type: 'BinaryExpression', operator: '<=', left: $1, right: $3 }; }
+        { $$ = { oolType: 'BinaryExpression', operator: '<=', left: $1, right: $3 }; }
     | value "=" value
-        { $$ = { type: 'BinaryExpression', operator: '=', left: $1, right: $3 }; }
+        { $$ = { oolType: 'BinaryExpression', operator: '=', left: $1, right: $3 }; }
     | value "!=" value
-        { $$ = { type: 'BinaryExpression', operator: '!=', left: $1, right: $3 }; }
+        { $$ = { oolType: 'BinaryExpression', operator: '!=', left: $1, right: $3 }; }
     | value "in" value
-        { $$ = { type: 'BinaryExpression', operator: 'in', left: $1, right: $3 }; }
+        { $$ = { oolType: 'BinaryExpression', operator: 'in', left: $1, right: $3 }; }
     ;
 
 logical_expression
@@ -1256,9 +1408,23 @@ logical_expression
 
 logical_expression_right
     : logical_operators simple_expression
-        { $$ = Object.assign({ type: 'BinaryExpression' }, $1, { right: $2 }); }
+        { $$ = Object.assign({ oolType: 'BinaryExpression' }, $1, { right: $2 }); }
     | logical_operators "(" logical_expression ")"
-        { $$ = Object.assign({ type: 'BinaryExpression' }, $1, { right: $3 }); }
+        { $$ = Object.assign({ oolType: 'BinaryExpression' }, $1, { right: $3 }); }
+    ;
+
+logical_query_expression
+    : binary_expression logical_expression_right
+        { $$ = Object.assign({ left: $1 }, $2); }
+    | "(" logical_expression ")" logical_expression_right
+        { $$ = Object.assign({ left: $2 }, $4); }
+    ;
+
+logical_query_expression_right
+    : logical_operators binary_expression
+        { $$ = Object.assign({ oolType: 'BinaryExpression' }, $1, { right: $2 }); }
+    | logical_operators "(" logical_expression ")"
+        { $$ = Object.assign({ oolType: 'BinaryExpression' }, $1, { right: $3 }); }
     ;
 
 logical_operators

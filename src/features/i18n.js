@@ -32,7 +32,7 @@ class I18nService {
         this.cache = Util.createLRUCache(5);
     }
 
-    getI18n(locale) {
+    async getI18n(locale) {
         const self = this;
 
         let i18nHandler = locale && this.cache.get(locale);
@@ -49,13 +49,12 @@ class I18nService {
                 }
             }
 
-            return i18nHandler.setupAsync(locale).then(() => {
-                self.cache.set(locale, i18nHandler);
-                return Promise.resolve(i18nHandler);
-            });
+            await i18nHandler.setupAsync(locale);
+
+            self.cache.set(locale, i18nHandler);
         }
 
-        return Promise.resolve(i18nHandler);
+        return i18nHandler;
     }
 }
 
@@ -74,11 +73,12 @@ module.exports = {
      * @property {string} config.store - The storage type
      * @property {Object} config.options - Options for the storage type
      * @property {Array.<string>} config.precedence - Precedence of the source of locale id, candidate sources are like 'query', 'cookie', 'header'
-     * @property {string} [config.queryKey=locale] - The key of locale id in a http request query, default: locale
-     * @property {string} [config.cookieKey=locale] - The key of locale id in the cookie, default: locale
+     * @property {string} [config.defaultLocale=DEFAULT_LOCALE] - The default locale of this app
+     * @property {string} [config.queryKey='locale'] - The key of locale id in a http request query, default: locale
+     * @property {string} [config.cookieKey='locale'] - The key of locale id in the cookie, default: locale
      * @returns {Promise.<*>}
      */
-    load_: function (appModule, config) {
+    load_: async (appModule, config) => {
         if (!config.store) {
             throw new Mowa.Error.InvalidConfiguration('Missing store type.', appModule, 'i18n.store');
         }
@@ -100,6 +100,8 @@ module.exports = {
         let precedence = _.isEmpty(config.precedence) ? ['query', 'cookie', 'header'] : config.precedence;
         let queryKey = config.queryKey || 'locale';
         let cookieKey = config.cookieKey || 'locale';
+
+        let defaultLocale = config.defaultLocale || DEFAULT_LOCALE;
 
         precedence.forEach(p => {
             if (DEFAULT_PRECEDENCE.indexOf(p) === -1) {
@@ -139,14 +141,13 @@ module.exports = {
 
             if (found) ctx.requestedLocale = locale;
 
-            ctx.__ = await service.getI18n(ctx.requestedLocale || DEFAULT_LOCALE);
+            ctx.__ = await service.getI18n(ctx.requestedLocale || defaultLocale);
 
             await next();
         };
 
+        appModule.__ = await service.getI18n(defaultLocale);
         appModule.registerService('i18n', service);
         appModule.router.use(i18nMiddleware);
-
-        return Promise.resolve();
     }
 };

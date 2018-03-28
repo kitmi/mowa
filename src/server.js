@@ -12,7 +12,11 @@ const pkg = require('../package.json');
 const Literal = require('./enum/literal.js');
 
 process.on('uncaughtException', e => {
-    console.error('UncaughtException: ' + e.stack);
+    if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
+        console.error('UncaughtException: ' + e.stack);
+    } else {
+        console.error('UncaughtException: ' + e.message || e.toString());
+    }
     process.exit(1);
 });
 
@@ -152,6 +156,12 @@ class MowaServer extends AppModule {
         });
     }
 }
+
+/**
+ * AppModule class
+ * @memberof MowaServer
+ */
+MowaServer.AppModule = AppModule;
 
 /**
  * Utilities shortcut

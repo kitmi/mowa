@@ -36,10 +36,33 @@ class InvalidConfiguration extends Error {
     }
 }
 
+class InvalidRequest extends Error {
+    /**
+     * Error caused by incoming http request
+     * @constructs Errors:InvalidRequest
+     * @extends Error
+     * @param {string} message - Error message
+     */
+    constructor(message) {
+        super(message);
+
+        /**
+         * Name of the error class
+         * @member {string}
+         **/
+        this.name = 'InvalidRequest';
+        /**
+         * Http status code
+         * @member {integer}
+         */
+        this.status = HttpCode.HTTP_BAD_REQUEST;
+    }
+}
+
 class ServerError extends Error {
     /**
      * Error caused by all kinds of runtime errors
-     * @constructs Errors:InternalError
+     * @constructs Errors:ServerError
      * @extends Error
      * @param {string} message - Error message
      */
@@ -60,5 +83,25 @@ class ServerError extends Error {
     }
 }
 
+class InvalidArgument extends ServerError {
+    /**
+     * Error caused by argument of internal call
+     * @constructs Errors:ServerError
+     * @extends Error
+     * @param {string} message - Error message
+     */
+    constructor(message) {
+        super(message);
+
+        /**
+         * Name of the error class
+         * @member {string}
+         */
+        this.name = 'InvalidArgument';
+    }
+}
+
+exports.InvalidArgument = InvalidArgument;
+exports.InvalidRequest = InvalidRequest;
 exports.InvalidConfiguration = InvalidConfiguration;
 exports.ServerError = ServerError;

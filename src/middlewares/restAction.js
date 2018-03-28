@@ -21,29 +21,22 @@ module.exports = (options, appModule) => {
 
         let ctrl = options.controllers.get(ctrlName);
 
-        switch (options.type) {
-            case 'query':
-                ctx.body = await ctrl.query(ctx);
-                break;
+        ctx.type = 'application/json';
 
-            case 'create':
-                ctx.body = await ctrl.create(ctx);
-                break;
-
-            case 'get':
-                ctx.body = await ctrl.get(ctx);
-                break;
-
-            case 'update':
-                ctx.body = await ctrl.update(ctx);
-                break;
-
-            case 'delete':
-                ctx.body = await ctrl.remove(ctx);
-                break;
-
-            default:
-                ctx.throw(Mowa.HttpCode.HTTP_BAD_REQUEST);
+        try {
+            ctx.body = await ctrl[options.type](ctx);
+        } catch (error) {
+            if (error.status) {
+                ctx.status = error.status;
+            } else {
+                ctx.status = 500;
+            }
+            
+            if (appModule.env === 'production') {
+                ctx.body = { error: error.message || error };
+            } else {
+                ctx.body = { error: error.stack };
+            }
         }
     };
 };

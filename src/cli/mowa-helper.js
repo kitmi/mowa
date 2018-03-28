@@ -173,14 +173,7 @@ exports.getAppDbConnections = function(api) {
 };
 
 exports.getAppSchemas = function (api) {
-    let appName = api.getOption('app');
-
-    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
-
-    let appModule = api.server.childModules[appName];
-    if (!appModule) {
-        throw new Error(`App "${appName}" is not mounted in the project.`);
-    }
+    let appModule = exports.getAppModuleToOperate(api);
     
     let schemas = [];
 
@@ -190,7 +183,7 @@ exports.getAppSchemas = function (api) {
         let linker = new oolong.Linker({ logger: api.logger, currentApp: appModule });
         linker.link(path.join(appModule.oolongPath, f));
 
-        schemas = schemas.concat(_.values(linker.schemas));
+        schemas.push(linker.schema);
     });
 
     return schemas.map(s => s.name);

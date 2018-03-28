@@ -5,22 +5,12 @@ class DbDeployer {
      * Oolong database deployer
      * @constructs OolongDbDeployer
      * @param {object} context
-     * @param {string} schemaName
      * @param {object} dbService
      */
-    constructor(context, schemaName, dbService) {
+    constructor(context, dbService) {
         this.logger = context.logger;
         this.appModule = context.currentApp;
-        this.schemaName = schemaName;
         this.dbService = dbService;
-    }
-
-    deploy(reset) {
-        
-    }
-
-    loadData(dataFile, mode) {
-
     }
 }
 

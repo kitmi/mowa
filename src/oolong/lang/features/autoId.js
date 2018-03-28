@@ -18,7 +18,13 @@ const FEATURE_NAME = 'autoId';
  * @property {string} [options.type='int'] - Field type
  */
 function initialize(entity, options) {
-    let typeInfo = { name: 'id', type: 'int', auto: true, readOnly: true };
+    let typeInfo = {
+        name: 'id',
+        type: 'int',
+        auto: true,
+        readOnly: true,
+        fixedValue: true
+    };
 
     if (options) {
         if (typeof options === 'string') {
@@ -31,9 +37,8 @@ function initialize(entity, options) {
     let fieldName = typeInfo.name;
     delete typeInfo.name;
 
-    entity.addFeature({
-        name: FEATURE_NAME,
-        field: fieldName
+    entity.addFeature(FEATURE_NAME, {
+        field: fieldName        
     }).on('beforeFields', () => {
         entity.addField(fieldName, typeInfo)
             .setKey(fieldName);

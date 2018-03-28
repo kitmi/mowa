@@ -41,11 +41,11 @@ class OolongLinker {
         this.currentAppModule = context.currentApp;
 
         /**
-         * Linked schemas
+         * Linked schema
          * @type {object}
          * @public
          */
-        this.schemas = undefined;
+        this.schema = undefined;
 
         /**
          * Parsed oolong files, path => module
@@ -119,10 +119,12 @@ class OolongLinker {
             throw new Error('No schema defined in entry file.');
         }
 
-        this.schemas = _.reduce(entryModule.schema, (result, schema, schemaName) => {
-            result[schemaName] = (new Schema(this, schemaName, entryModule, schema)).link();
-            return result;
-        }, {});        
+        if (entryModule.schema.name !== entryModule.name) {
+            throw new Error(`Schema "${entryModule.schema.name}" defined in "${entryFileName}" should be the same with filename.`);
+        }
+
+        this.schema = new Schema(this, entryModule);
+        this.schema.link();
 
         this._addRelatedEntities();
         
@@ -446,31 +448,29 @@ class OolongLinker {
         });
 
         //starting from schema to add all referenced entities
-        _.each(this.schemas, (schema) => {
-            let pending = new Set(), visited = new Set();
+        let pending = new Set(), visited = new Set();
 
-            Object.keys(schema.entityIdMap).forEach(id => pending.add(id));
+        Object.keys(this.schema.entityIdMap).forEach(id => pending.add(id));
 
-            while (pending.size > 0) {
-                let expanding = pending;
-                pending = new Set();
+        while (pending.size > 0) {
+            let expanding = pending;
+            pending = new Set();
 
-                expanding.forEach(id => {
-                    if (visited.has(id)) return;
+            expanding.forEach(id => {
+                if (visited.has(id)) return;
 
-                    let connections = nodes[id];
+                let connections = nodes[id];
 
-                    if (connections) {
-                        connections.forEach(c => {
-                            pending.add(c.to);
-                            schema.addRelation(c.by);
-                        });
-                    }
+                if (connections) {
+                    connections.forEach(c => {
+                        pending.add(c.to);
+                        this.schema.addRelation(c.by);
+                    });
+                }
 
-                    visited.add(id);
-                });
-            }
-        });
+                visited.add(id);
+            });
+        }
 
         //finding the single way relation chain
     }

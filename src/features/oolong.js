@@ -24,25 +24,39 @@ module.exports = {
      * @property {bool} [oolong.logSqlStatement] - Flag to turn on sql debugging log
      * @returns {Promise.<*>}
      */
-    load_: function (appModule, oolong) {
+    load_: async (appModule, oolong) => {
         appModule.oolong = oolong;
+        
+        appModule.on('after:' + Mowa.Feature.MIDDLEWARE, () => {
+            if (!appModule.hasPostActions) {
+                appModule.useMiddlewares(appModule.router, { postActions: {} })
+            } 
+        });
 
         appModule.on('after:' + Mowa.Feature.DBMS, () => {
 
-            appModule.getDbSchema = function (schemaName) {
-                if (!schemaName) {
-                    if (defaultSchema in oolong) {
-                        schemaName = oolong.defaultSchema;
-                    } else {
-                        throw new Error('Invalid schemaName!');
-                    }
+            appModule.db = function (dbServiceId, ctx) {
+                if (!dbServiceId) {
+                    throw new Error('"dbServiceId" is required!');
                 }
 
-                let dbFile = path.resolve(appModule.backendPath, Mowa.Literal.MODELS_PATH, schemaName + '.js');
-                return require(dbFile);
+                if (ctx && ctx.db && (dbServiceId in ctx.db)) {
+                    return ctx.db[dbServiceId];
+                }
+
+                let [ dbType, dbName ] = dbServiceId.split(':');
+
+                let dbFile = path.resolve(appModule.backendPath, Mowa.Literal.MODELS_PATH, dbType, dbName + '.js');
+                let Dao = require(dbFile);
+                let dao = new Dao(appModule, ctx);
+                
+                if (ctx) {
+                    ctx.db || (ctx.db = {});
+                    ctx.db[dbServiceId] = dao;
+                }
+                
+                return dao;
             };
         });
-
-        return Promise.resolve();
     }
 };

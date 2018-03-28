@@ -70,23 +70,27 @@ module.exports = {
      * @property {string} [config.path] - The path of socket server
      * @property {int} [config.port] - The port number of the server
      * @property {Object.<string, Object>} [config.channels] - Channels
-     * @returns {Promise.<*>}
      */
-    load_: function (appModule, config) {
+    load_: (appModule, config) => {
         if (appModule.serverModule.options.deaf) {
-            return Promise.resolve();
+            return;
         }
 
         appModule.on('after:' + Mowa.Feature.ENGINE, () => {
             let io, standalone = false;
 
             let listeningPath = Util.urlJoin(appModule.route, config.path);
+            appModule.log('verbose', 'Socket RPC listening path: ' + listeningPath);
+
+            let options = {
+                path: listeningPath
+            };
 
             if (config.port) {
-                io = new SocketServer();
+                io = new SocketServer(options);
                 standalone = true;
             } else {
-                io = new SocketServer(appModule.hostingHttpServer)
+                io = new SocketServer(appModule.hostingHttpServer, options)
             }
 
             let logger;
@@ -102,7 +106,7 @@ module.exports = {
                 );
             }
 
-            let controllerPath = path.join(appModule.backendPath, Mowa.Literal.REMOTE_CALLS_PATH);
+            let controllersPath = path.join(appModule.backendPath, Mowa.Literal.REMOTE_CALLS_PATH);
 
             _.forOwn(config.channels, (info, name) => {
                 let ioChannel = io.of(name);
@@ -117,28 +121,52 @@ module.exports = {
                 if (info.middlewares) {
                     let m = Array.isArray(info.middlewares) ? info.middlewares : [ info.middlewares ];
                     m.forEach(middlewareName => {
-                        ioChannel.use(loadEventHandler(appModule, name, controllerPath, middlewareName, true));
+                        ioChannel.use(loadEventHandler(appModule, name, controllersPath, middlewareName, true));
                     });
                 }
 
-                let eventHandlers = {};
+                let eventHandlers;
 
-                if (info.events) {
+                if (info.controller) {
+                    if (info.events) {
+                        appModule.log('warn', 'When controller is set for a rpc endpoint, "events" hooks will be ignored.');
+                    }
+
+                    let rpcControllerPath = path.resolve(controllersPath, info.controller + '.js');
+                    eventHandlers = require(rpcControllerPath);
+                } else if (info.events) {
+                    eventHandlers = {};
+
                     Util._.forOwn(info.events, (handler, event) => {
-                        eventHandlers[event] = loadEventHandler(appModule, name, controllerPath, handler);
+                        eventHandlers[event] = loadEventHandler(appModule, name, controllersPath, handler);
                     });
+                }
+
+                if (_.isEmpty(eventHandlers)) {
+                    throw new Mowa.Error.InvalidConfiguration(
+                        'Missing rpc controller or event hooks.',
+                        appModule,
+                        `rpgServer.channels.${name}`
+                    );
                 }
 
                 ioChannel.on('connection', function (socket) {
                     //Register event handlers
                     _.forOwn(eventHandlers, (handler, event) => {
-                        socket.on(event, data => handler(socket, data));
+                        socket.on(event, (data, cb) => {
+                            logger && logger.log('verbose', 'Client event emitted: ' + event + ', argument number: ' + arguments.length);                            
+
+                            console.log('arg0: ' + data);
+                            
+                            return handler(appModule, socket, data, cb);
+                        });
                     });
 
-                    console.log('Client connected.');
-                    console.log(socket.request);
+                    logger && logger.log('verbose', 'Client connected.');
 
-                    socket.emit('welcome', { payload: 'xxx' });
+                    if (info.welcomeMessage) {
+                        socket.emit('welcome', info.welcomeMessage);
+                    }
                 });
             });
 
@@ -147,7 +175,5 @@ module.exports = {
                 appModule.log('info', `A socket RPC server is listening on port [${config.port}] ...`);
             }
         });
-
-        return Promise.resolve();
     }
 };

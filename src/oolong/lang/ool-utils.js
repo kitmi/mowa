@@ -48,20 +48,23 @@ const deepCloneField = (src, dest, field, stack) => {
 
 const isMemberAccess = (name) => (name.indexOf('.') > 0);
 
-const extractMemberAccess = (name) => name.split('.').map(n => n.trim());
+const extractMemberAccess = (name) => name.split('.');
 
-const translateOolObj = oolObj => _.isPlainObject(oolObj)
-    ? ((oolObj.type == 'Object' || oolObj.type == 'Array')
-        ? translateOolObj(oolObj.value)
-        : ((oolObj.type == 'Variable' || oolObj.type == 'ObjectReference')
-            ? oolObj.name
-            : _.reduce(oolObj, (result, v, k) => (result[k] = translateOolObj(v), result), {})))
-    : (_.isArray(oolObj)
-        ? _.map(oolObj, v => translateOolObj(v))
-        : oolObj);
+const getReferenceNameIfItIs = (obj) => {
+    if (_.isPlainObject(obj) && obj.oolType === 'ObjectReference') {
+        return extractMemberAccess(obj.name)[0];
+    }
+
+    return undefined;
+};
 
 exports.deepClone = deepClone;
 exports.deepCloneField = deepCloneField;
 exports.isMemberAccess = isMemberAccess;
 exports.extractMemberAccess = extractMemberAccess;
-exports.translateOolObj = translateOolObj;
+exports.getReferenceNameIfItIs = getReferenceNameIfItIs;
+
+exports.FUNCTOR_VARIABLE = 'variable';
+exports.FUNCTOR_VALIDATOR = 'validator';
+exports.FUNCTOR_MODIFIER = 'modifier';
+exports.FUNCTOR_FUNCTION = 'function';

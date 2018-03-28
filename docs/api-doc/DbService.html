@@ -40,14 +40,14 @@
 			<li class="dropdown">
 				<a href="classes.list.html" class="dropdown-toggle" data-toggle="dropdown">Classes<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="AppModule.html">AppModule</a></li><li><a href="DbService.html">DbService</a></li><li><a href="Entity.html">Entity</a></li><li><a href="Errors_InternalError.html">Errors:InternalError</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="ModelOperationError.html">ModelOperationError</a></li><li><a href="ModelOperator.html">ModelOperator</a></li><li><a href="ModelValidationError.html">ModelValidationError</a></li><li><a href="module-Feature_I18n-I18nStorage.html">Feature_I18n~I18nStorage</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="MysqlModelOperator.html">MysqlModelOperator</a></li><li><a href="OolongDaoModeler.html">OolongDaoModeler</a></li><li><a href="OolongDbDeployer.html">OolongDbDeployer</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlDeployer.html">OolongMysqlDeployer</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="Schema.html">Schema</a></li>
+					<li><a href="AppModule.html">AppModule</a></li><li><a href="Db.html">Db</a></li><li><a href="DbService.html">DbService</a></li><li><a href="Errors_InvalidConfiguration.html">Errors:InvalidConfiguration</a></li><li><a href="Errors_InvalidRequest.html">Errors:InvalidRequest</a></li><li><a href="Errors_ServerError.html">Errors:ServerError</a></li><li><a href="I18n.html">I18n</a></li><li><a href="Model.html">Model</a></li><li><a href="module-Feature_I18n-I18nStorage.html">Feature_I18n~I18nStorage</a></li><li><a href="MowaAPI.html">MowaAPI</a></li><li><a href="MowaServer.html">MowaServer</a></li><li><a href="Oolong_ModelOperationError.html">Oolong:ModelOperationError</a></li><li><a href="Oolong_ModelResultError.html">Oolong:ModelResultError</a></li><li><a href="Oolong_ModelValidationError.html">Oolong:ModelValidationError</a></li><li><a href="OolongDaoModeler.html">OolongDaoModeler</a></li><li><a href="OolongDbDeployer.html">OolongDbDeployer</a></li><li><a href="OolongDbModeler.html">OolongDbModeler</a></li><li><a href="OolongEntity.html">OolongEntity</a></li><li><a href="OolongField.html">OolongField</a></li><li><a href="OolongLinker.html">OolongLinker</a></li><li><a href="OolongMysqlDeployer.html">OolongMysqlDeployer</a></li><li><a href="OolongMysqlModeler.html">OolongMysqlModeler</a></li><li><a href="OolongSchema.html">OolongSchema</a></li><li><a href="TopoSort.html">TopoSort</a></li>
 				</ul>
 			</li>
 			
 			<li class="dropdown">
 				<a href="global.html" class="dropdown-toggle" data-toggle="dropdown">Global<b class="caret"></b></a>
 				<ul class="dropdown-menu ">
-					<li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#Patterns">Patterns</a></li>
+					<li><a href="global.html#FeatureLevels">FeatureLevels</a></li><li><a href="global.html#HttpCodes">HttpCodes</a></li><li><a href="global.html#Literals">Literals</a></li><li><a href="global.html#Patterns">Patterns</a></li><li><a href="global.html#translateTest">translateTest</a></li><li><a href="global.html#translateVariable">translateVariable</a></li>
 				</ul>
 			</li>
 			
@@ -98,7 +98,7 @@
         
 <hr>
 <dt>
-    <h4 class="name" id="DbService"><span class="type-signature"></span>new DbService(type, name [, options])</h4>
+    <h4 class="name" id="DbService"><span class="type-signature"></span>new DbService(appModule, type, name [, options])</h4>
     
     
 </dt>
@@ -139,6 +139,38 @@
     </thead>
 
     <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>appModule</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type"><a href="AppModule.html">AppModule</a></span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+
+                
+
+                
+                </td>
+            
+
+            
+
+            <td class="description last"><p>The app which creates this service</p></td>
+        </tr>
+
     
 
         <tr>
@@ -420,7 +452,7 @@
             
 <hr>
 <dt>
-    <h4 class="name" id="closeConnection"><span class="type-signature"></span>closeConnection(ctx, connnection)</h4>
+    <h4 class="name" id="closeConnection"><span class="type-signature"></span>closeConnection(conn)</h4>
     
     
 </dt>
@@ -463,37 +495,13 @@
 
         <tr>
             
-                <td class="name"><code>ctx</code></td>
+                <td class="name"><code>conn</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">object</span>
-
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last"></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>connnection</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">object</span>
+<span class="param-type">Object</span>
 
 
 
@@ -569,26 +577,6 @@
     
 
     
-    <h5>Returns:</h5>
-    
-            
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">Promise.&lt;object></span>
-
-
-
-    </dd>
-</dl>
-
-
-        
 
     
 </dd>
@@ -597,7 +585,7 @@
             
 <hr>
 <dt>
-    <h4 class="name" id="getConnection"><span class="type-signature"></span>getConnection( [ctx] [, autoRelease])</h4>
+    <h4 class="name" id="getConnection"><span class="type-signature">&lt;async> </span>getConnection( [options])</h4>
     
     
 </dt>
@@ -632,8 +620,6 @@
         
 
         
-        <th>Default</th>
-        
 
         <th class="last">Description</th>
     </tr>
@@ -644,13 +630,13 @@
 
         <tr>
             
-                <td class="name"><code>ctx</code></td>
+                <td class="name"><code>options</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">object</span>
+<span class="param-type">Object</span>
 
 
 
@@ -670,52 +656,8 @@
             
 
             
-                <td class="default">
-                
-                </td>
-            
 
-            <td class="description last"></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>autoRelease</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">bool</span>
-
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    false
-                
-                </td>
-            
-
-            <td class="description last"></td>
+            <td class="description last"><p>Extra options for the connection, optional</p></td>
         </tr>
 
     

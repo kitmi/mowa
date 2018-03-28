@@ -505,7 +505,7 @@ class AppModule extends EventEmitter {
             _ctx: ctx,
             _module: this,
             _util: {
-                __: this.__,
+                __: ctx.__,
                 makePath: (relativePath, query) => this.toWebPath(relativePath, query),
                 makeUrl: (relativePath, query) => (this.origin + this.toWebPath(relativePath, query))
             }

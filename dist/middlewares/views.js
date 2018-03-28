@@ -1,1 +1,1 @@
-'use strict';const Mowa=require('../server.js');const path=require('path');const views=require('koa-views');module.exports=function(options,appModule){return views(path.join(appModule.backendPath,Mowa.Literal.VIEWS_PATH),options)};
+'use strict';const Mowa=require('../server.js'),path=require('path'),views=require('koa-views');module.exports=function(options,appModule){return views(path.join(appModule.backendPath,Mowa.Literal.VIEWS_PATH),options)};

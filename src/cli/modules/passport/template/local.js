@@ -4,6 +4,8 @@ const LocalStrategy = require('passport-local').Strategy;
 
 module.exports = (app, passport) => {
 
+    //serializeUser and deserializeUser are used only when session is enabled
+
     //called after login
     passport.serializeUser((user, done) => {
         done(null, user.id)

@@ -2,7 +2,7 @@
 
 const randomstring = require("randomstring");
 
-exports.generate = async (info) => {
+exports.generate = (info) => {
     console.log('Called auto generator: ' + JSON.stringify(info, null, 4));
 
     if (info.type == 'text') {

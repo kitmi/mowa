@@ -10,13 +10,13 @@
 
 # type qualifier
 # default
-# auto
 # length(fixedLength) text type: fixed number of characters
 # precision float type: number of float digits
 # ~ /<regexp>/ regexp
-# readOnly: can be set only on creation
+# readOnly: can only be set by automatic generator or default value
 # nonTrim
-# writeOnceOnly
+# fixedValue
+# forceUpdate
 # optional
 # --
 # ->
@@ -30,8 +30,8 @@
 # int
 # number [exact]
 # bool
-# text [fixed]
-# binary [fixed]
+# text [fixedLength]
+# binary [fixedLength]
 # datetime [date only]|[time only]|[year only]|[timestamp]
 # json
 # xml
@@ -54,11 +54,12 @@ type
   digits : text ~isNumeric
   alphaNumber : text ~isAlphanumeric
   phone : text(20) ~matches(/^((\+|00)\d+)?\d+(-\d+)?$/)
-  mobile : text(20) ~isMobilePhone(@locale.dashForm)
   money : number exact
 
   url : text(2000) ~isURL
   path : text(2000) ~isURL({allow_protocol_relative_urls: true})
 
-  uuid : text(36) fixed ~isUUID
+  uuid : text(36) fixedLength ~isUUID
   ip : text(40) ~isIP
+
+  object : json

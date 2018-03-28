@@ -1,7 +1,5 @@
 "use strict";
 
-require('debug')('tracing')(__filename);
-
 const path = require('path');
 const Util = require('../util.js');
 const Promise = Util.Promise;

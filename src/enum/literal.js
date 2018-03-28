@@ -85,7 +85,7 @@ const Literals = module.exports = {
     /**
      * Database scripts path
      */
-    DB_SCRIPTS_PATH: 'db_scripts',
+    DB_SCRIPTS_PATH: 'db',
 
     /**
      * Locale dictionary files path

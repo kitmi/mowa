@@ -40,7 +40,7 @@
     
     <fields>
     	has
-          (<field name>: <type> [optional] [| <modifier>])
+          <field name>: [<type>] [optional|readOnly|writeOnceOnly|computed] [|<modifier>]
                   
 ##4. Relationship
 

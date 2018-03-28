@@ -5,7 +5,11 @@ exports.componentGroup = [
     'jquery',
     'bootstrap',
     'mobx',
-    'react-swipeable-views'
+    'react-swipeable-views',
+    'classnames',
+    'socket.io',
+    'react-json-tree',
+    'dx-react-grid'
 ];
 
 exports.componentPackages = {
@@ -14,6 +18,10 @@ exports.componentPackages = {
     'material-ui': [ 'material-ui@next', 'material-ui-icons' ],
     'jquery': [ 'jquery' ],
     'bootstrap': [ 'bootstrap', 'reactstrap@next' ],
-    'mobx': [ 'mobx', 'mobx-react' ],
-    'react-swipeable-views': [ 'react-swipeable-views', 'react-swipeable-views-utils' ]
+    'mobx': [ 'mobx', 'mobx-react', 'mobx-react-devtools', 'mobx-react-form' ],
+    'react-swipeable-views': [ 'react-swipeable-views', 'react-swipeable-views-utils' ],
+    'classnames': [ 'classnames' ],
+    'socket.io': [ 'socket.io', 'socket.io-client' ],
+    'react-json-tree': [ 'react-json-tree' ],
+    'dx-react-grid': [ '@devexpress/dx-react-core', '@devexpress/dx-react-grid', '@devexpress/dx-react-grid-material-ui' ]
 };

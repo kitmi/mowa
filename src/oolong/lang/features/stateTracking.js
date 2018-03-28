@@ -17,7 +17,7 @@ const FEATURE_NAME = 'stateTracking';
  * @property {string} options.field - State field to track
  * @property {bool} [options.reversible=false] - Specify whether the field can be set to a previous state again
  */
-function initialize(entity, options) {    
+function initialize(entity, options) {
     if (!options) {
         throw new Error('Missing field options!');
     }
@@ -38,13 +38,12 @@ function initialize(entity, options) {
     };
 
     if (!options.reversible) {
-        stateSetTimestamp.writeOnceOnly = true;
+        stateSetTimestamp.fixedValue = true;
     }
 
-    entity.addFeature({
-        name: FEATURE_NAME,
+    entity.addFeature(FEATURE_NAME, {
         field: options.field
-    }).on('afterFields', () => {
+    }, true).on('afterFields', () => {
         if (!entity.hasField(options.field)) {
             throw new Error('Field "' + options.field + '" does not exist!');
         }
