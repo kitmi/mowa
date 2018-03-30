@@ -8,9 +8,9 @@
     "test": "npm run build-test && mocha -R spec -t 5000 test/*.mocha.js",
     "cover": "npm run build-test && nyc --reporter=html --reporter=text mocha test/*.mocha.js",
     "travis": "npm run build-test && nyc --reporter=lcovonly mocha test/*.mocha.js && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage",
-    "build": "NODE_ENV=production babel src -d dist --copy-files",
-    "build-test": "BABEL_ENV=development babel src -d temp --copy-files",
-    "build-dev": "BABEL_ENV=development babel src -d dist --copy-files"
+    "build": "rm -rf dist && NODE_ENV=production babel src -d dist --copy-files",
+    "build-test": "rm -rf temp && BABEL_ENV=development babel src -d temp --copy-files",
+    "build-dev": "rm -rf dist && BABEL_ENV=development babel src -d dist --copy-files"
   },
   "keywords": [
     "web",
@@ -73,6 +73,7 @@
     "koa-flash-simple": "0.0.3",
     "koa-methodoverride": "^2.0.0",
     "koa-mount": "^3.0.0",
+    "koa-passport": "^4.0.1",
     "koa-router": "^7.3.0",
     "koa-session-minimal": "^3.0.4",
     "koa-static": "^4.0.2",

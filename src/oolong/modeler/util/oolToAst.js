@@ -1,5 +1,10 @@
 "use strict";
 
+/**
+ * @module
+ * @ignore
+ */
+
 const Util = require('../../../util.js');
 const _ = Util._;
 const JsLang = require('./ast.js');
@@ -415,8 +420,22 @@ function translateParam(index, param, compileContext) {
             throw new Error('Unknown field type: ' + type);
     }
 
-    compileContext.astBody.push(JsLang.astAssign(param.name,
-        JsLang.astCall(sanitizerName, [ JsLang.astArrayAccess('$meta.params', index), JsLang.astVarRef(param.name) ]))
+    if (index === 0) {
+        compileContext.astBody.push(JsLang.astVarDeclare(JsLang.astVarRef('$sanitizeState'),
+            JsLang.astCall(sanitizerName, [ JsLang.astArrayAccess('$meta.params', index), JsLang.astVarRef(param.name) ]))
+        );
+    } else {
+        compileContext.astBody.push(JsLang.astAssign(JsLang.astVarRef('$sanitizeState'),
+            JsLang.astCall(sanitizerName, [ JsLang.astArrayAccess('$meta.params', index), JsLang.astVarRef(param.name) ]))
+        );
+    }
+
+    compileContext.astBody.push(JsLang.astIf(JsLang.astVarRef('$sanitizeState.error'),
+        JsLang.astReturn(JsLang.astVarRef('$sanitizeState')))
+    );
+
+    compileContext.astBody.push(JsLang.astAssign(JsLang.astVarRef(param.name),
+        JsLang.astVarRef('$sanitizeState.sanitized'))
     );
 
     compileContext.astMap[topoId] = JsLang.astVarRef(param.name);
@@ -432,55 +451,37 @@ function translateParam(index, param, compileContext) {
     return paramTopoId;
 }
 
-/*
-function prepareDbConnection(compileContext) {
-    if (!compileContext.preparedDbConnection) {
-        compileContext.astBody.push(JsLang.astVarDeclare('conn', JsLang.astAwait('this.db.conn_', []), true));
-        compileContext.preparedDbConnection = true;
-    }
-}
-*/
-
-/*
-function prepareDb(compileContext) {
-    if (!compileContext.preparedDb) {
-        compileContext.astBody.push(JsLang.astVarDeclare('db', 'appModule.dbServiceId', true));
-        compileContext.preparedDb = true;
-    }
-}
-*/
-
-function translateThen(then, assignTo) {
-    let ast;
-
+function translateThenAst(topoId, then, compileContext, assignTo) {
     if (_.isPlainObject(then)) {
-        if (then.oolType === 'throw') {
-            ast = JsLang.astThrow(then.errorType || defaultError, then.message || []);
+        if (then.oolType === 'ThrowExpression') {
+            return JsLang.astThrow(then.errorType || defaultError, then.message || []);
+        }
+
+        if (then.oolType === 'ReturnExpression') {
+            return translateReturnValueAst(topoId, then.value, compileContext);
         }
     }
 
-    if (!ast) {
-        if (!assignTo) {
-            ast = JsLang.astReturn(then);
-        } else {
-            ast = JsLang.astAssign(assignTo, then);
-        }
+    if (!assignTo) {
+        return JsLang.astReturn(then);
     }
 
-    return ast;
+    return JsLang.astAssign(assignTo, then);
 }
 
 function translateFindOne(index, operation, compileContext) {
     let topoId = 'op$' + index.toString();
+    let conditionVarName = topoId + '$condition';
+
     let ast = [
-        JsLang.astVarDeclare('$condition')
+        JsLang.astVarDeclare(conditionVarName)
     ];
 
     if (operation.case) {
         let topoIdPrefix = topoId + '$cases';
         let lastStatement;
         if (operation.case.else) {
-            lastStatement = translateThen(operation.case.else, '$condition');
+            lastStatement = translateThenAst(topoIdPrefix + '$else', operation.case.else, compileContext, conditionVarName);
         } else {
             lastStatement = JsLang.astThrow('ServerError', 'Unexpected state.');
         }
@@ -501,20 +502,15 @@ function translateFindOne(index, operation, compileContext) {
             let lastTopoId = translateTest(item.test, compileContext, { topoIdPrefix: caseTopoId });
             ast = ast.concat(_.castArray(compileContext.astMap[lastTopoId]));
 
-            lastStatement = JsLang.astIf(JsLang.astVarRef(caseResultVarName), JsLang.astBlock(translateThen(item.then, '$condition')), lastStatement);
+            lastStatement = JsLang.astIf(JsLang.astVarRef(caseResultVarName), JsLang.astBlock(translateThenAst(topoIdPrefix + '$then', item.then, compileContext, conditionVarName)), lastStatement);
             compileContext.topoSort.add(lastTopoId, topoId);
         });
 
         ast = ast.concat(_.castArray(lastStatement));
     }
-    
-    let modelName =_.upperFirst(operation.model);
 
     ast.push(
-        JsLang.astVarDeclare(modelName, JsLang.astCall('this.db.model', operation.model))
-    );
-    ast.push(
-        JsLang.astVarDeclare(operation.model, JsLang.astAwait(`${modelName}.findOne`, JsLang.astVarRef('$condition')))
+        JsLang.astVarDeclare(operation.model, JsLang.astAwait(`this.findOne`, JsLang.astVarRef(conditionVarName)))
     );
 
     compileContext.topoSort.add(topoId, operation.model);
@@ -522,14 +518,9 @@ function translateFindOne(index, operation, compileContext) {
     return topoId;
 }
 
-function translateQueryCondition(condition) {
-    return condition;
-}
-
 function translateDbOperation(index, operation, compileContext) {
     switch (operation.oolType) {
         case 'findOne':
-            //prepareDbConnection(compileContext);
             return translateFindOne(index, operation, compileContext);
 
         case 'find':
@@ -559,7 +550,14 @@ function translateDbOperation(index, operation, compileContext) {
     }
 }
 
-function translateReturn(topoId, oolNode, compileContext) {
+function translateReturnValueAst(topoId, value, compileContext) {
+    let valueTopoId = translateConcreteValue(topoId, value, compileContext);
+    return JsLang.astReturn(compileContext.astMap[valueTopoId]);
+}
+
+function translateExceptionalReturn(topoId, oolNode, compileContext) {
+    pre: (_.isPlainObject(oolNode) && oolNode.oolType === 'ReturnExpression'), Util.Message.DBC_INVALID_ARG;
+
     let topoIdPrefix = topoId + '$exceptions';
 
     if (!_.isEmpty(oolNode.exceptions)) {
@@ -569,15 +567,15 @@ function translateReturn(topoId, oolNode, compileContext) {
                     throw new Error('Unsupported exceptional type: ' + item.oolType);
                 }
 
-                let lastTopoId = translateTest(item.test, compileContext, { topoIdPrefix: topoIdPrefix + '-' + i.toString() });
-                compileContext.astMap[lastTopoId] = JsLang.astIf(compileContext.astMap[lastTopoId], JsLang.astBlock(translateThen(item.then)));
+                let exceptionTopoId = topoIdPrefix + '-' + i.toString();
+                let lastTopoId = translateTest(item.test, compileContext, { topoIdPrefix: exceptionTopoId });
+                compileContext.astMap[lastTopoId] = JsLang.astIf(compileContext.astMap[lastTopoId], JsLang.astBlock(translateThenAst(exceptionTopoId + '$then', item.then, compileContext)));
                 compileContext.includes.add(lastTopoId);
             }
         });
     }
 
-    let valueTopoId = translateConcreteValue(topoId, oolNode.value, compileContext);
-    compileContext.astMap[topoId] = JsLang.astReturn(compileContext.astMap[valueTopoId]);
+    compileContext.astMap[topoId] = translateReturnValueAst(topoId, oolNode.value, compileContext);
     return topoId;
 }
 
@@ -586,5 +584,5 @@ module.exports = {
     translateVariable,
     translateParam,
     translateDbOperation,
-    translateReturn
+    translateExceptionalReturn
 };

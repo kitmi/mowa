@@ -226,7 +226,7 @@ class Model {
                 throw new Mowa.Error.InvalidArgument('"findOne()" requires condition with unique keys.');
             }
 
-            condition = Model._filterNullValues(condition);
+            condition = this._filterNullValues(condition);
         }
 
         let fields = Object.keys(this.meta.fields);
@@ -277,7 +277,7 @@ class Model {
                 throw new Mowa.Error.InvalidArgument('"removeOne()" requires condition with unique keys.');
             }
 
-            condition = Model._filterNullValues(condition);
+            condition = this._filterNullValues(condition);
         }
 
         return await this._doRemoveOne(condition);

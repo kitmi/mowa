@@ -383,12 +383,15 @@ class AppModule extends EventEmitter {
                 throw new Error.ServerError('Unregistered middleware: ' + name);
             }
 
-            //walk around the fix: https://github.com/alexmingoia/koa-router/issues/182
-            if (router.register && middleware.__metaMatchMethods && middleware.__metaMatchMethods.length) {
-                router.register('(.*)', middleware.__metaMatchMethods, middleware(options, self), {end: false});
-            } else {
-                router.use(middleware(options, this));
-            }
+            let middlewareFunctions = _.castArray(middleware(options, this));
+            middlewareFunctions.forEach(m => {
+                //walk around the fix: https://github.com/alexmingoia/koa-router/issues/182
+                if (router.register && middleware.__metaMatchMethods && middleware.__metaMatchMethods.length) {
+                    router.register('(.*)', middleware.__metaMatchMethods, m, {end: false});
+                } else {
+                    router.use(m);
+                }
+            });
 
             this.log('verbose', `Attached middleware [${name}].`);
         });
@@ -527,20 +530,22 @@ class AppModule extends EventEmitter {
             let feature = this.features[name] || this._loadFeature(name);
             if (!(name in this.features)) {
                 this.features[name] = feature;
-            }            
-
-            if (!feature.type) {
-                throw new Error.ServerError(`Missing feature type. Feature: ${name}`);
             }
 
-            if (!(feature.type in featureGroups)) {
-                throw new Error.ServerError(`Invalid feature type. Feature: ${name}, type: ${feature.type}`);
-            }
+            if (feature) {
+                if (!feature.type) {
+                    throw new Error.ServerError(`Missing feature type. Feature: ${name}`);
+                }
 
-            featureGroups[feature.type].push(() => {
-                this.log('verbose', `Loading feature: ${name} ...`);
-                return feature.load_(this, block);
-            });
+                if (!(feature.type in featureGroups)) {
+                    throw new Error.ServerError(`Invalid feature type. Feature: ${name}, type: ${feature.type}`);
+                }
+
+                featureGroups[feature.type].push(() => {
+                    this.log('verbose', `Loading feature: ${name} ...`);
+                    return feature.load_(this, block);
+                });
+            }
         });
 
         // execute features one by one
@@ -584,10 +589,15 @@ class AppModule extends EventEmitter {
             }
         }
 
-        let featureObj = require(extensionJs);
-        featureObj.name = feature;
+        try {
+            let featureObj = require(extensionJs);
+            featureObj.name = feature;
 
-        return featureObj;
+            return featureObj;
+        } catch (error) {
+            this.log('error', error.message);
+            return undefined;
+        }
     }
 }
 

@@ -21,5 +21,8 @@ module.exports = function (options, appModule) {
     let config = require(configPath);
     const compiler = webpack(config);
 
-    return connect(webpackDevMiddleware(compiler, extraConfig));
+    return async (ctx, next) => {
+        ctx.status = 200;
+        return connect(webpackDevMiddleware(compiler, extraConfig))(ctx, next);
+    }
 };

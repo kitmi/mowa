@@ -9,7 +9,9 @@ exports.componentGroup = [
     'classnames',
     'socket.io',
     'react-json-tree',
-    'dx-react-grid'
+    'dx-react-grid',
+    'validator',
+    'validatorjs'
 ];
 
 exports.componentPackages = {
@@ -18,10 +20,12 @@ exports.componentPackages = {
     'material-ui': [ 'material-ui@next', 'material-ui-icons' ],
     'jquery': [ 'jquery' ],
     'bootstrap': [ 'bootstrap', 'reactstrap@next' ],
-    'mobx': [ 'mobx', 'mobx-react', 'mobx-react-devtools', 'mobx-react-form' ],
+    'mobx': [ 'mobx', 'mobx-react', 'mobx-react-devtools', 'mobx-react-form', 'mobx-react-form-devtools' ],
     'react-swipeable-views': [ 'react-swipeable-views', 'react-swipeable-views-utils' ],
     'classnames': [ 'classnames' ],
-    'socket.io': [ 'socket.io', 'socket.io-client' ],
+    'socket.io': [ 'socket.io-client' ],
     'react-json-tree': [ 'react-json-tree' ],
-    'dx-react-grid': [ '@devexpress/dx-react-core', '@devexpress/dx-react-grid', '@devexpress/dx-react-grid-material-ui' ]
+    'dx-react-grid': [ '@devexpress/dx-react-core', '@devexpress/dx-react-grid', '@devexpress/dx-react-grid-material-ui' ],
+    'validator': [ 'validator' ],
+    'validatorjs': [ 'validatorjs' ]
 };

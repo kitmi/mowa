@@ -83,6 +83,19 @@ class Db {
 
         return this._conn;
     }
+
+    /**
+     * Release the database connection
+     * @returns {Db}
+     */
+    release() {
+        if (this._conn) {
+            this.service.closeConnection(this._conn);
+            delete this._conn;
+        }
+
+        return this;
+    }
 }
 
 module.exports = Db;

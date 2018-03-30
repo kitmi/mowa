@@ -82,29 +82,18 @@ exports.enable = async api => {
     api.log('verbose', 'exec => mowa passport enable');
 
     let appModule = MowaHelper.getAppModuleToOperate(api);
-
-    let strategiesPath = path.join(appModule.backendPath, 'passports');
-    fs.ensureDirSync(strategiesPath);
-
     let pkgToInstall = 'koa-passport';
-    
-    let noLocal = api.getOption('no-local');
-    if (!noLocal) {
-        pkgToInstall += ' passport-local';
-
-        let localTemplate = path.join(__dirname, 'template', 'local.js');
-        let targetPath = path.join(strategiesPath, 'local.js');
-
-        if (!fs.existsSync(targetPath)) {
-            fs.copySync(localTemplate, targetPath);
-            api.log('info', 'Created local passport strategy.');
-        }
-    }
 
     shell.cd(appModule.absolutePath);
     let stdout = Util.runCmdSync('npm i --save ' + pkgToInstall);
     api.log('verbose', stdout);
     shell.cd(api.base);
+
+    let noLocal = api.getOption('no-local');
+    if (!noLocal) {
+        api.setOption('strategies', [ 'local' ]);
+        await exports.install(api);
+    }
 
     api.log('info', 'Enabled passport feature.');
 };
@@ -113,6 +102,9 @@ exports.install = async api => {
     api.log('verbose', 'exec => mowa passport install');
 
     let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    let strategiesPath = path.join(appModule.backendPath, 'passports');
+    fs.ensureDirSync(strategiesPath);
 
     let strategies = api.getOption('strategies');
 
@@ -123,6 +115,16 @@ exports.install = async api => {
             throw new Error('Unknown passport strategy group: ' + sg);
         }
         strategyGroups = strategyGroups.concat(passportStrategies[sg]);
+
+        let strategyBootstrapFile = sg + '.js';
+
+        let localTemplate = path.join(__dirname, 'template', strategyBootstrapFile);
+        let targetPath = path.join(strategiesPath, strategyBootstrapFile);
+
+        if (!fs.existsSync(targetPath)) {
+            fs.copySync(localTemplate, targetPath);
+            api.log('info', `Created "${sg}" passport strategy bootstrap file.`);
+        }
     });
 
     let pkgsLine = strategyGroups.join(' ');

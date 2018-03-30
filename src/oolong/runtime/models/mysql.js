@@ -23,7 +23,19 @@ class MysqlModel extends Model {
             this.appModule.log('verbose', sql);
         }
 
-        let [ result ] = await conn.query(sql);
+        let result;
+
+        try {
+            [ result ] = await conn.query(sql);
+        } catch (error) {
+            if (error.code && error.code === 'ER_DUP_ENTRY') {
+                let field = error.message.split("' for key '").pop();
+                field = field.substr(0, field.length-1);
+
+                throw new Errors.ModelValidationError({ message: error.message, field: this.meta.fields[field] });
+            }
+            throw error;
+        }
 
         if (result.affectedRows !== 1) {
             throw new Errors.ModelResultError('Insert operation may fail. "affectedRows" is 0.');
@@ -75,7 +87,7 @@ class MysqlModel extends Model {
             throw new Errors.ModelOperationError('Empty condition.', this.meta.name);
         }
 
-        let conn = await this.db.service.getConnection();
+        let conn = await this.db.conn_();
 
         let keyClauses = [];
         let values = [ this.meta.name ];
@@ -98,7 +110,7 @@ class MysqlModel extends Model {
     }
 
     static async _doFind(condition) {
-        let conn = await this.db.service.getConnection();
+        let conn = await this.db.conn_();
 
         let keyClauses = [];
         let values = [ this.meta.name ];
@@ -129,7 +141,7 @@ class MysqlModel extends Model {
             throw new Errors.ModelOperationError('Empty condition.', this.meta.name);
         }
 
-        let conn = await this.db.service.getConnection();
+        let conn = await this.db.conn_();
 
         let keyClauses = [];
         let values = [ this.meta.name ];

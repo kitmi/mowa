@@ -1,18 +1,31 @@
 "use strict";
 
 const Mowa = require('../server.js');
-const Util = require('../util.js');
 
-let passportAuthenticate = (opt, appModule) => {
-    if (!opt || !opt.strategy) {
-        throw new Mowa.Error.InvalidConfiguration('Missing strategy name.', appModule, 'middlewares.passport.strategy');
-    }
-    
+/**
+ * @module Middleware_Passport
+ * @summary Passport initialization middleware, required to initialize Passport service.
+ */
+
+/**
+ * Create a passport initialization middleware.
+ * @param {object} opt - Passport options
+ * @property {bool} [opt.useSession=false] - Use session or not, default: false
+ * @param {AppModule} appModule
+ * @returns {KoaActionFunction}
+ */
+let createMiddleware = (opt, appModule) => {
     let passport = appModule.getService('passport');
     
-    return passport.authenticate(opt.strategy, opt.options);
+    if (!passport) {
+        throw new Mowa.Error.InvalidConfiguration(
+            'Passport feature is not enabled.',
+            appModule,
+            'passport'
+        );
+    }
+    
+    return (opt && opt.useSession) ? passport.initialize() : [ passport.initialize(), passport.session() ];
 };
 
-passportAuthenticate.__metaMatchMethods = ['post'];
-
-module.exports = passportAuthenticate;
+module.exports = createMiddleware;

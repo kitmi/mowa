@@ -139,7 +139,7 @@ exports.enable = async api => {
 
     pkgs.forEach(p => {
         if (!(p in deps)) {
-            let stdout = Util.runCmdSync(`npm i --save-dev ${p}`);
+            let stdout = Util.runCmdSync(`npm i --save ${p}`);
             api.log('verbose', stdout);
         }
     });

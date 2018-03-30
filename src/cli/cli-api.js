@@ -273,6 +273,16 @@ class MowaAPI {
     }
 
     /**
+     * Set a command line option manually, often  
+     * @memberof MowaAPI
+     * @param name
+     * @param value
+     */
+    setOption(name, value) {
+        this.argv[name] = value;
+    }
+
+    /**
      * Get a config item
      * @memberof MowaAPI
      * @param moduleName

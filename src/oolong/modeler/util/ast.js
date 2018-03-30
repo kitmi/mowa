@@ -1,12 +1,12 @@
 "use strict";
 
+/**
+ * @module
+ * @ignore
+ */
+
 const Util = require('../../../util.js');
 const _ = Util._;
-
-/**
- * @module AST
- * @summary Abstract syntax tree of JavaScript
- */
 
 const AST_OBJECT_TYPES = [
     'ThisExpression',

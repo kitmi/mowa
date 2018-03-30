@@ -31,11 +31,23 @@ module.exports = (options, appModule) => {
             } else {
                 ctx.status = 500;
             }
-            
+
+            let message;
+
             if (appModule.env === 'production') {
-                ctx.body = { error: error.message || error };
+                message = error.message || error;
             } else {
-                ctx.body = { error: error.stack };
+                message = error.stack || error;
+            }
+
+            ctx.body = { error: message };
+            await next();
+
+            if (ctx.status >= 500) {
+                appModule.log('error', error.stack || error.toString(), {
+                    query: ctx.request.query,
+                    fields: ctx.request.fields
+                });
             }
         }
     };

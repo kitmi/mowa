@@ -18,14 +18,24 @@ class ModelValidationError extends Error.InvalidRequest {
         this.name = 'ModelValidationError';
         this.errors = _.castArray(errors);
 
+        let message = '';
+
         this.errors.forEach(item => {
-            this.message += `\n${ item.message || 'Invalid input.' }`;
+            if (message) {
+                message += '\n';
+            }
+
+            message += `${ item.message || 'Invalid input.' }`;
             if (item.field) {
-                this.message += ` Related field: "${item.field.name}"\n`;
+                message += ` Related field: "${item.field.name}"\n`;
             } else if (item.fields) {
-                this.message += ` Related fields: "${ JSON.stringify(item.fields.map(f => f.name)) }"\n`;
+                message += ` Related fields: "${ JSON.stringify(item.fields.map(f => f.name)) }"\n`;
             }
         });
+
+        if (message) {
+            this.message = message;
+        }
     }
 }
 
@@ -67,5 +77,6 @@ class ModelOperationError extends Error.ServerError {
     }
 }
 
+exports.ModelResultError = ModelResultError;
 exports.ModelValidationError = ModelValidationError;
 exports.ModelOperationError = ModelOperationError;

@@ -24,6 +24,7 @@ module.exports = {
      * Load the feature
      * @param {AppModule} appModule - The app module object
      * @param {object} config - Passport settings
+     * @property {array} config.strategies - Passport strategies, e.g. [ 'local', 'facebook' ]
      * @returns {Promise.<*>}
      */
     load_: function (appModule, config) {

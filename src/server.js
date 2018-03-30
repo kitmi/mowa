@@ -212,3 +212,11 @@ MowaServer.OolongRuntime = OolongRuntime;
 MowaServer.DbService = require('./dbservice.js');
 
 module.exports = MowaServer;
+
+/**
+ * Middleware and action function
+ * @callback KoaActionFunction
+ * @async
+ * @param {*} ctx - The koa request and response context. [See koajs about ctx details]{@link http://koajs.com/#context}
+ * @param {KoaActionFunction} [next] - Next middleware or action.
+ */

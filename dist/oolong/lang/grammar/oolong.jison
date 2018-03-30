@@ -1053,10 +1053,15 @@ conditional_where_expr
 
 return_or_not
     :
-    | "return" concrete_value NEWLINE
-        { $$ = { 'return': { value: $2 } }; }
-    | "return" concrete_value "unless" NEWLINE INDENT return_condition_blk DEDENT
-        { $$ = { 'return': { value: $2, exceptions: $6 } }; }
+    | return_expression NEWLINE
+        { $$ = { return: $1 }; }
+    | return_expression "unless" NEWLINE INDENT return_condition_blk DEDENT
+        { $$ = { return: Object.assign($1, { exceptions: $5 }) }; }
+    ;
+
+return_expression
+    : "return" concrete_value
+        { $$ = { oolType: 'ReturnExpression', value: $2 }; }
     ;
 
 return_condition_blk
@@ -1340,6 +1345,7 @@ query_condition_expression
 
 condition_as_result_expression
     : concrete_value
+    | return_expression
     | throw_error_expression
     ;
 
@@ -1360,13 +1366,13 @@ concrete_value_expression
 
 throw_error_expression
     : "throw" "error"
-        { $$ = { oolType: 'throw' }; }
+        { $$ = { oolType: 'ThrowExpression' }; }
     | "throw" "error" "(" STRING ")"
-        { $$ = { oolType: 'throw', message: $4 }; }
+        { $$ = { oolType: 'ThrowExpression', message: $4 }; }
     | "throw" "error" "(" identifier ")"
-        { $$ = { oolType: 'throw', errorType: $4 }; }
+        { $$ = { oolType: 'ThrowExpression', errorType: $4 }; }
     | "throw" "error" "(" identifier "," STRING  ")"
-        { $$ = { oolType: 'throw', errorType: $4, message: $6 }; }
+        { $$ = { oolType: 'ThrowExpression', errorType: $4, message: $6 }; }
     ;
 
 unary_expression

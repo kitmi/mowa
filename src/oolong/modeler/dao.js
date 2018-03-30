@@ -49,9 +49,9 @@ class DaoModeler {
             let ast = JsLang.astProgram();
 
             JsLang.astPushInBody(ast, JsLang.astRequire('Mowa', 'mowa'));
-            JsLang.astPushInBody(ast, JsLang.astVarDeclare('Util', 'Mowa.Util', true));
-            JsLang.astPushInBody(ast, JsLang.astVarDeclare('_', 'Util._', true));
-            JsLang.astPushInBody(ast, JsLang.astVarDeclare([ 'InvalidRequest', 'ServerError' ], 'Mowa.Error', true, true));
+            JsLang.astPushInBody(ast, JsLang.astVarDeclare('Util', JsLang.astVarRef('Mowa.Util'), true));
+            JsLang.astPushInBody(ast, JsLang.astVarDeclare('_', JsLang.astVarRef('Util._'), true));
+            JsLang.astPushInBody(ast, JsLang.astVarDeclare([ 'InvalidRequest', 'ServerError' ], JsLang.astVarRef('Mowa.Error'), true, true));
             JsLang.astPushInBody(ast, JsLang.astRequire('Model', `mowa/dist/oolong/runtime/models/${dbService.dbType}`));
             JsLang.astPushInBody(ast, JsLang.astRequire('validators', 'mowa/dist/oolong/runtime/validators'));
             JsLang.astPushInBody(ast, JsLang.astRequire('modifiers', 'mowa/dist/oolong/runtime/modifiers'));
@@ -60,7 +60,7 @@ class DaoModeler {
             let astClassMain = this._processFieldsValidatorsAndModifiers(dbService, entity, capitalized);
 
             //console.dir(entity.fields, {depth: 8, colors: true});
-            //console.dir(entity.interfaces, {depth: 8, colors: true});
+            console.dir(entity.interfaces, {depth: 8, colors: true});
 
             let uniqueKeys = [ [ entity.key ] ];
 
@@ -552,6 +552,7 @@ class DaoModeler {
                 });
             }
 
+            //metadata
             modelMetaInit['interfaces'] || (modelMetaInit['interfaces'] = {});
             modelMetaInit['interfaces'][name] = { params: paramMeta };
 
@@ -564,13 +565,13 @@ class DaoModeler {
             });
 
             if (method.return) {
-                OolToAst.translateReturn(returnTopoId, method.return, compileContext);
+                OolToAst.translateExceptionalReturn(returnTopoId, method.return, compileContext);
                 compileContext.includes.add(returnTopoId);
             }
 
             let deps = compileContext.topoSort.sort();
 
-            //console.log(deps);
+            console.log(deps);
 
             _.each(deps, dep => {
                 if (compileContext.includes.has(dep)) {
@@ -581,8 +582,6 @@ class DaoModeler {
                     compileContext.astBody = compileContext.astBody.concat(_.castArray(compileContext.astMap[dep]));
                 }
             });
-
-            //compileContext.astBody = compileContext.astBody.concat(_.castArray(compileContext.astMap[dep]));
             
             ast.push(JsLang.astMethod(name, params, compileContext.astBody, true, false, true));
         });

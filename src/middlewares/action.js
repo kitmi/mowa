@@ -37,7 +37,7 @@ module.exports = (controllerAction, appModule) => {
 
     return async (ctx, next) => {
         appModule.prepareActionContext(ctx);
-        
+
         await actioner(ctx);
 
         return next();

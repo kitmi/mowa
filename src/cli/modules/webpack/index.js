@@ -95,7 +95,7 @@ exports.init = async api => {
 
     shell.cd(appModule.absolutePath);
     let stdout = Util.runCmdSync('npm i --save-dev babel-loader babel-core babel-preset-env babel-preset-react ' +
-        'webpack webpack-merge  webpack-dev-server ' +
+        'webpack webpack-merge ' +
         'extract-text-webpack-plugin css-loader style-loader file-loader expose-loader sass-loader node-sass');
     shell.cd(api.base);
 
