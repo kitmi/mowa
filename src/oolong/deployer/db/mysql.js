@@ -27,21 +27,15 @@ class MysqlDeployer extends OolongDbDeployer {
     }
 
     deploy(reset) {
-        let dbScriptDir = path.join(this.appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, this.dbService.dbType, this.dbService.name);
-
-        let connStr = this.dbService.connectionString;
-        let connInfo = URL.parse(connStr);
-        let connOpts = QS.parse(connInfo.query);
+        let dbScriptDir = path.join(this.appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, this.dbService.dbType, this.dbService.name);        
 
         //remove db
-        let realDbName = connInfo.pathname.substr(1);
-        connInfo.pathname = '/';
+        let realDbName = this.dbService.physicalDbName;        
+        this.dbService.connectionComponents.pathname = '/';
 
-        //enable multiple statement
-        connOpts.multipleStatements = 1;
-        connInfo.query = QS.stringify(connOpts);
-
-        this.dbService.connectionString = URL.format(connInfo);
+        //enable multiple statement        
+        this.dbService.connectionComponents.searchParams.set('multipleStatements', 1);
+        this.dbService.connectionString = this.dbService.connectionComponents.href;
 
         let dbConnection, entitiesSqlFile;
 

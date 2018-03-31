@@ -6,7 +6,7 @@ const path = require('path');
 
 const Util = require('../../../util.js');
 const _ = Util._;
-const S = Util.S;
+const fs = Util.fs;
 
 const Oolong = require('../../lang/oolong.js');
 const OolUtil = require('../../lang/ool-utils.js');
@@ -45,8 +45,6 @@ class MysqlModeler extends OolongDbModeler {
                 }, {})
         };
 
-
-        //entityName => [ { field, referencedEntity, referencedField } ]
         this._references = {};
     }
 
@@ -106,6 +104,197 @@ class MysqlModeler extends OolongDbModeler {
         this._writeFile(path.join(buildPath, fkFilePath), relationSQL);
 
         return modelingSchema;
+    }
+
+    async extract(dbService, extractedOolPath) {
+        await super.extract(dbService, extractedOolPath);
+
+        fs.ensureDirSync(extractedOolPath);
+
+        let conn = await dbService.getConnection();
+
+        let [ tables ] = await conn.query("select * from information_schema.tables where table_schema = ?", [ dbService.physicalDbName ]);
+
+        let entities = [];
+
+        let oolcodegen = require('../../lang/oolcodegen');
+        let entitiesOolPath = path.join(extractedOolPath, 'entities');
+        fs.ensureDirSync(entitiesOolPath);
+
+        await Util.eachAsync_(tables, async table => {
+            entities.push({ entity: table.TABLE_NAME });
+
+            await this.extractTableDetails(dbService, conn, table, oolcodegen, entitiesOolPath);
+        });
+
+        let json = {
+            "namespace": [
+                "entities/**"
+            ],
+            "schema": {
+                "entities": entities,
+                "name": dbService.physicalDbName
+            }
+        };
+
+        let schemaContent = oolcodegen.generate(json);
+        let schemaFile = path.join(extractedOolPath, dbService.physicalDbName + '.ool');
+        fs.writeFileSync(schemaFile, schemaContent);
+        this.logger.log('info', `Extracted schema entry file "${schemaFile}".`);
+
+        dbService.closeConnection(conn);
+    }
+
+    async extractTableDetails(dbService, conn, table, oolcodegen, extractedOolPath) {
+        let [ columns ] = await conn.query("select * from information_schema.columns where table_schema = ? and table_name = ?",
+            [dbService.physicalDbName, table.TABLE_NAME]);
+
+        let features = [], fields = {}, indexes = [], types = {};
+
+        columns.forEach(col => {
+            if (col.EXTRA === 'auto_increment') {
+                let featureInfo = {
+                    "name": "autoId",
+                    "options": {
+                        "startFrom": table.AUTO_INCREMENT
+                    }
+                };
+
+                if (col.COLUMN_NAME !== 'id') {
+                    featureInfo.options.name = col.COLUMN_NAME;
+                }
+
+                features.push(featureInfo);
+                return;
+            }
+
+            if (col.COLUMN_DEFAULT === 'CURRENT_TIMESTAMP') {
+                let featureInfo = {
+                    "name": "createTimestamp"
+                };
+
+                features.push(featureInfo);
+                return;
+            }
+
+            if (col.EXTRA === 'on update CURRENT_TIMESTAMP') {
+                let featureInfo = {
+                    "name": "updateTimestamp"
+                };
+
+                features.push(featureInfo);
+                return;
+            }
+
+            if (col.COLUMN_NAME === 'isDeleted' && col.COLUMN_TYPE === 'tinyint(1)') {
+                let featureInfo = {
+                    "name": "logicalDeletion"
+                };
+
+                features.push(featureInfo);
+                return;
+            }
+
+            let fieldInfo = this._mysqlTypeToOolType(table, col, types);
+            if (col.IS_NULLABLE === 'YES') {
+                fieldInfo.optional = true;
+            }
+
+            if (col.COLUMN_DEFAULT) {
+                fieldInfo.default = col.COLUMN_DEFAULT;
+            }
+
+            fields[col.COLUMN_NAME] = fieldInfo;
+            
+            if (col.COLUMN_KEY === 'UNI') {
+                indexes.push({
+                    fields: col.COLUMN_NAME,
+                    unique: true
+                });
+            }
+        });
+
+        let [ indexInfo ] = await conn.query("show indexes from ??", [ table.TABLE_NAME ]);
+
+        let entity = {
+            type: types,
+            entity: {
+                [table.TABLE_NAME]: {
+                    features,
+                    fields,
+                    indexes
+                }
+            }
+        };
+
+        console.dir(entity, {depth: 8, colors: true});
+
+        let entityContent = oolcodegen.generate(entity);
+        let entityFile = path.join(extractedOolPath, table.TABLE_NAME + '.ool');
+        fs.writeFileSync(entityFile, entityContent);
+        this.logger.log('info', `Extracted entity definition file "${entityFile}".`);
+    }
+
+    _mysqlTypeToOolType(table, col, types) {
+        let typeInfo = {};
+
+        switch (col.DATA_TYPE) {
+            case 'varchar':
+                typeInfo.type = 'text';
+                if (col.CHARACTER_MAXIMUM_LENGTH) {
+                    typeInfo.maxLength = col.CHARACTER_MAXIMUM_LENGTH;
+                }
+                break;
+
+            case 'char':
+                typeInfo.type = 'text';
+                if (col.CHARACTER_MAXIMUM_LENGTH) {
+                    typeInfo.fixedLength = col.CHARACTER_MAXIMUM_LENGTH;
+                }
+                break;
+
+            case 'int':
+                typeInfo.type = 'int';
+                break;
+
+            case 'tinyint':
+                if (col.COLUMN_TYPE === 'tinyint(1)') {
+                    typeInfo.type = 'bool';
+                } else {
+                    typeInfo.type = 'int';
+                }
+                break;
+
+            case 'enum':
+                let left = col.COLUMN_TYPE.indexOf('(');
+                let right = col.COLUMN_TYPE.lastIndexOf(')');
+
+                let typeName = table.TABLE_NAME + _.upperFirst(col.COLUMN_NAME);
+
+                types[typeName] = {
+                    type: 'enum',
+                    values: col.COLUMN_TYPE.substring(left + 1, right).split(',').map(v => v.substr(1, v.length - 2))
+                };
+
+                typeInfo.type = typeName;
+
+                break;
+
+            case 'text':
+                typeInfo.type = 'text';
+                typeInfo.maxLength = col.CHARACTER_MAXIMUM_LENGTH;
+                break;
+
+            case 'datetime':
+            case 'timestamp':
+                typeInfo.type = 'datetime';
+                break;
+
+            default:
+                throw new Error('To be implemented.');
+        }
+
+        return typeInfo;
     }
 
     _addReference(left, leftField, right, rightField) {

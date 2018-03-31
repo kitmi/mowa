@@ -319,6 +319,9 @@ class OolongLinker {
             throw new Error('Error occurred while compiling.');
         }
 
+        let jsFile = oolFile + '.json';
+        fs.writeFileSync(jsFile, JSON.stringify(ool, null, 4));
+
         let namespace;
 
         if (!_.startsWith(oolFile, oolongEntitiesPath)) {
@@ -388,10 +391,7 @@ class OolongLinker {
             : './' + path.relative(this.currentAppModule.oolongPath, oolFile);
         ool.namespace = namespace;
         ool.name = baseName;
-        ool.path = currentPath;
-
-        let jsFile = oolFile + '.json';
-        fs.writeFileSync(jsFile, JSON.stringify(ool, null, 4));
+        ool.path = currentPath;        
 
         return ool;
     }

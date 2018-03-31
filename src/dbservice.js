@@ -2,6 +2,7 @@
 
 const Util = require('./util.js');
 const Mowa = require('./server.js');
+const { URL } = require('url');
 
 class DbService {
     /**
@@ -9,7 +10,7 @@ class DbService {
      * @constructs DbService
      * @param {AppModule} appModule - The app which creates this service
      * @param {string} type - Dbms type
-     * @param {string} name - The name of database
+     * @param {string} name - The name of database (the one appears as the key of db config)
      * @param {object} [options] - Options loaded from feature config
      * @property {object} [options.spec] - Dbms specifications
      * @property {string} [options.connection] - The connection string
@@ -21,7 +22,10 @@ class DbService {
         this.name = name;
         this.serviceId = type + ':' + name;
         this.connectionString = options.connection;
-        this.schemaName = options.schema;
+
+        this.connectionComponents = new URL(this.connectionString);
+        this.physicalDbName = this.connectionComponents.pathname.substr(1);
+        this.physicalDbType = this.connectionComponents.protocol.split(':', 2)[0];
     }
 
     /**

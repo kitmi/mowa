@@ -155,8 +155,9 @@ class MysqlModel extends Model {
         
         if (this.meta.features.logicalDeletion) {
             let fieldName = this.meta.features.logicalDeletion.field;
+            let fieldValue = this.meta.features.logicalDeletion.value; 
             sql = 'UPDATE ?? SET ? WHERE ' + keyClauses.join(' AND ');
-            values.splice(1, 0, { [fieldName]: true });
+            values.splice(1, 0, { [fieldName]: fieldValue });
             
         } else {
             sql = 'DELETE FROM ?? WHERE ' + keyClauses.join(' AND ');

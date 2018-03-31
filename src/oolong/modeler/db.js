@@ -25,7 +25,11 @@ class DbModeler {
      * @returns {Array}
      */
     modeling(schema, buildPath) {
-        this.logger.log('info', 'Modeling database structure for schema "' + schema.name + '"...');
+        this.logger.log('info', 'Modeling database structure for schema "' + schema.name + '" ...');
+    }
+
+    async extract(dbService, extractedOolPath) {
+        this.logger.log('info', `Extracting database structure from "${dbService.serviceId}" ...`);
     }
 
     _writeFile(filePath, content) {

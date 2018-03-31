@@ -49,7 +49,8 @@ exports.commandsDesc = {
     'build': 'Generate database script and access models',
     'deploy': 'Create database structure',
     'listDataSet': 'List available data set',
-    'importDataSet': 'Import data set'
+    'importDataSet': 'Import data set',
+    'reverse': 'Reverse engineering against a db (from db to ool)'
 };
 
 exports.help = function (api) {
@@ -198,6 +199,22 @@ exports.help = function (api) {
             };
             break;
 
+        case 'reverse':
+            cmdOptions['app'] = {
+                desc: 'The name of the app to operate',
+                promptMessage: 'Please select the target app:',
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => MowaHelper.getAvailableAppNames(api)
+            };
+            cmdOptions['db'] = {
+                desc: 'The name of the db to operate',
+                promptMessage: 'Please select the target db:',
+                inquire: true,
+                promptType: 'list',
+                choicesProvider: () => MowaHelper.getAppDbConnections(api)
+            };
+            break;
 
         case 'help':
         default:
@@ -236,6 +253,7 @@ exports.config = async (api) => {
         db.indexOf(':') > 0, Util.Message.DBC_INVALID_ARG;
     }
 
+    /*
     let [dbType, dbName] = db.split(':');
 
     let dbOfSchemaPath = `${dbType}.${dbName}.schema`;
@@ -243,7 +261,7 @@ exports.config = async (api) => {
 
     if (dbOfSchema && dbOfSchema !== schemaName) {
         return Promise.reject(`Database "${db}" has already been deployed with schema "${dbOfSchema}".`);
-    }
+    }*/
 
     let configPath = `oolong.schemas.${schemaName}.deployTo`;
 
@@ -253,9 +271,9 @@ exports.config = async (api) => {
         deployTo.push(db);
     }
 
-    return MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, deployTo).then(() => {
+    return MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, deployTo).then(/*() => {
         return MowaHelper.writeConfigBlock_(appModule.configLoader, dbOfSchemaPath, schemaName);
-    }).then(() => {
+    }).then(*/() => {
         api.log('info', `Deployment of schema "${schemaName}" is configured.`);
     });
 };
@@ -404,4 +422,29 @@ exports.importDataSet = async api => {
         currentApp: appModule,
         verbose: api.server.options.verbose
     }, db, dataSetPath);
+};
+
+exports.reverse = async api => {
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
+
+    api.log('verbose', 'exec => mowa oolong reverse');
+
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+    let db = api.getOption('db');
+
+    let now = new Date();
+    let folder = `extracted_${now.getFullYear()}-${now.getMonth()}-${now.getDay()}`;
+    let extractedOolPath = appModule.toAbsolutePath(Mowa.Literal.OOLONG_PATH, folder);
+    let num = 1;
+
+    while (fs.existsSync(extractedOolPath)) {
+        let folder2 = folder + '_' + (++num).toString();
+        extractedOolPath = appModule.toAbsolutePath(Mowa.Literal.OOLONG_PATH, folder2);
+    }
+
+    return oolong.reverse({
+        logger: api.logger,
+        currentApp: appModule,
+        verbose: api.server.options.verbose
+    }, db, extractedOolPath);
 };

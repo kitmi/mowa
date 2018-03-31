@@ -45,6 +45,7 @@ function prepareLinkerContext(context, schemaFile) {
  * @property {bool} context.verbose - Verbose mode
  * @param {string} schemaFile
  * @param {string} [restify]
+ * @returns {Promise}
  */
 exports.build = function (context, schemaFile, restify) {
     let oolongConfig = prepareLinkerContext(context, schemaFile);
@@ -176,6 +177,27 @@ exports.import = async (context, db, dataSetDir) => {
             await deployer.loadData(dataFile);
         }
     });
+};
+
+/**
+ * Extract database structure into oolong dsl
+ * @param {object} context
+ * @property {Logger} context.logger - Logger object
+ * @property {AppModule} context.currentApp - Current app module
+ * @property {bool} context.verbose - Verbose mode
+ * @param {string} db
+ * @param {string} extractedOolPath
+ * @returns {Promise}
+ */
+exports.reverse = async (context, db, extractedOolPath) => {
+
+    let service = context.currentApp.getService(db);
+    let dbmsOptions = Object.assign({}, service.dbmsSpec);
+
+    let DbModeler = require(`./modeler/db/${service.dbType}.js`);
+    let dbModeler = new DbModeler(context, dbmsOptions);
+
+    return dbModeler.extract(service, extractedOolPath);
 };
 
 exports.Linker = Linker;
