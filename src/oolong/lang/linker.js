@@ -175,33 +175,36 @@ class OolongLinker {
         let entityModule;
         
         this.log('debug','Loading entity: ' + entityName);
-        //this.log('debug', oolModule.name);
-        //this.log('debug', oolModule.namespace.join('\n'));
 
-        let index = _.findLastIndex(oolModule.namespace, ns => {
-            let modulePath;
+        if (!moduleName && oolModule.entity && entityName in oolModule.entity) {
+            entityModule = oolModule;
+        } else {
+            let index = _.findLastIndex(oolModule.namespace, ns => {
+                let modulePath;
 
-            if (ns.endsWith('*')) {
-                if (moduleName) {
-                    modulePath = path.join(ns.substr(0, -1), moduleName + '.ool');
+                if (ns.endsWith('*')) {
+                    if (moduleName) {
+                        modulePath = path.join(ns.substr(0, ns.length-1), moduleName + '.ool');
+                    } else {
+                        return undefined;
+                    }
                 } else {
-                    return undefined;
-                }
-            } else {
-                modulePath = moduleName ?
-                    path.join(ns, moduleName + '.ool') :
+                    modulePath = moduleName ?
+                        path.join(ns, moduleName + '.ool') :
                     ns + '.ool';
+                }
+
+                this.log('debug', 'Searching: ' + modulePath + ' for ' + entityName);
+
+                entityModule = this.loadModule(modulePath);
+
+                return entityModule && entityModule.entity && (entityName in entityModule.entity);
+            });
+
+            if (index === -1) {
+                console.log(oolModule.namespace);
+                throw new Error(`Entity reference "${entityName}" in "${oolModule.id}" not found.`);
             }
-
-            this.log('debug', 'Searching: ' + modulePath);
-
-            entityModule = this.loadModule(modulePath);
-
-            return entityModule && entityModule.entity && (entityName in entityModule.entity);
-        });
-
-        if (index === -1) {
-            throw new Error(`Entity reference "${entityName}" in "${oolModule.id}" not found.`);
         }
 
         let entity = entityModule.entity[entityName];
@@ -211,8 +214,6 @@ class OolongLinker {
         }
 
         this._entityCache[entityRefId] = entity;
-        
-        //this.log('debug', 'Loaded entity [' + entity.name + ']:\n' + JSON.stringify(entity, null, 4));
         
         return entity;
     }
@@ -241,33 +242,34 @@ class OolongLinker {
 
         this.log('debug', 'Loading type: ' + typeName);
 
-        //this.log('debug', oolModule.name);
-        //this.log('debug', oolModule.namespace.join('\n'));
+        if (!moduleName && oolModule.type && typeName in oolModule.type) {
+            typeModule = oolModule;
+        } else {
+            let index = _.findLastIndex(oolModule.namespace, ns => {
+                let modulePath;
 
-        let index = _.findLastIndex(oolModule.namespace, ns => {
-            let modulePath;
-
-            if (ns.endsWith('*')) {
-                if (moduleName) {
-                    modulePath = path.join(ns.substr(0, -1), moduleName + '.ool');
+                if (ns.endsWith('*')) {
+                    if (moduleName) {
+                        modulePath = path.join(ns.substr(0, -1), moduleName + '.ool');
+                    } else {
+                        return undefined;
+                    }
                 } else {
-                    return undefined;
+                    modulePath = moduleName ?
+                        path.join(ns, moduleName + '.ool') :
+                    ns + '.ool';
                 }
-            } else {
-                modulePath = moduleName ?
-                    path.join(ns, moduleName + '.ool') :
-                ns + '.ool';
+
+                this.log('debug', 'Searching: ' + modulePath);
+
+                typeModule = this.loadModule(modulePath);
+
+                return typeModule && typeModule.type && (typeName in typeModule.type);
+            });
+
+            if (index === -1) {
+                throw new Error(`Type reference "${typeName}" in "${oolModule.id}" not found.`);
             }
-
-            this.log('debug', 'Searching: ' + modulePath);
-
-            typeModule = this.loadModule(modulePath);
-
-            return typeModule && typeModule.type && (typeName in typeModule.type);
-        });
-
-        if (index === -1) {
-            throw new Error(`Type reference "${typeName}" in "${oolModule.id}" not found.`);
         }
 
         let result = { oolModule: typeModule, name: typeName };
@@ -375,16 +377,19 @@ class OolongLinker {
 
         let currentNamespace = path.join(currentPath, '*');
 
-        if (namespace.indexOf(currentNamespace) == -1) {
+        if (namespace.indexOf(currentNamespace) === -1) {
             namespace.push(currentNamespace);
         }
 
         let baseName = path.basename(oolFile, '.ool');
+
+        /*
         let pathWithoutExt = path.join(currentPath, baseName);
 
-        if (namespace.indexOf(pathWithoutExt) == -1) {
-            namespace.push(pathWithoutExt);
+        if (namespace.indexOf(oolFile) === -1) {
+            namespace.push(oolFile);
         }
+        */
 
         ool.id = isCoreEntity
             ? path.relative(coreEntitiesPath, oolFile)

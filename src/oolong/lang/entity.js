@@ -344,6 +344,7 @@ class OolongEntity {
 
             let relation = {
                 left: this.name,
+                leftField: name,
                 right,
                 relationship
             };

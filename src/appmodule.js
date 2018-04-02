@@ -209,7 +209,7 @@ class AppModule extends EventEmitter {
             'now': Util.moment()
         };
 
-        this.configLoader = new Config(new JsonConfigProvider(this.toAbsolutePath(this.options.etcPath), this._etcPrefix, this.env));
+        this.configLoader = new Config(new AppModule.ConfigProvider(this.toAbsolutePath(this.options.etcPath), this._etcPrefix, this.env));
         return this.configLoader.load(configVariables).then(cfg => {
             this.config = cfg;
 
@@ -600,5 +600,7 @@ class AppModule extends EventEmitter {
         }
     }
 }
+
+AppModule.ConfigProvider = JsonConfigProvider; 
 
 module.exports = AppModule;

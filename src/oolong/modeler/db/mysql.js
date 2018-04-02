@@ -149,7 +149,7 @@ class MysqlModeler extends OolongDbModeler {
         let [ columns ] = await conn.query("select * from information_schema.columns where table_schema = ? and table_name = ?",
             [dbService.physicalDbName, table.TABLE_NAME]);
 
-        let features = [], fields = {}, indexes = [], types = {};
+        let features = [], fields = {}, indexes = [], types = {}, key;
 
         columns.forEach(col => {
             if (col.EXTRA === 'auto_increment') {
@@ -214,7 +214,47 @@ class MysqlModeler extends OolongDbModeler {
             }
         });
 
-        let [ indexInfo ] = await conn.query("show indexes from ??", [ table.TABLE_NAME ]);
+        let [ indexInfo ] = await conn.query("SHOW INDEXES FROM ??", [ table.TABLE_NAME ]);
+        let fk = {};
+        indexInfo.forEach(i => {
+            if (i.Key_name === 'PRIMARY') {
+                key = i.Column_name
+            } else {
+                fk[i.Column_name] = {
+                    keyName: i.Key_name,
+                    fieldName: i.Column_name,
+                    unique: i.Non_unique === 0
+                };
+            }
+        });
+
+        //console.dir(indexInfo, {depth: 8, colors: true});
+
+        let [ referencesInfo ] = await conn.query("SELECT * FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE `REFERENCED_TABLE_SCHEMA` = ? AND `TABLE_NAME` = ? AND `REFERENCED_TABLE_NAME` IS NOT NULL",
+            [ dbService.physicalDbName, table.TABLE_NAME ]);
+
+        //console.dir(referencesInfo, {depth: 8, colors: true});
+
+        let l = referencesInfo.length;
+        for (let i = 0; i < l; i++) {
+            let ref = referencesInfo[i];
+            let [ [refTableKey] ] = await conn.query("SHOW INDEXES FROM ?? WHERE `Key_name` = 'PRIMARY'", [ ref.REFERENCED_TABLE_NAME ]);
+            //console.log(refTableKey);
+
+            if (refTableKey.Column_name !== ref.REFERENCED_COLUMN_NAME) {
+                throw new Error('To be implemented.');
+            }
+
+            if (fk[ref.COLUMN_NAME].unique) {
+                fields[ref.COLUMN_NAME] = {
+                    bindTo: ref.REFERENCED_TABLE_NAME + '.' + ref.REFERENCED_TABLE_NAME
+                }
+            } else {
+                fields[ref.COLUMN_NAME] = {
+                    belongTo: ref.REFERENCED_TABLE_NAME + '.' + ref.REFERENCED_TABLE_NAME
+                }
+            }
+        }
 
         let entity = {
             type: types,
@@ -222,12 +262,13 @@ class MysqlModeler extends OolongDbModeler {
                 [table.TABLE_NAME]: {
                     features,
                     fields,
+                    key,
                     indexes
                 }
             }
         };
 
-        console.dir(entity, {depth: 8, colors: true});
+        //console.dir(entity, {depth: 8, colors: true});
 
         let entityContent = oolcodegen.generate(entity);
         let entityFile = path.join(extractedOolPath, table.TABLE_NAME + '.ool');
@@ -290,7 +331,20 @@ class MysqlModeler extends OolongDbModeler {
                 typeInfo.type = 'datetime';
                 break;
 
+            case 'decimal':
+                typeInfo.type = 'decimal';
+                typeInfo.totalDigits = col.NUMERIC_PRECISION;
+                typeInfo.decimalDigits = col.NUMERIC_SCALE;
+                break;
+
+            case 'float':
+                typeInfo.type = 'float';
+                typeInfo.totalDigits = col.NUMERIC_PRECISION;
+                typeInfo.decimalDigits = col.NUMERIC_SCALE;
+                break;
+
             default:
+                console.log(col);
                 throw new Error('To be implemented.');
         }
 
@@ -439,6 +493,8 @@ class MysqlModeler extends OolongDbModeler {
 
         let rightKeyInfo = rightEntity.getKeyField();
         let leftField = relation.leftField || MysqlModeler.foreignKeyFieldNaming(relation.right, rightEntity);
+
+        //console.log(relation);
 
         leftEntity
             .addField(leftField, rightKeyInfo);

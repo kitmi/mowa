@@ -64,19 +64,21 @@ class DaoModeler {
 
             let uniqueKeys = [ [ entity.key ] ];
 
-            entity.indexes.forEach(index => {
-                if (index.unique) {
-                    uniqueKeys.push(index.fields);
-                }
-            });
+            if (entity.indexes) {
+                entity.indexes.forEach(index => {
+                    if (index.unique) {
+                        uniqueKeys.push(index.fields);
+                    }
+                });
+            }
 
             let modelMetaInit = {
                 schemaName: schema.name,
                 name: entityInstanceName,
                 keyField: entity.key,
                 fields: _.mapValues(entity.fields, f => f.toJSON()),
-                indexes: entity.indexes,
-                features: entity.features,
+                indexes: entity.indexes || [],
+                features: entity.features || {},
                 uniqueKeys
             };
 

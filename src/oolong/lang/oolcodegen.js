@@ -169,7 +169,7 @@ class OolCodeGen {
                     let lineInfo = [];
                     lineInfo.push(name);
 
-                    if (field.type !== name) {
+                    if (field.type && field.type !== name) {
                         lineInfo.push(':');
 
                         switch (field.type) {
@@ -177,9 +177,27 @@ class OolCodeGen {
                                 lineInfo.push(field.type);
                                 break;
 
-                            case 'float':
+                            case 'float':                            
                             case 'decimal':
-                                lineInfo.push(field.type);
+                                let typeDef = 'number';
+                                if (field.hasOwnProperty('totalDigits') || field.hasOwnProperty('decimalDigits')) {
+                                    typeDef += '(';
+
+                                    if (field.hasOwnProperty('totalDigits')) {
+                                        typeDef += field.totalDigits.toString();
+                                    }
+
+                                    if (field.hasOwnProperty('decimalDigits')) {
+                                        typeDef += ', ' + field.decimalDigits.toString();
+                                    }
+
+                                    typeDef += ')';
+                                }
+                                lineInfo.push(typeDef);
+
+                                if (field.type === 'decimal') {
+                                    lineInfo.push('exact');
+                                }
                                 break;
 
                             case 'text':
@@ -201,6 +219,16 @@ class OolCodeGen {
                             default:
                                 lineInfo.push(field.type);
                         }
+                    }
+
+                    if (field.belongTo) {
+                        lineInfo.push('->');
+                        lineInfo.push(field.belongTo);
+                    }
+
+                    if (field.bindTo) {
+                        lineInfo.push('<->');
+                        lineInfo.push(field.bindTo);
                     }
 
                     if (field.readOnly) {
@@ -255,6 +283,10 @@ class OolCodeGen {
                 this.dedent();
 
                 firstSection = false;
+            }
+
+            if (entity.key) {
+                this.appendLine('key', entity.key).appendLine();
             }
 
             if (!_.isEmpty(entity.indexes)) {
