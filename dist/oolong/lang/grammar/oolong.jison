@@ -1231,8 +1231,7 @@ concrete_value
 
 modifiable_value
     : concrete_value
-    | concrete_value variable_modifiers
-        { $$ = Object.assign({ oolType: 'ValueWithModifiers', value: $1 }, { modifiers0: $2.modifiers }) }
+    | concrete_value_expression
     ;
 
 identifier_or_string
@@ -1249,6 +1248,8 @@ inline_object
 
 kv_pair_itm
     : identifier_or_string ":" value
+        { $$ = {[$1]: $3}; }
+    | INTEGER ":" value
         { $$ = {[$1]: $3}; }
     ;
 
@@ -1274,9 +1275,9 @@ inline_array
 
 value_list
     : value
-        { $$ = $1; }
+        { $$ = [ $1 ]; }
     | value value_list0
-        { $$ = [ $1 ].concat( $2 ); }
+        { $$ = $1.concat( $2 ); }
     ;
 
 value_list0
@@ -1356,11 +1357,25 @@ simple_expression
     ;
 
 concrete_value_expression
-    : concrete_value type_validators0_or_not field_modifiers0_or_not
+    : concrete_value type_validators0
+        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2); }
+
+    | concrete_value field_modifiers0
+        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2 ); }
+
+    | concrete_value type_validators0 field_modifiers0
         { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3); }
-    | concrete_value type_validators0_or_not field_modifiers0 field_validators1
+
+    | concrete_value field_modifiers0 field_validators1
+        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3); }
+
+    | concrete_value type_validators0 field_modifiers0 field_validators1
         { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3, $4); }
-    | concrete_value type_validators0_or_not field_modifiers0 field_validators1 field_modifiers1
+
+    | concrete_value field_modifiers0 field_validators1 field_modifiers1
+        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3, $4); }
+
+    | concrete_value type_validators0 field_modifiers0 field_validators1 field_modifiers1
         { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3, $4, $5); }
     ;
 

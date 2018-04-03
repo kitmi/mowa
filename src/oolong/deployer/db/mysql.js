@@ -4,9 +4,8 @@ const Mowa = require('../../../server.js');
 const Util = Mowa.Util;
 const _ = Util._;
 const fs = Util.fs;
+const Promise = Util.Promise;
 
-const URL = require('url');
-const QS = require('querystring');
 const path = require('path');
 
 const OolongDbDeployer = require('../db.js');
@@ -112,11 +111,10 @@ class MysqlDeployer extends OolongDbDeployer {
 
         let db = this.appModule.db(this.dbService.serviceId);
 
-        if (ext == '.json') {
+        if (ext === '.json') {
             let data = JSON.parse(content);
-            let querys = [];
 
-            return Util.eachAsync_(data, async (records, entityName) => {
+            return Promise.resolve(Util.eachAsync_(data, async (records, entityName) => {
 
                 let Model = db.model(entityName);
 
@@ -126,39 +124,14 @@ class MysqlDeployer extends OolongDbDeployer {
                     let model = new Model(item);
                     return model.save();
                 });
+            })).finally(() => {
+                db.release();
             });
-        } else if (ext == '.sql') {
-            /*
-            let dbService = currentApp.getService('mysql:' + dbName);
-            if (!dbService) {
-                return Promise.reject(`"mysql:${dbName}" service not found.`);
-            }
-
-            //make sure multipleStatements is enabled
-            let connStr = dbService.connectionString;
-            let connInfo = URL.parse(connStr);
-            let connOpts = QS.parse(connInfo.query);
-            connOpts.multipleStatements = 1;
-            connInfo.query = QS.stringify(connOpts);
-            dbService.connectionString = URL.format(connInfo);
-
-            let dbConnection;
-
-            return dbService.getConnection().then(db => {
-                dbConnection = db;
-                return dbConnection.query(content);
-            }).then(result => {
-                if (Array.isArray(result)) {
-                    _.each(result, r => checkInsertResult(logger, r));
-                } else {
-                    checkInsertResult(logger, result);
-                }
-
-                dbConnection.closeConnection();
-
-                return Promise.resolve();
-            });
-            */
+        } else if (ext === '.sql') {
+            let conn = await db.conn_();
+            let [ result ] = await conn.query(content);
+            console.log(result);
+            db.release();
 
         } else {
             throw new Error('Unsupported data file format.');

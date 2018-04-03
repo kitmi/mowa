@@ -18,7 +18,6 @@ function initialize(entity, options) {
     let typeInfo = {
         name: 'updatedAt',
         type: 'datetime',
-        auto: true,
         readOnly: true,
         forceUpdate: true,
         optional: true

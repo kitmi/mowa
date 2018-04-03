@@ -67,7 +67,9 @@ class MysqlModeler extends OolongDbModeler {
         let sqlFilesDir = path.join('mysql', schema.name);
         let dbFilePath = path.join(sqlFilesDir, 'entities.sql');
         let fkFilePath = path.join(sqlFilesDir, 'relations.sql');
-        let tableSQL = '', relationSQL = '';
+        let initIdxFilePath = path.join(sqlFilesDir, 'data', '_init', 'index.list');
+        let initFilePath = path.join(sqlFilesDir, 'data', '_init', '0-init.json');
+        let tableSQL = '', relationSQL = '', data = {};
 
         _.each(modelingSchema.entities, (entity, entityName) => {
             let result = MysqlModeler.complianceCheck(entity);
@@ -98,10 +100,62 @@ class MysqlModeler extends OolongDbModeler {
             });
 
             tableSQL += this._createTableStatement(entityName, entity) + '\n';
+
+            if (entity.info.data) {
+                //intiSQL += `-- Initial data for entity: ${entityName}\n`;
+                let entityData = [];
+
+                console.log(entity.info.data);
+
+                if (Array.isArray(entity.info.data)) {
+                    entity.info.data.forEach(record => {
+                        if (!_.isPlainObject(record)) {
+                            let fields = Object.keys(entity.fields);
+                            if (fields.length !== 2) {
+                                throw new Error(`Invalid data syntax: entity "${entity.name}" has more than 2 fields.`);
+                            }
+
+                            record = {[fields[1]]: record};
+                        }
+
+                        entityData.push(record);
+                    });
+                } else {
+                    _.forOwn(entity.info.data, (record, key) => {
+                        if (!_.isPlainObject(record)) {
+                            let fields = Object.keys(entity.fields);
+                            if (fields.length !== 2) {
+                                throw new Error(`Invalid data syntax: entity "${entity.name}" has more than 2 fields.`);
+                            }
+
+                            record = {[entity.key]: key, [fields[1]]: record};
+                        } else {
+                            record = Object.assign({[entity.key]: key}, record);
+                        }
+
+                        entityData.push(record);
+                        //intiSQL += 'INSERT INTO `' + entityName + '` SET ' + _.map(record, (v,k) => '`' + k + '` = ' + JSON.stringify(v)).join(', ') + ';\n';
+                    });
+                }
+
+                if (!_.isEmpty(entityData)) {
+                    data[entityName] = entityData;
+                }
+
+                //intiSQL += '\n';
+            }
         });
 
         this._writeFile(path.join(buildPath, dbFilePath), tableSQL);
         this._writeFile(path.join(buildPath, fkFilePath), relationSQL);
+
+        if (!_.isEmpty(data)) {
+            this._writeFile(path.join(buildPath, initFilePath), JSON.stringify(data, null, 4));
+
+            if (!fs.existsSync(path.join(buildPath, initIdxFilePath))) {
+                this._writeFile(path.join(buildPath, initIdxFilePath), '0-init.json\n');
+            }
+        }
 
         return modelingSchema;
     }

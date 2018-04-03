@@ -33,7 +33,7 @@ function initialize(entity, options) {
     let stateSetTimestamp = {
         type: 'datetime',
         range: 'timestamp',
-        auto: true,
+        readOnly: true,
         optional: true
     };
 
@@ -55,7 +55,7 @@ function initialize(entity, options) {
         }
 
         fieldInfo.values.forEach(state => {
-            let fieldName = options.field + inflection.camelize(state) + 'Timestamp';
+            let fieldName = options.field + _.upperFirst(_.camelCase(state)) + 'Timestamp';
 
             entity.addField(fieldName, stateSetTimestamp);
         });

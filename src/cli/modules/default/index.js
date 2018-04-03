@@ -27,6 +27,8 @@ exports.help = function (api) {
         case 'init':
             cmdOptions['skip-npm-install'] = {
                 desc: 'Skip running npm install after initialization',
+                promptMessage: 'Disable the local strategy?',
+                promptDefault: false,
                 bool: true,
                 alias: [ 'skip' ],
                 default: false,
@@ -35,8 +37,14 @@ exports.help = function (api) {
             break;
 
         case 'install':
-            cmdOptions['app'] = {
-                desc: 'The name of the app to operate'
+            cmdOptions['dev'] = {
+                desc: 'Turn on this option to include installation of devDependencies.',
+                promptMessage: 'Include devDependencies?',
+                promptDefault: false,
+                bool: true,
+                alias: [ 'include-dev' ],
+                default: false,
+                inquire: true
             };
             break;
 
@@ -122,17 +130,17 @@ exports.init = async api => {
 exports.install = async api => {
     api.log('verbose', 'exec => mowa install');
 
-    let appName = api.getOption('app');
-    let appNames = api.getOption('app') ? [ appName ] : MowaHelper.getAvailableAppNames(api);
+    let appNames = MowaHelper.getAvailableAppNames(api);
+    let dev = api.getOption('dev');
 
-    let depSet = {};
+    let depSet = {}, devDepSet = {};
 
     const compareVersions = require('compare-versions');
 
-    let mergeDeps = (deps) => {
+    let mergeDeps = (deps, allDeps) => {
         _.forOwn(deps, (v, k) => {
-            if (k in depSet) {
-                let ov = depSet[k];
+            if (k in allDeps) {
+                let ov = allDeps[k];
 
                 if (ov !== v) {
                     if (ov.indexOf('/') > -1 || v.indexOf('/') > -1) {
@@ -143,11 +151,11 @@ exports.install = async api => {
                     let newV = v[0] === '^' ? v[0] : v;
 
                     if (compareVersions(newV, existingV) > 0) {
-                        depSet[k] = v;
+                        allDeps[k] = v;
                     }
                 }
             } else {
-                depSet[k] = v;
+                allDeps[k] = v;
             }
         });
     };
@@ -156,21 +164,21 @@ exports.install = async api => {
         let pkgFile = path.join(api.base, 'app_modules', appPath, 'package.json');
         let pkg = require(pkgFile);
 
-        if (!_.isEmpty(pkg.devDependencies)) {
-            mergeDeps(pkg.devDependencies);
+        if (dev && !_.isEmpty(pkg.devDependencies)) {
+            mergeDeps(pkg.devDependencies, devDepSet);
         }
 
         if (!_.isEmpty(pkg.dependencies)) {
-            mergeDeps(pkg.dependencies);
+            mergeDeps(pkg.dependencies, depSet);
         }
     });
 
-    return Util.eachAsync_(depSet, async (v,k) => {
+    await Util.eachAsync_(depSet, async (v,k) => {
         let pkgDesc = v.indexOf('/') > -1 ? v : k+'@'+v;
 
         api.log('info', `Installing package "${pkgDesc}".`);
 
-        let output = await Util.runCmd_('npm install --no-save --no-package-lock ' + pkgDesc);
+        let output = await Util.runCmd_('npm install --save ' + pkgDesc);
         if (output.stdout) {
             api.log('verbose', output.stdout);
         }
@@ -181,4 +189,23 @@ exports.install = async api => {
 
         api.log('info', `Package "${pkgDesc}" is successfully installed.`);
     });
+
+    if (dev) {
+        await Util.eachAsync_(devDepSet, async (v,k) => {
+            let pkgDesc = v.indexOf('/') > -1 ? v : k+'@'+v;
+
+            api.log('info', `Installing package "${pkgDesc}" for development.`);
+
+            let output = await Util.runCmd_('npm install --save-dev ' + pkgDesc);
+            if (output.stdout) {
+                api.log('verbose', output.stdout);
+            }
+
+            if (output.stderr) {
+                api.log('error', output.stderr);
+            }
+
+            api.log('info', `Package "${pkgDesc}" is successfully installed.`);
+        });
+    }
 };

@@ -57,7 +57,12 @@ class DaoModeler {
             JsLang.astPushInBody(ast, JsLang.astRequire('modifiers', 'mowa/dist/oolong/runtime/modifiers'));
             JsLang.astPushInBody(ast, JsLang.astRequire([ 'ModelValidationError', 'ModelOperationError', 'ModelResultError' ], 'mowa/dist/oolong/runtime/errors', true));
 
-            let astClassMain = this._processFieldsValidatorsAndModifiers(dbService, entity, capitalized);
+            let sharedContext = {
+                mapOfFunctorToFile: {},
+                newFunctorFiles: []
+            };
+
+            let astClassMain = this._processFieldsValidatorsAndModifiers(dbService, entity, capitalized, sharedContext);
 
             //console.dir(entity.fields, {depth: 8, colors: true});
             console.dir(entity.interfaces, {depth: 8, colors: true});
@@ -83,7 +88,7 @@ class DaoModeler {
             };
 
             if (entity.interfaces) {
-                let astInterfaces = this._buildInterfaces(entity, dbService, modelMetaInit);
+                let astInterfaces = this._buildInterfaces(entity, dbService, modelMetaInit, sharedContext);
                 let astClass = astClassMain[astClassMain.length-1];
                 JsLang.astPushInBody(astClass, astInterfaces);
             }
@@ -514,7 +519,7 @@ class DaoModeler {
         return topoId;
     }
 
-    _buildInterfaces(entity, dbService, modelMetaInit) {
+    _buildInterfaces(entity, dbService, modelMetaInit, sharedContext) {
         let ast = [];
 
         _.forOwn(entity.interfaces, (method, name) => {
@@ -529,8 +534,8 @@ class DaoModeler {
                 astBody: [
                     JsLang.astVarDeclare('$meta', JsLang.astVarRef('this.meta.interfaces.' + name), true)
                 ],
-                mapOfFunctorToFile: {},
-                newFunctorFiles: []
+                mapOfFunctorToFile: sharedContext.mapOfFunctorToFile,
+                newFunctorFiles: sharedContext.newFunctorFiles
             };
 
             //scan all used models in advance

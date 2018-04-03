@@ -398,14 +398,6 @@ exports.importDataSet = async api => {
     let appModule = MowaHelper.getAppModuleToOperate(api);
 
     let [ dbType, dbName ] = db.split(':');
-
-    let dbOfSchemaPath = `${dbType}.${dbName}.schema`;
-    let dbOfSchema = Util.getValueByPath(appModule.config, dbOfSchemaPath);
-
-    if (!dbOfSchema) {
-        return Promise.reject(`Database "${db}" has not been configured to deploy a schema. Try run "mowa oolong config" first.`);
-    }
-
     let dataSetPath = path.join(appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, dbType, dbName, 'data', dataSet);
 
     if (!fs.existsSync(dataSetPath)) {

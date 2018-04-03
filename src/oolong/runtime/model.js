@@ -155,7 +155,7 @@ class Model {
                     return context;
                 }
 
-                latest[fieldName] = sanitizeState.sanitized;
+                latest[fieldName] = sanitizeState.sanitized;                
                 continue;                
             }
 
@@ -166,7 +166,7 @@ class Model {
                         //has default setting in meta data
                         latest[fieldName] = fieldMeta.default;
                     } else if (fieldMeta.auto) {
-                        latest[fieldName] = Generators.generate(fieldMeta);
+                        latest[fieldName] = Generators.generate(this.db.appModule, fieldMeta);
                     } else if (!fieldMeta.optional) {
                         errors.push({field: fieldMeta, message: 'Missing required field.'});
                         return context;
@@ -188,7 +188,17 @@ class Model {
                     //todo: update function support
                 }
             }
-        }        
+        }
+
+        if (!_.isEmpty(meta.features.stateTracking)) {
+            meta.features.stateTracking.forEach(track => {
+                if (track.field in context.latest) {
+                    let targetState = context.latest[track.field];
+                    let timestampFieldName = track.field + _.upperFirst(_.camelCase(targetState)) + 'Timestamp';
+                    context.latest[timestampFieldName] = Generators.generate(this.db.appModule, meta.fields[timestampFieldName]);
+                }
+            });
+        }
 
         return context;
     }

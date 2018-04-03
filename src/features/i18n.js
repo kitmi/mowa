@@ -30,10 +30,10 @@ class I18nService {
         this.HandlerClass = Handler;
         this.options = options;
         this.cache = Util.createLRUCache(5);
+        this.defaultLocale = this.options.defaultLocale || DEFAULT_LOCALE;
     }
 
     async getI18n(locale) {
-        const self = this;
 
         let i18nHandler = locale && this.cache.get(locale);
 
@@ -41,7 +41,7 @@ class I18nService {
             i18nHandler = new (this.HandlerClass)(this.options);
 
             if (!locale || !i18nHandler.isLocaleSupported(locale)) {
-                locale = i18nHandler.defaultLocale;
+                locale = this.defaultLocale;
 
                 let defaultHandler = this.cache.get(locale);
                 if (defaultHandler) {
@@ -51,7 +51,7 @@ class I18nService {
 
             await i18nHandler.setupAsync(locale);
 
-            self.cache.set(locale, i18nHandler);
+            this.cache.set(locale, i18nHandler);
         }
 
         return i18nHandler;
@@ -101,8 +101,6 @@ module.exports = {
         let queryKey = config.queryKey || 'locale';
         let cookieKey = config.cookieKey || 'locale';
 
-        let defaultLocale = config.defaultLocale || DEFAULT_LOCALE;
-
         precedence.forEach(p => {
             if (DEFAULT_PRECEDENCE.indexOf(p) === -1) {
                 throw new Mowa.Error.InvalidConfiguration('Unknown locale id source: ' + source, appModule, 'i18n.precedence');
@@ -139,15 +137,16 @@ module.exports = {
                 return !_.isEmpty(locale);
             });
 
-            if (found) ctx.requestedLocale = locale;
+            if (found) ctx.requestedLocale = I18n.normalizeLocale(locale);
 
-            ctx.__ = await service.getI18n(ctx.requestedLocale || defaultLocale);
+            ctx.__ = await service.getI18n(ctx.requestedLocale);
 
             await next();
         };
 
-        appModule.__ = await service.getI18n(defaultLocale);
+        appModule.__ = await service.getI18n();
         appModule.registerService('i18n', service);
+
         appModule.router.use(i18nMiddleware);
     }
 };

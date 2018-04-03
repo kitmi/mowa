@@ -11,13 +11,14 @@ exports.componentGroup = [
     'react-json-tree',
     'dx-react-grid',
     'validator',
-    'validatorjs'
+    'validatorjs',
+    'fontawesome'
 ];
 
 exports.componentPackages = {
     'react-router-dom': [ 'react-router-dom' ],
     'react-dev-utils': [ 'react-dev-utils' ],
-    'material-ui': [ 'material-ui@next', 'material-ui-icons' ],
+    'material-ui': [ 'material-ui@next', 'material-ui-icons', 'mdi-material-ui' ],
     'jquery': [ 'jquery' ],
     'bootstrap': [ 'bootstrap', 'reactstrap@next' ],
     'mobx': [ 'mobx', 'mobx-react', 'mobx-react-devtools', 'mobx-react-form', 'mobx-react-form-devtools' ],
@@ -27,5 +28,6 @@ exports.componentPackages = {
     'react-json-tree': [ 'react-json-tree' ],
     'dx-react-grid': [ '@devexpress/dx-react-core', '@devexpress/dx-react-grid', '@devexpress/dx-react-grid-material-ui' ],
     'validator': [ 'validator' ],
-    'validatorjs': [ 'validatorjs' ]
+    'validatorjs': [ 'validatorjs' ],
+    'fontawesome': [ 'react-fontawesome' ]
 };

@@ -100,7 +100,7 @@ class I18n {
     }
 
     static normalizeLocale(locale) {
-        var l = locale.replace('-', '_').split('_');
+        var l = locale.replace('-', '_').split('_', 2);
         var l2 = l[0].toLowerCase();
         if (l.length > 1) {
             l2 += '_' + l[1].toUpperCase();

@@ -1,11 +1,10 @@
 "use strict";
 
 const randomstring = require("randomstring");
+const Util = require('../../util');
 
-exports.generate = (info) => {
-    console.log('Called auto generator: ' + JSON.stringify(info, null, 4));
-
-    if (info.type == 'text') {
+exports.generate = (appModule, info) => {
+    if (info.type === 'text') {
         if (info.fixedLength) {
             return randomstring.generate(info.fixedLength);
         }
@@ -15,5 +14,7 @@ exports.generate = (info) => {
         }
 
         return randomstring.generate();
+    } else if (info.type === 'datetime') {
+        return (appModule.__ && appModule.__.datetime().toDate()) || Util.moment().toDate();
     }
 };
