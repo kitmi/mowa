@@ -10,6 +10,8 @@ const glob = Util.glob;
 
 const Schema = require('./schema.js');
 const Entity = require('./entity.js');
+const View = require('./view.js');
+const Document = require('./document.js');
 const Oolong = require('./oolong.js');
 const OolUtil = require('./ool-utils.js');
 
@@ -67,6 +69,23 @@ class OolongLinker {
          * @private
          */
         this._typeCache = {};
+
+        /**
+         * View cache
+         * @type {object}
+         * @private
+         */
+        this._viewCache = {};
+
+        /**
+         * Doc cache
+         * @type {object}
+         * @private
+         */
+        this._docCache = {};
+
+
+        this._namingTable = new Map();
     }
 
     /**
@@ -153,6 +172,22 @@ class OolongLinker {
     }
 
     /**
+     * Get the referenced entity, add it into schema if not in schema
+     * @param {*} fromOolModule
+     * @param {string} entityName
+     * @returns {*}
+     */
+    getReferencedEntity(fromOolModule, entityName) {
+        let entity = this.loadEntity(fromOolModule, entityName);
+
+        if (!this.schema.hasEntity(entity.name)) {
+            this.schema.addEntity(entity);
+        }
+
+        return entity;
+    }
+
+    /**
      * Load an entity from a oolong module
      * @param {*} oolModule
      * @param {string} entityName
@@ -165,13 +200,6 @@ class OolongLinker {
         }
 
         let moduleName = undefined;
-
-        if (OolUtil.isMemberAccess(entityName)) {
-            let n = entityName.split('.');
-            moduleName = n[0];
-            entityName = n[1];
-        }
-
         let entityModule;
         
         this.log('debug','Loading entity: ' + entityName);
@@ -202,20 +230,127 @@ class OolongLinker {
             });
 
             if (index === -1) {
-                console.log(oolModule.namespace);
                 throw new Error(`Entity reference "${entityName}" in "${oolModule.id}" not found.`);
             }
         }
 
         let entity = entityModule.entity[entityName];
         if (!(entity instanceof Entity)) {
+            let uniqueName = 'E$' + entityName;
+
+            if (this._namingTable.has(uniqueName)) {
+                throw new Error(`Entity "${entityName}" from "${entityModule.id}" conflicts with the same naming in "${this._namingTable.get(uniqueName).id}"!`);
+            }
+
             entity = (new Entity(this, entityName, entityModule, entity)).link();
             entityModule.entity[entityName] = entity;
+
+            this._namingTable.set(uniqueName, entityModule);
         }
 
         this._entityCache[entityRefId] = entity;
         
         return entity;
+    }
+
+    /**
+     * Load a view from an oolong module
+     * @param {*} oolModule - The module in which the view reference appears
+     * @param {string} viewName
+     * @returns {*}
+     */
+    loadView(oolModule, viewName) {
+        let viewRefId = viewName + '@' + oolModule.id;
+        if (viewRefId in this._viewCache) {
+            return this._viewCache[viewRefId];
+        }        
+
+        let viewModule;
+
+        this.log('debug','Loading view: ' + viewName);
+        
+        let index = _.findLastIndex(oolModule.namespace, ns => {
+            if (ns.endsWith('*')) return undefined;
+
+            let modulePath = ns + '.ool';
+
+            this.log('debug', 'Searching: ' + modulePath + ' for ' + viewName);
+
+            viewModule = this.loadModule(modulePath);
+
+            return viewModule && viewModule.view && (viewName in viewModule.view);
+        });
+
+        if (index === -1) {
+            throw new Error(`View reference "${viewName}" in "${oolModule.id}" not found.`);
+        }
+
+        let view = viewModule.view[viewName];
+        if (!(view instanceof View)) {
+            let uniqueName = 'V$' + viewName;
+            if (this._namingTable.has(uniqueName)) {
+                throw new Error(`View "${viewName}" from "${viewModule.id}" conflicts with the same naming in "${this._namingTable.get(uniqueName).id}"!`);
+            }
+
+            view = (new View(this, viewName, viewModule, view)).link();
+            viewModule.view[viewName] = view;
+
+            this._namingTable.set(uniqueName, viewModule);
+        }
+
+        this._viewCache[viewRefId] = view;
+
+        return view;
+    }
+
+    /**
+     * Load a document from an oolong module
+     * @param {*} oolModule - The module in which the document reference appears
+     * @param {string} docName
+     * @returns {*}
+     */
+    loadDoc(oolModule, docName) {
+        let docRefId = docName + '@' + oolModule.id;
+        if (docRefId in this._docCache) {
+            return this._docCache[docRefId];
+        }
+
+        let docModule;
+
+        this.log('debug','Loading document: ' + docName);
+
+        let index = _.findLastIndex(oolModule.namespace, ns => {
+            if (ns.endsWith('*')) return undefined;
+
+            let modulePath = ns + '.ool';
+
+            this.log('debug', 'Searching: ' + modulePath + ' for ' + docName);
+
+            docModule = this.loadModule(modulePath);
+
+            return docModule && docModule.document && (docName in docModule.document);
+        });
+
+        if (index === -1) {
+            throw new Error(`View reference "${docName}" in "${oolModule.id}" not found.`);
+        }
+
+        let document = docModule.document[docName];
+        if (!(document instanceof Document)) {
+            let uniqueName = 'D$' + docName;
+            if (this._namingTable.has(uniqueName)) {
+                throw new Error(`Document "${docName}" from "${docModule.id}" conflicts with the same naming in "${this._namingTable.get(uniqueName).id}"!`);
+            }
+
+            document = (new Document(this, docName, docModule, document)).link();
+            docModule.document[docName] = document;
+
+            this._namingTable.set(uniqueName, docModule);
+        }
+
+        this._docCache[docRefId] = document;
+
+        return document;
     }
 
     /**
@@ -231,13 +366,6 @@ class OolongLinker {
         }
 
         let moduleName = undefined;
-
-        if (OolUtil.isMemberAccess(typeName)) {
-            let n = typeName.split('.');
-            moduleName = n[0];
-            typeName = n[1];
-        }
-
         let typeModule;
 
         this.log('debug', 'Loading type: ' + typeName);
@@ -273,6 +401,16 @@ class OolongLinker {
         }
 
         let result = { oolModule: typeModule, name: typeName };
+
+        let uniqueName = 'T$' + typeName;
+        if (this._namingTable.has(uniqueName)) {
+            let modId = this._namingTable.get(uniqueName).id;
+            if (modId !== typeModule.id) {
+                throw new Error(`Type "${typeName}" from "${typeModule.id}" conflicts with the same naming in "${modId}"!`);
+            }
+        } else {
+            this._namingTable.set(uniqueName, typeModule);
+        }
 
         this._typeCache[typeRefId] = result;
 
@@ -315,10 +453,15 @@ class OolongLinker {
         let isCoreEntity = _.startsWith(oolFile, coreEntitiesPath);
         
         oolFile = path.resolve(oolFile);
-        let ool = OolongParser.parse(fs.readFileSync(oolFile, 'utf8'));
+        let ool;
+        try {
+            ool = OolongParser.parse(fs.readFileSync(oolFile, 'utf8'));
+        } catch (error) {
+            throw new Error(`Failed to compile "${ oolFile }".\n${ error.message || error }`)
+        }
 
         if (!ool) {
-            throw new Error('Error occurred while compiling.');
+            throw new Error('Unknown error occurred while compiling.');
         }
 
         let jsFile = oolFile + '.json';
@@ -383,14 +526,6 @@ class OolongLinker {
 
         let baseName = path.basename(oolFile, '.ool');
 
-        /*
-        let pathWithoutExt = path.join(currentPath, baseName);
-
-        if (namespace.indexOf(oolFile) === -1) {
-            namespace.push(oolFile);
-        }
-        */
-
         ool.id = isCoreEntity
             ? path.relative(coreEntitiesPath, oolFile)
             : './' + path.relative(this.currentAppModule.oolongPath, oolFile);
@@ -410,18 +545,18 @@ class OolongLinker {
         const extractNodesByRelation = (ool, relationInfo, leftEntity, rightName, extraRelationOpt) => {
             let rightEntity = this.loadEntity(ool, rightName);
             let relation = Object.assign({}, relationInfo, {left: leftEntity, right: rightEntity}, extraRelationOpt);
-            let leftPayload = {to: rightEntity.id, by: relation};
+            let leftPayload = {to: rightEntity.name, by: relation};
 
-            if (!nodes[leftEntity.id]) {
-                nodes[leftEntity.id] = [leftPayload];
+            if (!nodes[leftEntity.name]) {
+                nodes[leftEntity.name] = [leftPayload];
             } else {
-                nodes[leftEntity.id].push(leftPayload);
+                nodes[leftEntity.name].push(leftPayload);
             }
 
-            if (!beReferenced[rightEntity.id]) {
-                beReferenced[rightEntity.id] = [leftEntity.id];
+            if (!beReferenced[rightEntity.name]) {
+                beReferenced[rightEntity.name] = [leftEntity.name];
             } else {
-                beReferenced[rightEntity.id].push(leftEntity.id);
+                beReferenced[rightEntity.name].push(leftEntity.name);
             }
 
             return rightEntity;
@@ -455,7 +590,7 @@ class OolongLinker {
         //starting from schema to add all referenced entities
         let pending = new Set(), visited = new Set();
 
-        Object.keys(this.schema.entityIdMap).forEach(id => pending.add(id));
+        Object.keys(this.schema.entities).forEach(entityName => pending.add(entityName));
 
         while (pending.size > 0) {
             let expanding = pending;
@@ -477,7 +612,7 @@ class OolongLinker {
             });
         }
 
-        //finding the single way relation chain
+        //todo: more, finding the single way relation chain
     }
 }
 

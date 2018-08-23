@@ -9,7 +9,7 @@ const mysql = require('mysql2/promise');
 const Mowa = require('mowa');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
-const DbService = Mowa.DbService;
+const DbService = require('mowa/oolong/runtime/dbservice.js');
 
 const poolByConn = {};
 
@@ -23,11 +23,11 @@ class MysqlService extends DbService {
 
         if (!pool) {
             pool = poolByConn[this.connectionString] = mysql.createPool(this.connectionString);
-        }
 
-        this.appModule.serverModule.on('stopping', () => {
-            pool.end();
-        });
+            this.appModule.serverModule.on('stopping', () => {
+                pool.end();
+            });
+        }        
 
         return pool.getConnection();
     }
@@ -35,8 +35,11 @@ class MysqlService extends DbService {
     closeConnection(conn) {
         return conn.release();
     }
-}
 
+    getViewSPName(viewName) {
+        return 'sp_get_' + viewName; 
+    }
+}
 
 module.exports = {
     /**

@@ -11,7 +11,7 @@ class {{ className }}Db extends Db {
     model(name) {
         pre: this.constructor.models.indexOf(name) > -1, Mowa.Util.Message.DBC_ELEMENT_NOT_FOUND;
 
-        let Model = require(`./{{ dbName }}/${name}.js`);
+        let Model = require(`./{{ dbName }}/entities/${name}.js`);
         Model.db = this;
         return Model;
     }

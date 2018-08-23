@@ -13,14 +13,6 @@ function processInt(meta, raw) {
     if (!_.isInteger(sanitized)) {
         sanitized = validator.toInt(sanitized);
     }
-    
-    if ('max' in meta && sanitized > meta.max) {
-        return { raw, error: { field: meta, message: 'Exceeds the maximum value.' } };
-    }
-    
-    if ('min' in meta && sanitized < meta.min) {
-        return { raw, error: { field: meta, message: 'Less than the minimum value.' } };
-    }    
 
     return { raw, sanitized };
 }
@@ -35,16 +27,8 @@ function processFloat(meta, raw) {
         }
     }
 
-    if ('max' in meta && sanitized > meta.max) {
-        return { raw, error: { field: meta, message: 'Exceeds the maximum value.' } };
-    }
-
-    if ('min' in meta && sanitized < meta.min) {
-        return { raw, error: { field: meta, message: 'Less than the minimum value.' } };
-    }
-    
-    if ('precision' in meta) {
-        sanitized = parseFloat(sanitized.toFixed(meta.precision));
+    if ('decimalDigits' in meta) {
+        sanitized = parseFloat(sanitized.toFixed(meta.decimalDigits));
     }
 
     return { raw, sanitized };
@@ -63,33 +47,13 @@ function processBool(meta, raw) {
 function processText(meta, raw) {
     let sanitized = (typeof raw !== 'string') ? raw.toString() : raw;
 
-    if (('fixedLength' in meta && sanitized.length > meta.fixedLength) ||
-        ('max' in meta && sanitized.length > meta.max)) {
-        return { raw, error: { field: meta, message: 'Exceeds the maximum length limit.' } };
-    }
-
-    if ('min' in meta && sanitized.length < meta.min) {
-        return { raw, error: { field: meta, message: 'Does not meet the minimum length requirement.' } };
-    }
-
-    if (!meta.untrim) {
-        sanitized = sanitized.trim();
-    }
+    sanitized = sanitized.trim();
 
     return { raw, sanitized };
 }
 
 function processBinary(meta, input) {
     let sanitized = (input instanceof Buffer) ? input : Buffer.from(input.toString());
-
-    if (('fixedLength' in meta && sanitized.length > meta.fixedLength) ||
-        ('max' in meta && sanitized.length > meta.max)) {
-        return { input, error: { field: meta, message: 'Exceeds the maximum length limit.' } };
-    }
-
-    if ('min' in meta && sanitized.length < meta.min) {
-        return { input, error: { field: meta, message: 'Does not meet the minimum length requirement.' } };
-    }
 
     return { input, sanitized };
 }
@@ -216,6 +180,26 @@ module.exports = _.pick(validator, [
     'isMimeType',
     'isLatLong'
 ]);
+
+module.exports.min = function (value, minValue) {
+    return value >= minValue;
+};
+
+module.exports.max = function (value, maxValue) {
+    return value <= maxValue;
+};
+
+module.exports.gt = function (value, minValue) {
+    return value > minValue;
+};
+
+module.exports.lt = function (value, maxValue) {
+    return value < maxValue;
+};
+
+module.exports.maxLength = function (value, maxLength) {
+    return value.length <= maxLength;
+};
 
 module.exports.$processInt = processInt;
 module.exports.$processFloat = processFloat;

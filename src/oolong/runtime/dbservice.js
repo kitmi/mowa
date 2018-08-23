@@ -1,7 +1,6 @@
 "use strict";
 
-const Util = require('./util.js');
-const Mowa = require('./server.js');
+const Util = require('../../util.js');
 const { URL } = require('url');
 
 class DbService {

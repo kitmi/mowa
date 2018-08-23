@@ -108,14 +108,18 @@ class ComponentBase {
     async _ssh_(cmd, throwOnError = true) {
         this.manager.logger.verbose('exec => ' + cmd);
 
-        return this.session.ssh.execCommand(cmd).then(result => {
-            if (result.code !== 0 && throwOnError) {
+        let result = await this.session.exec(cmd);
+        if (result.code !== 0) {
+            if (throwOnError) {
                 return Promise.reject(`Remote ssh command error: ${result.stderr}`);
             }
 
-            this.manager.logger.verbose(result.stdout);
-            return result.stdout;
-        });
+            this.manager.logger.verbose(result.stderr);
+            return '';
+        }
+
+        this.manager.logger.verbose(result.stdout);
+        return result.stdout;
     }
     
     async _sshReconnect_() {

@@ -8,6 +8,7 @@ const Promise = Util.Promise;
 
 const Ssh = require('node-ssh');
 const TaskList = require('./tasklist.js');
+const Setup = require('./setup.js');
 
 let componentsCache = undefined;
 
@@ -24,6 +25,10 @@ function loadComponentsCache() {
 
     return cache;
 }
+
+const $sshExecWithBashrc = ssh => async (cmd) => {
+    return await ssh.execCommand("PS1='\\u@\\h:\\w\\$ ' source ~/.bashrc > /dev/null 2>&1; " + cmd, {options: { pty: true }});
+};
 
 class Manager {
     static getAvailableComponents() {
@@ -70,11 +75,12 @@ class Manager {
 
             Util._.each(deploySetting.nodes, nodeName => {
                 if (deploySetting.setup) {
-                    nodesSetup.push(this._setupNode_(nodeName, deploySetting.setup));
+                    nodesSetup.push(this._setupNode_(nodeName, deploySetting.setup, deploySetting.sudo));
                 }
 
                 let taskList = this._getNodeTaskList(nodeName);
                 taskList.enqueueComponents(deploySetting.components);
+                taskList.enqueueProjectDeploy(deploySetting.mowa);
             });
         });
 
@@ -108,52 +114,56 @@ class Manager {
             }
 
             let ssh = new Ssh();
-            let session = {
+            session = {
                 name: nodeName,
                 nodeInfo: nodeInfo,
-                ssh
+                ssh,
+                exec: $sshExecWithBashrc(ssh)
             };
 
-            return ssh.connect(nodeInfo).then(() => {
-                this.logger.info('Connected to: ' + nodeInfo.host);
-                return ssh.execCommand('lsb_release -a');
-            }).then(result => {
-                if (result.code !== 0) {
-                    return Promise.reject(`Unable to detect the OS type of node [${nodeInfo.host}].`);
+            await ssh.connect(nodeInfo);
+            this.logger.info('Connected to: ' + nodeInfo.host);
+
+            //Get OS information
+            let result = await ssh.execCommand('lsb_release -a');
+            if (result.code !== 0) {
+                return Promise.reject(`Unable to detect the OS type of node [${nodeInfo.host}].`);
+            }
+
+            //Distributor ID: 'Ubuntu',
+            //Description: 'Ubuntu 16.04.3 LTS',
+            //Release: '16.04',
+            //Codename: 'xenial'
+            let os = {};
+
+            result.stdout.split('\n').forEach(line => {
+                if (line.indexOf(':') > 0) {
+                    let [k, v] = line.split(':');
+                    os[k.trim()] = v.trim();
                 }
-
-                //Distributor ID: 'Ubuntu',
-                //Description: 'Ubuntu 16.04.3 LTS',
-                //Release: '16.04',
-                //Codename: 'xenial'
-                let os = {};
-
-                result.stdout.split('\n').forEach(line => {
-                    if (line.indexOf(':') > 0) {
-                        let [k, v] = line.split(':');
-                        os[k.trim()] = v.trim();
-                    }
-                });
-
-                session['os'] = os;
-                return ssh.execCommand('uname -m');
-            }).then(result => {
-                if (result.code !== 0) {
-                    return Promise.reject(`Unable to detect the processor type of node [${nodeInfo.host}].`);
-                }
-
-                //x86_64
-                session['processorType'] = result.stdout;
-
-                this.sessionPool[nodeName] = session;
-                return session;
             });
+
+            session['os'] = os;
+
+            //Get processor type
+            result = await ssh.execCommand('uname -m');
+            if (result.code !== 0) {
+                return Promise.reject(`Unable to detect the processor type of node [${nodeInfo.host}].`);
+            }
+
+            //x86_64
+            session['processorType'] = result.stdout;
+
+            result = await session.exec("export");
+            this.logger.verbose(result.stdout);
+
+            this.sessionPool[nodeName] = session;
         }
 
-        return Promise.resolve(session);
+        return session;
     }
 
-    async _setupNode_(nodeName, settings) {
+    async _setupNode_(nodeName, settings, sudo) {
         let doSetupJobs = [];
 
         _.forOwn(settings, (itemConfig, setupItem) => {
@@ -163,7 +173,7 @@ class Manager {
                 throw new Error('Unsupported setup item: ' + setupItem);
             }
 
-            doSetupJobs.push(() => this.getSession_(nodeName).then(session => Setup[jobMethod](session, itemConfig, this.logger)));
+            doSetupJobs.push(() => this.getSession_(nodeName).then(session => Setup[jobMethod](session, itemConfig, this.logger, sudo)));
         });
 
         return Util.eachPromise_(doSetupJobs);

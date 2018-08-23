@@ -51,6 +51,13 @@ class AppModule extends EventEmitter {
         this.config = undefined;
 
         /**
+         * The config loader
+         * @type {Config}
+         * @public
+         */
+        this.configLoader = undefined;
+
+        /**
          * Name of the app
          * @type {object}
          * @public
@@ -89,13 +96,6 @@ class AppModule extends EventEmitter {
             this._etcPrefix = Literal.SERVER_CFG_NAME;
 
             /**
-             * Environment mode
-             * @type {string}
-             * @public
-             */
-            this.env = process.env.NODE_ENV || "development";
-
-            /**
              * Absolute path of this app module
              * @type {string}
              * @public
@@ -121,11 +121,10 @@ class AppModule extends EventEmitter {
              * @type {string}
              * @public
              */
-            this.displayName = `$[${this.name}]`;
+            this.displayName = `[${this.name}]`;
         } else {
             this._etcPrefix = Literal.APP_CFG_NAME;
-
-            this.env = parent.env;
+            
             this.absolutePath = (options && options.modulePath) ? path.resolve(options.modulePath) : path.join(parent.absolutePath, parent.options.childModulesPath, name);
 
             if (_.isEmpty(route)) {
@@ -209,11 +208,13 @@ class AppModule extends EventEmitter {
             'now': Util.moment()
         };
 
-        this.configLoader = new Config(new AppModule.ConfigProvider(this.toAbsolutePath(this.options.etcPath), this._etcPrefix, this.env));
+        this.configLoader = new Config(new AppModule.ConfigProvider(this.toAbsolutePath(this.options.etcPath), this._etcPrefix, this.serverModule.env));
         return this.configLoader.load(configVariables).then(cfg => {
             this.config = cfg;
 
             if (!_.isEmpty(extraFeatures)) _.extend(this.config, extraFeatures);
+
+            this.emit('configLoaded');
 
             return this._loadFeatures_().then(() => {
                 if (this.options.logger) {
@@ -587,7 +588,7 @@ class AppModule extends EventEmitter {
                     throw new Error.ServerError(`Feature "${feature}" not exist.`);
                 }
             }
-        }
+        } 
 
         try {
             let featureObj = require(extensionJs);

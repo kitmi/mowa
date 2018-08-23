@@ -3,8 +3,6 @@
 const Util = require('../../util.js');
 const _ = Util._;
 
-const Entity = require('./entity.js');
-const Oolong = require('./oolong.js');
 const OolUtils = require('./ool-utils.js');
 
 class OolongSchema {
@@ -51,20 +49,27 @@ class OolongSchema {
         this.entities = {};
 
         /**
-         * Entities id mapping table
-         * @type {object}
-         * @public
-         */
-        this.entityIdMap = {};
-
-        /**
          * Relations in this schema
          * @type {array}
          * @public
          * @example
          *  [ { left, right, optional, size, relationship, type, multi } ]
          */
-        this.relations = undefined;
+        this.relations = [];
+
+        /**
+         * Views
+         * @type {object}
+         * @public
+         */
+        this.views = {};
+
+        /**
+         * Documents
+         * @type {object}
+         * @public
+         */
+        this.documents = {};
 
         /**
          * Flag of initialization
@@ -85,11 +90,9 @@ class OolongSchema {
         stack.set(this, cl);
         
         cl.entities = OolUtils.deepClone(this.entities, stack);
-        cl.entityIdMap = OolUtils.deepClone(this.entityIdMap, stack);
-
-        if (this.relations) {
-            cl.relations = OolUtils.deepClone(this.relations, stack);
-        }
+        cl.relations = OolUtils.deepClone(this.relations, stack);
+        cl.views = OolUtils.deepClone(this.views, stack);
+        cl.documents = OolUtils.deepClone(this.documents, stack);
 
         cl.initialized = this.initialized;
 
@@ -108,12 +111,18 @@ class OolongSchema {
         this.linker.log('debug', 'Initializing schema [' + this.name + '] ...');
 
         //1st round, get direct output entities
-        this.info.entities.forEach(entityEntry => {
-            let entity = this.linker.loadEntity(this.oolModule, entityEntry.entity);
+        if (!_.isEmpty(this.info.entities)) {
+            this.info.entities.forEach(entityEntry => {
+                let entity = this.linker.loadEntity(this.oolModule, entityEntry);
+                this.addEntity(entity);
+            });
+        }
 
-            let entityInstanceName = entityEntry.alias || entity.name;
-            this.addEntity(entityInstanceName, entity);
-        });
+        if (!_.isEmpty(this.info.views)) {
+            this.info.views.forEach(viewName => {
+                this.views[viewName] = this.linker.loadView(this.oolModule, viewName);
+            });
+        }
 
         this.initialized = true;
 
@@ -126,35 +135,19 @@ class OolongSchema {
      * @returns {OolongSchema}
      */
     addRelation(relation) {
-        if (!this.relations) {
-            this.relations = [];
+        if (!this.hasEntity(relation.left.name)) {
+            this.addEntity(relation.left);
         }
 
-        if (!this.hasEntityById(relation.left.id)) {
-            this.addEntity(relation.left.name, relation.left);
+        if (!this.hasEntity(relation.right.name)) {
+            this.addEntity(relation.right);
         }
 
-        if (!this.hasEntityById(relation.right.id)) {
-            this.addEntity(relation.right.name, relation.right);
-        }
-
-        let leftName = this.entityIdMap[relation.left.id];
-        let rightName = this.entityIdMap[relation.right.id];
-
-        let r = Object.assign({}, relation, { left: leftName, right: rightName });
+        let r = Object.assign({}, relation, { left: relation.left.name, right: relation.right.name });
 
         this.relations.push(r);
 
         return this;
-    }
-
-    /**
-     * Check whether a entity with given id is in the schema
-     * @param {string} entityId
-     * @returns {boolean}
-     */
-    hasEntityById(entityId) {
-        return (entityId in this.entityIdMap);
     }
 
     /**
@@ -163,28 +156,37 @@ class OolongSchema {
      * @returns {boolean}
      */
     hasEntity(entityName) {
-        return (entityName in this.entityIdMap);
+        return (entityName in this.entities);
     }
 
     /**
      * Add an entity into the schema
-     * @param {string} name
      * @param {OolongEntity} entity
      * @returns {OolongSchema}
      */
-    addEntity(name, entity) {
-        if (this.hasEntity(name)) {
-            throw new Error(`Entity name [${name}] conflicts in schema [${this.name}].`);
+    addEntity(entity) {
+        if (this.hasEntity(entity.name)) {
+            throw new Error(`Entity name [${entity.name}] conflicts in schema [${this.name}].`);
         }
 
-        if (this.hasEntityById(entity.id)) {
-            throw new Error(`Entity [${entity.id}] already exists in schema [${this.name}].`);
-        }
-
-        this.entities[name] = entity;
-        this.entityIdMap[entity.id] = name;
+        this.entities[entity.name] = entity;
 
         return this;
+    }
+
+    /**
+     * Get a document hierarchy
+     * @param {object} fromModule
+     * @param {string} docName
+     * @returns {object}
+     */
+    getDocumentHierachy(fromModule, docName) {
+        if (docName in this.documents) {
+            return this.documents[docName];
+        }
+
+        let doc = this.linker.loadDoc(fromModule, docName);
+        return (this.documents[docName] = doc.buildHierarchy(this));
     }
 
     /**
@@ -195,8 +197,9 @@ class OolongSchema {
         return {
             name: this.name,
             entities: _.reduce(this.entities, (r, v, k) => (r[k] = v.toJSON(), r), {}),
+            views: _.reduce(this.views, (r, v, k) => (r[k] = v.toJSON(), r), {}),
             relations: this.relations,
-            deployments: this.deployments
+            documents: this.documents
         };
     }
 }

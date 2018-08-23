@@ -70,12 +70,14 @@ exports.build = function (context, schemaFile, restify) {
 
     _.each(deployment, dbServiceKey => {
         let service = context.currentApp.getService(dbServiceKey);
+        assert: service, Util.Message.DBC_VAR_NOT_NULL;
+
         let dbmsOptions = Object.assign({}, service.dbmsSpec);
 
         let DbModeler = require(`./modeler/db/${service.dbType}.js`);
         let dbModeler = new DbModeler(context, dbmsOptions);
 
-        schemaDeployments.push(dbModeler.modeling(schema, buildPath));
+        schemaDeployments.push(dbModeler.modeling(service, schema, buildPath));
     });
 
     const DaoModeler = require('./modeler/dao.js');

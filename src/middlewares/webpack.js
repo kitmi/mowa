@@ -16,7 +16,7 @@ const webpackDevMiddleware = require('webpack-dev-middleware');
  **/
 module.exports = function (options, appModule) {
     let extraConfig = Object.assign({}, options);
-    let configPath = appModule.toAbsolutePath(appModule.options.etcPath, `webpack.${appModule.env}.js`);
+    let configPath = appModule.toAbsolutePath(appModule.options.etcPath, `webpack.${appModule.serverModule.env}.js`);
 
     let config = require(configPath);
     const compiler = webpack(config);

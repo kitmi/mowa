@@ -15,7 +15,7 @@ class Nvm extends ComponentBase {
     }
 
     async doTest_() {
-        let ver = await this._ssh_('set -i && source ~/.bashrc && command -v nvm', false);
+        let ver = await this._ssh_("command -v nvm", false);
 
         if (ver.length > 0 && ver === 'nvm') {
             return { installed: true, started: false };
@@ -30,7 +30,7 @@ class Nvm extends ComponentBase {
     }
 
     async doUninstall_() {
-        return this._ssh_('set -i && source ~/.bashrc && nvm unload');
+        return this._ssh_("nvm unload");
     }
 
     async doStart_() {
@@ -41,7 +41,7 @@ class Nvm extends ComponentBase {
 }
 
 Nvm.componentType = 'nvm';
-Nvm.defaultInstanceName = 'install';
+Nvm.defaultInstanceName = 'defaultInstance';
 Nvm.defaultConfig = config;
 Nvm.dependencies = [];
 

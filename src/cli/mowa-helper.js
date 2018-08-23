@@ -23,6 +23,24 @@ const MowaHelper = module.exports;
  */
 exports.startMowa_ = function (api) {
     let mowa = new Mowa(api.mowaName, {deaf: true, verbose: api.config['general'].verbose});
+
+    mowa.on('configLoaded', () => {
+        let cliSettings = Util.getValueByPath(mowa.config.settings, 'cli');
+        if (_.isEmpty(cliSettings)) {
+            if ((api.cliModuleName !== 'default' || api.command !== 'init') && api.command !== 'help') {
+                console.error("error: Command line settings not found. Please run 'mowa init' first.");
+                process.exit(1);
+            }
+        }
+
+        //override default config
+        api.config = _.defaultsDeep({}, _.pick(cliSettings,
+            ["consoleEnabled", "fileLogEnabled", "fileLogFilename", "fileLogOverwrite"]),
+            api.config);
+
+        mowa.options.verbose = api.config.general.verbose;
+    });
+
     return mowa.start_();
 };
 
@@ -187,4 +205,29 @@ exports.getAppSchemas = function (api) {
     });
 
     return schemas.map(s => s.name);
+};
+
+const excludesDir = [ '.', '..', 'node_modules', 'release', 'app_modules', 'log', 'logs' ];
+const excludesFile = [ '.DS_Store', 'Thumbs.db' ];
+
+exports.packFiles = (api, archive, sourceDir, basePath) => {
+    let files = fs.readdirSync(sourceDir), targetPath;
+
+    files.forEach(f => {
+        let fp = path.join(sourceDir, f);
+        let s = fs.statSync(fp);
+        if (s.isDirectory()) {
+            if (excludesDir.indexOf(f) === -1) {
+                targetPath = basePath ? path.join(basePath, f) : f;
+                archive.directory(fp, targetPath);
+                api.log('info', `Adding directory "${targetPath}" ...`);
+            }
+        } else  if(s.isFile()) {
+            if (excludesFile.indexOf(f) === -1 && path.extname(f) !== '.log') {
+                targetPath = basePath ? path.join(basePath, f) : f;
+                archive.file(fp, { name: targetPath });
+                api.log('info', `Adding file "${targetPath}" ...`);
+            }
+        }
+    });
 };

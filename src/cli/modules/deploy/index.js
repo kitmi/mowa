@@ -29,12 +29,14 @@ exports.help = function (api) {
         case 'addNode':
             cmdOptions['name'] = {
                 desc: 'Name of the remote node',
+                promptMessage: 'Please enter the name of remote node',
                 required: true,
                 alias: ['n'],
                 inquire: true
             };
             cmdOptions['host'] = {
-                desc: 'Hostname or ip address of the node',                
+                desc: 'Hostname or ip address of the node',
+                promptMessage: 'Hostname or ip',
                 alias: ['h'],
                 inquire: true
             };
@@ -58,6 +60,10 @@ exports.help = function (api) {
             cmdOptions['key'] = {
                 desc: 'Private Key',
                 alias: ['k'],
+                inquire: () => Promise.resolve(!api.getOption('use-password'))
+            };
+            cmdOptions['passphrase'] = {
+                desc: 'Private Key Passphrase',
                 inquire: () => Promise.resolve(!api.getOption('use-password'))
             };
             break;
@@ -109,6 +115,7 @@ exports.addNode = function (api) {
     let usePassword = api.getOption('use-password');
     let password = api.getOption('password');
     let privateKey = api.getOption('key');
+    let passphrase = api.getOption('passphrase');
 
     let node = {
         host: host,
@@ -119,6 +126,7 @@ exports.addNode = function (api) {
         node['password'] = password;
     } else {
         node['privateKey'] = privateKey;
+        node['passphrase'] = passphrase;
     }
 
     let nodeSetting = Util.getValueByPath(api.server.configLoader, 'settings.cli.deploy.nodes.' + name);
@@ -134,8 +142,8 @@ exports.addNode = function (api) {
 exports.addComponent = function (api) {
     api.log('verbose', 'exec => mowa deploy addComponent');
 
-    let name = api.getOption('name');
     let type = api.getOption('type');
+    let name = api.getOption('name');
 
     let configKey = `settings.cli.deploy.components.${type}.${name}`;
 

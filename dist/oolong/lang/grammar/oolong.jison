@@ -112,8 +112,21 @@
         },
 
         defSchema(schema, def) {
-            def.name = schema;
-            this.parsed.schema = def;
+            this.parsed.schema = Object.assign({}, { name: schema }, def);
+        },
+
+        defView(viewName, def) {
+            if (!this.parsed.view) {
+                this.parsed.view = {};
+            }
+            this.parsed.view[viewName] = Object.assign({}, this.parsed.view[viewName], def);
+        },
+
+        defDocument(docName, def) {
+            if (!this.parsed.document) {
+                this.parsed.document = {};
+            }
+            this.parsed.document[docName] = Object.assign({}, this.parsed.document[docName], def);
         },
 
         validate() {
@@ -153,7 +166,7 @@
     }
 
     function normalizeIdentifier(id) {
-        return id[0] === '^' ? id.substr(1) : id;
+        return id[0] === '`' ? id.substr(1, id.length-2) : id;
     }
 
     function normalizeDotName(name) {
@@ -167,13 +180,15 @@
     var KEYWORDS = new Set([
         "not", "and", "or", "xor", "mod", "div", "in", "is", "like", //operators
         'int', 'integer', 'number', 'text', 'bool', 'boolean', 'blob', 'binary', 'datetime', 'date', 'time', 'year', 'timestamp', 'json', 'xml', 'enum', 'csv',
-        'exact', 'untrim', 'unsigned', "only", "fixedLength",
-        "use", "type", "entity", "schema", "database", "relation", "default", "auto", "entities", "data",
-        "with", "has", "have", "key", "index", "as", "unique", "its", "own", "for",
-        "every", "may", "a", "several", "many", "great", "of", "one", "to",
+        'exact', 'unsigned', "only", "fixedLength",
+        "import", "type", "entity", "schema", "database", "relation", "default", "auto", "entities", "data", "comment",
+        "with", "has", "have", "key", "index", "as", "unique", "for",
+        "every", "may", "a", "several", "many", "great", "of", "one", "to", "an",
         "optional", "readOnly", "fixedValue", "forceUpdate",
         "interface", "accept", "do", "select", "where", "return", "exists", "null", "otherwise", "unless", "find", "by", "case",
-        "skip", "limit", "update", "create", "delete", "set", "throw", "error"
+        "skip", "limit", "update", "create", "delete", "set", "throw", "error",
+        "view", "order", "list", "asc", "desc", "views", "group", "skip",
+        "document", "contains", "being", "which"
     ]);
 
     var BRACKET_PAIRS = {
@@ -188,8 +203,20 @@
 
     var BUILTIN_TYPES = new Set([ 'int', 'float', 'decimal', 'text', 'bool', 'binary', 'datetime', 'json', 'xml', 'enum', 'csv' ]);
 
+    var BUILTIN_TYPE_ATTR = [
+        'type',
+        'digits',
+        'range',
+        'values',
+        'unsigned',
+        'totalDigits',
+        'maxLength',
+        'fixedLength'
+    ];
+
     if (typeof exports !== 'undefined') {
         exports.BUILTIN_TYPES = BUILTIN_TYPES;
+        exports.BUILTIN_TYPE_ATTR = BUILTIN_TYPE_ATTR;
         exports.KEYWORDS = KEYWORDS;
     }
 
@@ -206,14 +233,17 @@ space           		\ |\t
 newline		            \n|\r\n|\r|\f
 
 // identifiers
-member_access           {identifier}"."{identifier}+
+member_access           {identifier}("."{identifier})+
 column_range            {variable}".""*"
 variable                {member_access}|{identifier}
 object_reference        "@"{variable}
 
-identifier              ({xid_start})({xid_continue})*
-xid_start               "_"|"$"|"^"|({uppercase})|({lowercase})
-xid_continue            {xid_start}|{digit}
+identifier              {identifier1}|{identifier2}
+identifier1             ({xid_start1})({xid_continue})*
+identifier2             "`"({xid_start2})({xid_continue})*"`"
+xid_start1              "_"|"$"|({uppercase})|({lowercase})
+xid_start2              "_"|({uppercase})|({lowercase})
+xid_continue            {xid_start1}|{digit}
 
 bool_value              ("true")|("false")
 
@@ -371,9 +401,9 @@ escapeseq               \\.
 
                                 if (state.comment) {
                                     state.comment = false;
-                                } else {
-                                    return 'NEWLINE';
                                 }
+
+                                return 'NEWLINE';
                             }
                         %}
 <INLINE>{space}+       /* skip whitespace, separate tokens */
@@ -413,7 +443,6 @@ escapeseq               \\.
                                 return 'REFERENCE';
                            %}
 <INLINE>{column_range}     %{
-                                yytext = normalizeReference(yytext);
                                 return 'COLUMNS';
                            %}
 <INLINE>{bool_value}       %{
@@ -480,13 +509,15 @@ statement
     | type_statement
     | entity_statement
     | schema_statement
+    | view_statement
+    | document_statement
     | relation_statement
     ;
 
 use_statement
-    : "use" STRING NEWLINE
+    : "import" STRING NEWLINE
         { state.use($2); }
-    | "use" NEWLINE INDENT use_statement_block DEDENT
+    | "import" NEWLINE INDENT use_statement_block DEDENT
     ;
 
 use_statement_block
@@ -515,8 +546,11 @@ type_statement_item
 
 type_base_or_not
     :
-    | ':' types
-        { $$ = $2; }
+    | type_base
+    ;
+
+type_base
+    : ':' types -> $2
     ;
 
 types
@@ -528,8 +562,7 @@ types
         { $$ = Object.assign({ type: 'float' }, $1); }
     | number_type 'exact'
         { $$ = Object.assign({ type: 'decimal' }, $1); }
-    | text_type untrim_or_not
-        { $$ = Object.assign({}, $1, $2); }
+    | text_type
     | bool_keyword
         { $$ = { type: 'bool' }; }
     | binary_type
@@ -541,7 +574,7 @@ types
         { $$ = { type: 'datetime', range: 'time' }; }
     | 'datetime' 'year' 'only'
         { $$ = { type: 'datetime', range: 'year' }; }
-    | 'datetime' 'timestamp'
+    | 'timestamp'
         { $$ = { type: 'datetime', range: 'timestamp' }; }
     | 'json'
         { $$ = { type: 'json' }; }
@@ -551,7 +584,9 @@ types
         { $$ = { type: 'csv' }; }
     | identifier_or_str_array
         { $$ = { type: 'enum', values: $1 }; }
-    | identifier_or_member_access
+    | identifier_or_string
+        { $$ = { type: $1 }; }
+    | DOTNAME
         { $$ = { type: $1 }; }
     ;
 
@@ -584,12 +619,6 @@ text_type
         { $$ = { type: 'text', maxLength: parseInt($3) }; }
     | 'text' '(' INTEGER ')' 'fixedLength'
         { $$ = { type: 'text', fixedLength: parseInt($3) }; }
-    ;
-
-untrim_or_not
-    :
-    | 'untrim'
-        { $$ = { untrim: true }; }
     ;
 
 bool_keyword
@@ -627,22 +656,17 @@ type_statement_block
     ;
 
 entity_statement
-    : entity_statement_hd NEWLINE
-    | entity_statement_hd NEWLINE INDENT entity_statement_block DEDENT
-        {
-            state.defEntity($1, $4);
-        }
+    : entity_statement_header NEWLINE -> state.defEntity($1[0], $1[1])
+    | entity_statement_header NEWLINE INDENT entity_statement_block DEDENT -> state.defEntity($1[0], Object.assign({}, $1[1], $4))
     ;
 
-entity_statement_hd
-    : entity_statement_hd0
-        { state.defEntity($1); $$ = $1; }
-    | entity_statement_hd0 "is" identifier_or_member_access
-        { state.defEntity($1, { base: $3 }); $$ = $1; }
+entity_statement_header
+    : entity_statement_header0 -> [ $1 ]
+    | entity_statement_header0 "is" identifier_or_string -> [ $1, { base: $3 } ]
     ;
 
-entity_statement_hd0
-    : "entity" identifier
+entity_statement_header0
+    : "entity" identifier_or_string
         {
             if (state.isEntityExist($2)) throw new Error('Duplicate entity definition detected at line ' + @1.first_line + '.');
             $$ = $2;
@@ -650,8 +674,14 @@ entity_statement_hd0
     ;
 
 entity_statement_block
-    : with_stmt_or_not has_stmt_or_not key_stmt_or_not index_stmt_or_not data_stmt_or_not interface_stmt_or_not
-        { $$ = Object.assign({}, $1, $2, $3, $4, $5, $6); }
+    : comment_or_not with_stmt_or_not has_stmt_or_not key_stmt_or_not index_stmt_or_not data_stmt_or_not interface_stmt_or_not
+        { $$ = Object.assign({}, $1, $2, $3, $4, $5, $6, $7); }
+    ;
+
+comment_or_not
+    :
+    | "comment" STRING NEWLINE
+        { $$ = { comment: $2 }; }
     ;
 
 with_stmt_or_not
@@ -687,40 +717,43 @@ interface_stmt_or_not
 with_stmt
     : "with" feature_inject NEWLINE
         { $$ = { features: [ $2 ] }; }
-    | "with" NEWLINE INDENT with_stmt_blk DEDENT
+    | "with" NEWLINE INDENT with_stmt_block DEDENT
         { $$ = { features: $4 }; }
     ;
 
-with_stmt_blk
-    : feature_inject NEWLINE
-        { $$ = [$1]; }
-    | feature_inject NEWLINE with_stmt_blk
-        { $$ = [$1].concat($3); }
+with_stmt_block
+    : feature_inject NEWLINE -> [ $1 ]
+    | feature_inject NEWLINE with_stmt_block -> [ $1 ].concat($3)
     ;
 
 has_stmt
     : "has" has_stmt_itm NEWLINE
         { $$ = { fields: { [$2[0]]: $2[1] } }; }
-    | "has" NEWLINE INDENT has_stmt_blk DEDENT
+    | "has" NEWLINE INDENT has_stmt_block DEDENT
         { $$ = { fields: $4 }; }
     ;
 
 has_stmt_itm
-    : identifier type_base_or_not type_validators0_or_not field_qualifiers_or_not field_modifiers0_or_not
-        { $$ = [$1, Object.assign({ type: $1 }, $2, $3, $4, $5)]; }
-    | identifier type_base_or_not type_validators0_or_not field_qualifiers_or_not field_modifiers0 field_validators1 
-        { $$ = [$1, Object.assign({ type: $1 }, $2, $3, $4, $5, $6)]; } 
-    | identifier type_base_or_not type_validators0_or_not field_qualifiers_or_not field_modifiers0 field_validators1 field_modifiers1 
-        { $$ = [$1, Object.assign({ type: $1 }, $2, $3, $4, $5, $6, $7)]; } 
-    | identifier field_reference optional_qualifier_or_not
+    : has_stmt_item_body field_comment_or_not
+        { $1[1] = Object.assign({}, $1[1], $2); }
+    ;
+
+has_stmt_item_body
+    : identifier_or_string type_base_or_not field_qualifiers_or_not with_validators_modifiers
+        { $$ = [$1, Object.assign({ type: $1 }, $2, $3, $4)]; }
+    | identifier_or_string field_reference optional_qualifier_or_not
         { $$ = [$1, Object.assign({}, $2, $3) ]; }
     ;
 
-field_default_value
-    : "default" "(" "auto" ")"
-        { $$ = { auto: true }; }
-    | "default" "(" literal ")"
-        { $$ = { 'default': $3 }; }
+/** default value with literal **/
+concrete_default_value
+    : "default" "(" literal ")" -> { 'default': $3 }
+    ;
+
+/** default value with literal or auto generator **/
+default_value
+    : concrete_default_value
+    | "default" "(" "auto" ")" -> { auto: true }
     ;
 
 field_qualifiers_or_not
@@ -797,7 +830,7 @@ field_comment_or_not
     ;
 
 field_qualifier
-    : field_default_value
+    : default_value
     | optional_qualifier
     | field_restriction
     ;
@@ -834,7 +867,6 @@ type_validator
         { $$ = { validators: [ { name: $2 } ] }; }
     | "~" function_call
         { $$ = { validators: [ $2 ] }; }
-    | "~" "(" INTEGER ")"
     ;
 
 field_reference
@@ -844,10 +876,10 @@ field_reference
         { $$ = { bindTo: $2 }; }
     ;
 
-has_stmt_blk
+has_stmt_block
     : has_stmt_itm NEWLINE
         { $$ = { [$1[0]]: $1[1] }; }
-    | has_stmt_itm NEWLINE has_stmt_blk
+    | has_stmt_itm NEWLINE has_stmt_block
         { $$ = Object.assign({}, { [$1[0]]: $1[1] }, $3); }
     ;
 
@@ -915,30 +947,39 @@ interface_def_body
 
 accept_or_not
     :
-    | "accept" NEWLINE INDENT interface_accept_blk DEDENT
-        { $$ = { accept: $4 }; }
+    | accept_statement
     ;
 
-interface_accept_blk
-    : parameter_with_modifier NEWLINE
-        { $$ = [ $1 ]; }
-    | parameter_with_modifier NEWLINE interface_accept_blk
-        { $$ = [ $1 ].concat($3); }
+accept_statement
+    : "accept" parameter_with_modifier NEWLINE -> { accept: [ $2 ] }
+    | "accept" NEWLINE INDENT accept_block DEDENT -> { accept: $4 }
+    ;
+
+accept_block
+    : parameter_with_modifier NEWLINE -> [ $1 ]
+    | parameter_with_modifier NEWLINE accept_block -> [ $1 ].concat($3)
     ;
 
 parameter_with_modifier
-    : parameter type_base_or_not type_validators0_or_not parameter_qualifiers_or_not field_modifiers0_or_not
-        { $$ = Object.assign($1, { type: $1.name }, $2, $3, $4, $5); }
-    | parameter type_base_or_not type_validators0_or_not parameter_qualifiers_or_not field_modifiers0 field_validators1 
-        { $$ = Object.assign($1, { type: $1.name }, $2, $3, $4, $4, $5); }
-    | parameter type_base_or_not type_validators0_or_not parameter_qualifiers_or_not field_modifiers0 field_validators1 field_modifiers1 
-        { $$ = Object.assign($1, { type: $1.name }, $2, $3, $4, $5, $6, $7); }
+    : parameter with_type_default_value with_validators_modifiers -> Object.assign($1, { type: $1.name }, $2, $3)
     ;
 
-parameter_qualifiers_or_not
+with_type_default_value
     :
-    | "default" "(" literal ")"
-        { $$ = { 'default': $3 }; }
+    | type_base
+    | concrete_default_value
+    | type_base concrete_default_value -> Object.assign({}, $1, $2)
+    ;
+
+with_validators_modifiers
+    :
+    | type_validators0
+    | field_modifiers0
+    | type_validators0 field_modifiers0 -> Object.assign({}, $1, $2)
+    | field_modifiers0 field_validators1 -> Object.assign({}, $1, $2)
+    | type_validators0 field_modifiers0 field_validators1 -> Object.assign({}, $1, $2, $3)
+    | field_modifiers0 field_validators1 field_modifiers1 -> Object.assign({}, $1, $2, $3)
+    | type_validators0 field_modifiers0 field_validators1 field_modifiers1 -> Object.assign({}, $1, $2, $3, $4)
     ;
 
 implementation
@@ -958,13 +999,11 @@ operation
     ;
 
 find_one_operation
-    : "find" "one" identifier "by" select_stm NEWLINE
-        { $$ = Object.assign({ oolType: 'findOne', model: $3}, $5 ); }
-    | "find" "one" identifier "by" "case" NEWLINE INDENT case_condition_block DEDENT
+    : "find" "one" identifier "by" "case" NEWLINE INDENT case_condition_block DEDENT
         { $$ = { oolType: 'findOne', model: $3, case: { items: $8 } }; }
     | "find" "one" identifier "by" "case" NEWLINE INDENT case_condition_block "otherwise" condition_as_result_expression NEWLINE DEDENT
             { $$ = { oolType: 'findOne', model: $3, case: { items: $8, else: $10 } }; }
-    | "find" "one" identifier "by" query_condition_expression NEWLINE
+    | "find" "one" identifier "by" conditional_expression NEWLINE
         { $$ = { oolType: 'findOne', model: $3, condition: $5}; }
     ;
 
@@ -993,32 +1032,18 @@ assign_operation
         { $$ = { oolType: 'assignment', left: $2, right: Object.assign({ argument: $4 }, $5) }; }
     ;
 
+/*
 select_stm
     : "select" column_range_list where_expr skip_or_not limit_or_not
         { $$ = Object.assign({ projection: $2, filter: $3 }, $4, $5); }
     ;
+*/
 
 case_condition_block
     : simple_conditional_arrow_expr NEWLINE
         { $$ = [ $1 ]; }
     | simple_conditional_arrow_expr NEWLINE case_condition_block
         { $$ = [ $1 ].concat($3); }
-    ;
-
-skip_or_not
-    :
-    | "skip" REFERENCE
-        { $$ = { 'skip': $2 }; }
-    | "skip" INTEGER
-        { $$ = { 'skip': $2 }; }
-    ;
-
-limit_or_not
-    :
-    | "limit" REFERENCE
-        { $$ = { 'limit': $2 }; }
-    | "limit" INTEGER
-        { $$ = { 'limit': $2 }; }
     ;
 
 where_expr
@@ -1034,7 +1059,7 @@ where_expr_condition
 
 where_expr_condition_blk
     : where_expr_condition NEWLINE
-        { $$ = $1; }
+        { $$ = [ $1 ]; }
     | where_expr_condition NEWLINE where_expr_condition_blk
         { $$ = [ $1 ].concat($3); }
     ;
@@ -1086,8 +1111,8 @@ relation_statement_blk
     ;
 
 relation_statement_itm
-    : relation_statement_itm1
-    | relation_statement_itm1 "to" related_entity
+    : relation_statement_itm0
+    | relation_statement_itm0 "to" related_entity
         {
             if ($1.right === $3.right) {
                 throw new Error('Invalid relation declaration at line ' + @1.first_line + '.');
@@ -1100,19 +1125,13 @@ relation_statement_itm
             delete $$.relationship;
             delete $$.size;
         }
-    | relation_statement_itm1 "for" "a" identifier_or_member_access
+    | relation_statement_itm0 "for" indefinite_article identifier_or_member_access
         {
             let right1Name2 = $1.left;
             let right2Name2 = $4;
 
-            $$ = Object.assign({}, $1, { left: $1.right, right: [ right1Name2, right2Name2 ], type: 'multi' });
+            $$ = Object.assign({}, $1, { relationship: $1.relationship.replace('n:', '1:') }, { left: $1.right, right: [ right1Name2, right2Name2 ], type: 'multi' });
         }
-    ;
-
-relation_statement_itm1
-    : relation_statement_itm0
-    | relation_statement_itm0 "of" "its" "own"
-        { $$ = Object.assign({}, $1, { relationship: $1.relationship.replace('n:', '1:') }); }
     ;
 
 related_entity
@@ -1123,7 +1142,7 @@ related_entity
 relation_statement_itm0
     : "every" identifier_or_member_access "has" related_entity
         { $$ = Object.assign({ left: $2 }, $4); }
-    | "a" identifier_or_member_access "may" "have" related_entity
+    | indefinite_article identifier_or_member_access "may" "have" related_entity
         { $$ = Object.assign({ left: $2, optional: true }, $5); }
     ;
 
@@ -1139,43 +1158,169 @@ relation_qualifier
     ;
 
 schema_statement
-    : "schema" identifier_or_string NEWLINE INDENT schema_statement_blk DEDENT
+    : "schema" identifier_or_string NEWLINE INDENT schema_statement_block DEDENT
         {
             if (state.parsed.schema) throw new Error('Only one schema definition allowed in a schema file. Extra schema definition detected at line ' + @1.first_line + '.');
             state.defSchema($2, $5);
         }
     ;
 
-schema_statement_itm
-    : identifier_or_member_access
-        { $$ = { entity: $1 }; }
-    | schema_statement_itm entity_qualifier
-        { $$ = Object.assign({}, $1, $2); }
+schema_statement_block
+    : schema_entities schema_views_or_not -> Object.assign({}, $1, $2)
     ;
 
-schema_statement_blk
-    : "entities" NEWLINE INDENT schema_entities_blk DEDENT
-        { $$ = { entities: $4 }; }
+schema_views_or_not
+    :
+    | schema_views
     ;
 
-schema_entities_blk
-    : schema_statement_itm NEWLINE
-        { $$ = [ $1 ]; }
-    | schema_statement_itm NEWLINE schema_entities_blk
-        { $$ = [ $1 ].concat($3); }
+schema_entities
+    : "entities" NEWLINE INDENT schema_entities_block DEDENT -> { entities: $4 }
     ;
 
-entity_qualifier
-    : "as" identifier
-        { $$ = { alias: $2 }; }
+schema_entities_block
+    : identifier_or_string NEWLINE -> [ $1 ]
+    | identifier_or_string NEWLINE schema_entities_block -> [ $1 ].concat($3)
+    ;
+
+schema_views
+    : "views" NEWLINE INDENT schema_views_block DEDENT -> { views: $4 }
+    ;
+
+schema_views_block
+    : identifier_or_member_access NEWLINE -> [ $1 ]
+    | identifier_or_member_access NEWLINE schema_views_block -> [ $1 ].concat($3)
+    ;
+
+document_statement
+    : "document" identifier_or_string NEWLINE INDENT document_statement_block DEDENT -> state.defDocument($2, $5)
+    ;
+
+document_statement_block
+    : "contains" identifier_or_string NEWLINE -> { entity: $2 }
+    | "contains" identifier_or_string NEWLINE document_statement_block2 -> { entity: $2, joinWith: $4 }
+    ;
+
+document_statement_block2
+    : "with" document_entity_join NEWLINE -> [ $2 ]
+    | "with" document_entity_join NEWLINE document_statement_block2 -> [ $2 ].concat($4)
+    ;
+
+document_entity_join
+    : identifier_or_string "being" identifier_or_member_access -> { entity: $1, on: { left: $3, right: '$key' } }
+    | identifier_or_string "document" "of" "which" identifier_or_member_access "being" identifier_or_member_access -> { document: $1, on: { left: $7, right: $5 } }
+    ;
+
+/*
+document_entity_merged
+    : identifier_or_string -> { nestedUnder: $1 }
+    ;
+
+document_entity_reference
+    : document_entity_join
+    | document_entity_join "=>" document_entity_merged -> Object.assign({}, $1, $3)
+    | document_entity_join "=>" DOTNAME -> Object.assign({}, $1, { nestedUnder: $3 })
+    ;
+*/
+
+view_statement
+    : "view" identifier_or_string NEWLINE INDENT view_statement_block DEDENT -> state.defView($2, $5)
+    ;
+
+view_statement_block
+    : view_main_entity NEWLINE accept_or_not view_selection_or_not group_by_or_not order_by_or_not skip_or_not limit_or_not
+        -> Object.assign({}, $1, $3, $4, $5, $6, $7, $8)
+    ;
+
+view_joinings_or_not
+    :
+    | view_joinings
+    ;
+
+view_main_entity
+    : "is" indefinite_article view_entity_target -> $3
+    | "is" indefinite_article view_entity_target "list" -> Object.assign({}, $3, { isList: true })
+    ;
+
+view_entity_target
+    : identifier_or_string -> { entity: $1 }
+    | identifier_or_string "document" -> { document: $1 }
+    ;
+
+view_selection_or_not
+    :
+    | view_selection
+    ;
+
+view_selection
+    : "select" "by" conditional_expression NEWLINE
+        { $$ = { selectBy: [ $3 ] }; }
+    | "select" "by" NEWLINE INDENT view_selection_block DEDENT
+        { $$ = { selectBy: $5 }; }
+    ;
+
+view_selection_block
+    : conditional_expression NEWLINE -> [ $1 ]
+    | conditional_expression NEWLINE view_selection_block -> [ $1 ].concat($3)
+    ;
+
+group_by_or_not
+    :
+    | "group" "by" order_by_list NEWLINE -> { groupBy: $3 }
+    | "group" "by" NEWLINE INDENT order_by_block DEDENT -> { groupBy: $5 }
+    ;
+
+order_by_or_not
+    :
+    | "order" "by" order_by_list NEWLINE -> { orderBy: $3 }
+    | "order" "by" NEWLINE INDENT order_by_block DEDENT -> { orderBy: $5 }
+    ;
+
+order_by_block
+    : order_by_clause NEWLINE -> [ $1 ]
+    | order_by_clause NEWLINE order_by_block -> [ $1 ].concat($3)
+    ;
+
+order_by_clause
+    : identifier_or_member_access -> { field: $1, ascend: true }
+    | identifier_or_member_access "asc" -> { field: $1, ascend: true }
+    | identifier_or_member_access "desc" -> { field: $1, ascend: false }
+    ;
+
+order_by_list
+    : order_by_clause -> [ $1 ]
+    | order_by_clause order_by_list0 -> [ $1 ].concat($2)
+    ;
+
+order_by_list0
+    : "," order_by_clause -> [ $2 ]
+    | "," order_by_clause order_by_list0 -> [ $2 ].concat($3)
+    ;
+
+skip_or_not
+    :
+    | "skip" value NEWLINE -> { skip: $2 }
+    ;
+
+limit_or_not
+    :
+    | "limit" value NEWLINE -> { limit: $2 }
+    ;
+
+identifier_or_member_access_list
+    : identifier_or_member_access -> [ $1 ]
+    | identifier_or_member_access identifier_or_member_access_list0 -> [ $1 ].concat($2)
+    ;
+
+identifier_or_member_access_list0
+    : "," identifier_or_member_access -> [ $2 ]
+    | "," identifier_or_member_access identifier_or_member_access_list0 -> [ $2 ].concat($3)
     ;
 
 literal
     : INTEGER
     | FLOAT
     | BOOL
-    | "null"
-        { $$ = null; }
     | inline_object
     | inline_array
     | REGEXP
@@ -1186,6 +1331,11 @@ identifier
     : NAME
     ;
 
+indefinite_article
+    : "a"
+    | "an"
+    ;
+
 identifier_or_member_access
     : identifier
     | DOTNAME
@@ -1193,6 +1343,8 @@ identifier_or_member_access
 
 parameter
     : identifier
+        { $$ = { name: $1 }; }
+    | STRING
         { $$ = { name: $1 }; }
     ;
 
@@ -1218,7 +1370,7 @@ feature_param
     ;
 
 value
-    : concrete_value
+    : modifiable_value
     | identifier_or_member_access
     | function_call
         { $$ = Object.assign({ oolType: 'FunctionCall' }, $1); }
@@ -1351,9 +1503,9 @@ condition_as_result_expression
     ;
 
 simple_expression
-    : unary_expression
+    : value
+    | unary_expression
     | binary_expression
-    | concrete_value_expression
     ;
 
 concrete_value_expression

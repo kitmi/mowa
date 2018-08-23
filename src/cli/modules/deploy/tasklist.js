@@ -11,11 +11,15 @@ class TaskList {
         this.manager = manager;
         this.nodeName = nodeName;
         this.components = [];
-        this.apps = [];
+        this.mowa = [];
     }    
     
     enqueueComponents(components) {
         this.components = this.components.concat(components);
+    }
+
+    enqueueProjectDeploy(mowa) {
+        this.mowa = this.mowa.concat(mowa);
     }
     
     async execute_() {
@@ -23,13 +27,39 @@ class TaskList {
 
         let session = await this.manager.getSession_(this.nodeName);
 
-        let componentsDeploy = [];
+        let tasks = [];
 
         Util._.each(this.components, componentInfo => {
-            componentsDeploy.push(() => this._getDeployer(session, componentInfo).deploy_(this.manager.reinstallExistingComponent));
+            tasks.push(() => this._getDeployer(session, componentInfo).deploy_(this.manager.reinstallExistingComponent));
         });
 
-        await Util.eachPromise_(componentsDeploy);
+        await Util.eachPromise_(tasks);
+
+        await Util.eachAsync_(this.mowa, async projectInfo => {
+            if (!projectInfo.projectRoot) {
+                return Promise.reject('"projectRoot" is required!');
+            }
+
+            if (!projectInfo.bundleVersion) {
+                return Promise.reject('"bundleVersion" is required!');
+            }
+
+            const pkg = require(path.join(this.manager.api.base, 'package.json'));
+            const bundleName = pkg.name + '-' + Util.S(projectInfo.bundleVersion).replaceAll('.', '_').s + '.zip';
+            const bundlePath = path.join(this.manager.api.base, 'release', bundleName);
+            if (!Util.fs.existsSync(bundlePath)) {
+                return Promise.reject(`Specified bundle "${bundleName}" does not exist!`);
+            }
+
+            let result = await session.ssh.execCommand(`mkdir -p ${projectInfo.projectRoot}`);
+            if (result.code !== 0) {
+                return Promise.reject('Failed to create project root folder: ' + projectInfo.projectRoot);
+            }
+
+            await session.ssh.putFile(bundlePath, path.join(projectInfo.projectRoot, bundleName));
+
+            this.manager.logger.info(`Project bundle "${bundleName}" successfully uploaded.`);
+        });
 
         this.manager.logger.info(`All deployment tasks for node [${this.nodeName}] are completed successully.`);
     }

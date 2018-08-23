@@ -25,7 +25,7 @@ class MysqlDeployer extends OolongDbDeployer {
         super(context, dbService);
     }
 
-    deploy(reset) {
+    async deploy(reset) {
         let dbScriptDir = path.join(this.appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, this.dbService.dbType, this.dbService.name);        
 
         //remove db
@@ -35,18 +35,18 @@ class MysqlDeployer extends OolongDbDeployer {
         //enable multiple statement        
         this.dbService.connectionComponents.searchParams.set('multipleStatements', 1);
         this.dbService.connectionString = this.dbService.connectionComponents.href;
+        
+        let sqlFiles = [ 'entities.sql', 'relations.sql', 'procedures.sql' ];
+        let dbConnection = await this.dbService.getConnection();
+        let results;
 
-        let dbConnection, entitiesSqlFile;
-
-        return this.dbService.getConnection().then(db => {
-            dbConnection = db;
-
+        try {
             if (reset) {
-                return dbConnection.query(`DROP DATABASE IF EXISTS ??; CREATE DATABASE ??`, [ realDbName, realDbName ]);
+                results = await dbConnection.query(`DROP DATABASE IF EXISTS ??; CREATE DATABASE ??`, [realDbName, realDbName]);
+            } else {
+                results = await dbConnection.query(`CREATE DATABASE IF NOT EXISTS ??`, [realDbName]);
             }
 
-            return dbConnection.query(`CREATE DATABASE IF NOT EXISTS ??`, [ realDbName ]);
-        }).then(results => {
             let [ result, fields ] = results;
 
             if (reset) {
@@ -65,44 +65,38 @@ class MysqlDeployer extends OolongDbDeployer {
                 }
             }
 
-            entitiesSqlFile = path.join(dbScriptDir, 'entities.sql');
-            if (!fs.existsSync(entitiesSqlFile)) {
-                this.dbService.closeConnection(dbConnection);
-                return Promise.reject('No database scripts found. Try run "mowa oolong build" first');
-            }
+            results = await dbConnection.query('USE `' + realDbName + '`');
 
-            return dbConnection.query('USE ??', [ realDbName ]);
-        }).then(results => {
-            let [ result, fields ] = results;
+            await Util.eachAsync_(sqlFiles, async(file) => {
 
-            let sql = fs.readFileSync(entitiesSqlFile, { encoding: 'utf8' });
-            return dbConnection.query(sql);
-        }).then(results => {
-            let [ result, fields ] = results;
+                let sqlFile = path.join(dbScriptDir, file);
+                if (!fs.existsSync(sqlFile)) {
+                    return Promise.reject(`Database script "${file}" found. Try run "mowa oolong build" first`);
+                }
 
-            if (!_.isArray(result)) {
-                result = [ result ];
-            }
+                let sql = fs.readFileSync(sqlFile, { encoding: 'utf8' });
+                let results = await dbConnection.query(sql);
 
-            let warningRows = _.reduce(result, (sum, row) => {
-                sum += row.warningStatus;
-                return sum;
-            }, 0);
+                let [ result, fields ] = results;
 
-            if (warningRows > 0) {
-                this.logger.log('warn', `${warningRows} warning(s) reported while initializing the database structure.`);
-            } else {
-                this.logger.log('info', `The table structure of database "${realDbName}" is created.`);
-            }
+                if (!_.isArray(result)) {
+                    result = [ result ];
+                }
 
+                let warningRows = _.reduce(result, (sum, row) => {
+                    sum += row.warningStatus;
+                    return sum;
+                }, 0);
+
+                if (warningRows > 0) {
+                    this.logger.log('warn', `${warningRows} warning(s) reported while running "${file}".`);
+                } else {
+                    this.logger.log('info', `Database script "${realDbName}" run successfully.`);
+                }
+            });
+        } finally {
             this.dbService.closeConnection(dbConnection);
-        }).catch(err => {
-            if (dbConnection) {
-                this.dbService.closeConnection(dbConnection);
-            }
-
-            throw err;
-        });
+        }
     }
 
     async loadData(dataFile) {

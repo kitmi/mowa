@@ -118,7 +118,7 @@ exports.config = async api => {
         profileName: 'browser',
         clientPath: path.relative(appEtcPath, appModule.frontendPath),
         outputPath: path.relative(appEtcPath, appModule.frontendStaticPath),
-        publicPath: Util.ensureLeftSlash(appModule.route),
+        publicPath: Util.ensureRightSlash(Util.ensureLeftSlash(appModule.route)),
         cleanBeforeBuild: webpackOptions.cleanBeforeBuild || false
     };
 

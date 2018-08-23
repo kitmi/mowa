@@ -25,7 +25,7 @@ class Model {
      */
     constructor(rawData) {
         if (rawData) {
-            this.data = Model._filterNullValues(rawData);
+            this.data = Model._filterCondition(rawData);
         }
 
         this.appModule = this.db.appModule;
@@ -203,18 +203,35 @@ class Model {
         return context;
     }
 
-    static _filterNullValues(condition) {
-        let result = {};
+    static _filterCondition(condition, fields) {
+        if (_.isPlainObject(condition)) {
+            let result = {};
 
-        _.forOwn(condition, (value, key) => {
-            if (!_.isNil(value)) {
-                result[key] = value;
-            }
-        });
+            _.forOwn(condition, (value, key) => {
+                if (!_.isNil(value) && fields) {
+                    result[key] = value;
+                }
+            });
 
-        return result;
+            return fields ? _.pick(result, fields) : result;
+        }
+
+        if (Array.isArray(condition)) {
+            return condition.map(c => this._filterCondition(c, fields));
+        }
+
+        if (_.isNil(condition)) {
+            return undefined;
+        }
+
+        return condition;
     }
 
+    /**
+     * Find one record, returns a model object containing the record or undefined if nothing found.
+     * @param {*} condition - Primary key value or query condition with unique key values.
+     * @returns {*}
+     */
     static async findOne(condition) {        
         if (!_.isPlainObject(condition)) {
             if (_.isNil(condition)) {
@@ -236,7 +253,7 @@ class Model {
                 throw new Mowa.Error.InvalidArgument('"findOne()" requires condition with unique keys.');
             }
 
-            condition = this._filterNullValues(condition);
+            condition = this._filterCondition(condition);
         }
 
         let fields = Object.keys(this.meta.fields);
@@ -249,13 +266,17 @@ class Model {
         return model.fromDb(record);
     }
 
+    /**
+     * Find records matching the condition, returns an array of model object or an array of records directly if fetchArray = true.
+     * @param {object|array} condition - Query condition, key-value pair will be joined with 'AND', array element will be joined with 'OR'.
+     * @param {boolean} [fetchArray=false] - When fetchArray = true, the result will be returned directly without creating model objects.
+     * @returns {array}
+     */
     static async find(condition, fetchArray = false) {
-        if (!_.isPlainObject(condition)) {
-            throw new Mowa.Error.InvalidArgument('"find()" requires condition to be plain object.');
-        }
+        pre: _.isPlainObject(condition) || Array.isArray(condition), '"find()" requires condition to be a plain object or an array.';
 
         let fields = Object.keys(this.meta.fields);
-        let records = await this._doFind(_.pick(Model._filterNullValues(condition), fields));
+        let records = await this._doFind(Model._filterCondition(condition, fields));
         if (!records) return undefined;
 
         if (fetchArray) return records;
@@ -287,7 +308,7 @@ class Model {
                 throw new Mowa.Error.InvalidArgument('"removeOne()" requires condition with unique keys.');
             }
 
-            condition = this._filterNullValues(condition);
+            condition = this._filterCondition(condition);
         }
 
         return await this._doRemoveOne(condition);

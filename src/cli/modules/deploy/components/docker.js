@@ -32,12 +32,12 @@ class Docker extends ComponentBase {
     }
 
     async doInstall_() {
-        let nvmInstall = 'set -i && source ~/.bashrc && nvm install ' + (this.options.lts ? '--lts node' : 'node');
+        let nvmInstall = 'nvm install ' + (this.options.lts ? '--lts node' : 'node');
         return this._ssh_(nvmInstall);
     }
 
     async doUninstall_() {
-        let nvmUninstall = 'set -i && source ~/.bashrc && nvm uninstall ' + (this.options.lts ? '--lts node' : 'node');
+        let nvmUninstall = 'nvm uninstall ' + (this.options.lts ? '--lts node' : 'node');
         return this._ssh_(nvmUninstall);
     }
 

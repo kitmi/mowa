@@ -19,13 +19,13 @@ function loadEventHandler(appModule, channelName, controllerBasePath, handlerNam
             throw new Mowa.Error.InvalidConfiguration(
                 `Invalid middleware reference: ${handlerName}`,
                 appModule,
-                `rpgServer.channels.${channelName}.middlewares`
+                `socketServer.channels.${channelName}.middlewares`
             );
         } else {
             throw new Mowa.Error.InvalidConfiguration(
                 `Invalid event handler reference: ${handlerName}`,
                 appModule,
-                `rpgServer.channels.${channelName}.events`
+                `socketServer.channels.${channelName}.events`
             );
         }
     }
@@ -41,13 +41,13 @@ function loadEventHandler(appModule, channelName, controllerBasePath, handlerNam
             throw new Mowa.Error.InvalidConfiguration(
                 `Middleware function not found: ${handlerName}`,
                 appModule,
-                `rpgServer.channels.${channelName}.middlewares`
+                `socketServer.channels.${channelName}.middlewares`
             );
         } else {
             throw new Mowa.Error.InvalidConfiguration(
                 `Event handler function not found: ${handlerName}`,
                 appModule,
-                `rpgServer.channels.${channelName}.events`
+                `socketServer.channels.${channelName}.events`
             );
         }
     }
@@ -80,7 +80,7 @@ module.exports = {
             let io, standalone = false;
 
             let listeningPath = Util.urlJoin(appModule.route, config.path);
-            appModule.log('verbose', 'Socket RPC listening path: ' + listeningPath);
+            appModule.log('verbose', 'Socket server listening path: ' + listeningPath);
 
             let options = {
                 path: listeningPath
@@ -102,7 +102,7 @@ module.exports = {
                 throw new Mowa.Error.InvalidConfiguration(
                     'Missing channels config.',
                     appModule,
-                    'rpgServer.channels'
+                    'socketServer.channels'
                 );
             }
 
@@ -144,9 +144,9 @@ module.exports = {
 
                 if (_.isEmpty(eventHandlers)) {
                     throw new Mowa.Error.InvalidConfiguration(
-                        'Missing rpc controller or event hooks.',
+                        'Missing socket response controller or event hooks.',
                         appModule,
-                        `rpgServer.channels.${name}`
+                        `socketServer.channels.${name}`
                     );
                 }
 
@@ -154,7 +154,7 @@ module.exports = {
                     //Register event handlers
                     _.forOwn(eventHandlers, (handler, event) => {
                         socket.on(event, (data, cb) => {
-                            logger && logger.log('verbose', 'Client event emitted: ' + event + ', argument number: ' + arguments.length);                            
+                            logger && logger.log('verbose', 'Socket client event emitted: ' + event + ', argument number: ' + arguments.length);
 
                             console.log('arg0: ' + data);
                             
@@ -162,7 +162,7 @@ module.exports = {
                         });
                     });
 
-                    logger && logger.log('verbose', 'Client connected.');
+                    logger && logger.log('verbose', 'Socket client connected.');
 
                     if (info.welcomeMessage) {
                         socket.emit('welcome', info.welcomeMessage);
@@ -172,7 +172,7 @@ module.exports = {
 
             if (standalone) {
                 io.listen(config.port);
-                appModule.log('info', `A socket RPC server is listening on port [${config.port}] ...`);
+                appModule.log('info', `A socket server is listening on port [${config.port}] ...`);
             }
         });
     }

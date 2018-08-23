@@ -2,37 +2,32 @@
 
 # qualifiers
 
-# default value generator qualifier
-# = <numeric value>, e.g. |=10, |=1
-# = <string>, e.g. |='ok'
-# = <function>, e.g. |=rand, |=rand(8), function(type, ...)
-# = <symbol>, e.g. |=*now
-
 # type qualifier
 # default
 # length(fixedLength) text type: fixed number of characters
 # precision float type: number of float digits
 # ~ /<regexp>/ regexp
+# ~ validator
+# | modifier
 # readOnly: can only be set by automatic generator or default value
 # nonTrim
 # fixedValue
 # forceUpdate
 # optional
-# --
+# -- comment
 # ->
+# <->
 
-# relation qualifier
-# ? ocurrence qualifier, 0 or 1
-# + ocurrence qualifier, at least one
-# * ocurrence qualifier, any
 
 #basic types
-# int
-# number [exact]
+# int[(digits)]
+# number[(totalDigits, decimalDigits)] [exact]
 # bool
-# text [fixedLength]
-# binary [fixedLength]
-# datetime [date only]|[time only]|[year only]|[timestamp]
+# boolean
+# text[(maxLength)] [fixedLength]
+# binary[(maxLength)] [fixedLength]
+# datetime [date only]|[time only]|[year only]
+# timestamp
 # json
 # xml
 # enum

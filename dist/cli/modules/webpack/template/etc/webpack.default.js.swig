@@ -20,6 +20,9 @@ const CleanWebpackPlugin = require('clean-webpack-plugin');
 module.exports = {
     name: '{{ profileName }}',
     entry: entry,
+    resolve: {
+            modules: [ clientPath, 'node_modules' ]
+    },
     output: {
         path: outputPath,
         filename: "[name].bundle.js",
@@ -29,7 +32,7 @@ module.exports = {
     module: {
         rules: [
             {
-              test: /\.js$/,
+              test: /\.jsx?$/,
               exclude: /(node_modules|bower_components)/,
               use: {
                   loader: 'babel-loader',

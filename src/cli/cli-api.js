@@ -64,6 +64,7 @@ class MowaAPI {
             },
             'skip-update-check': {
                 desc: 'Skip mowa version check',
+                alias: [ 'no-update' ],
                 bool: true,
                 default: false
             },
@@ -141,18 +142,27 @@ class MowaAPI {
             process.exit(0);
         }
 
+        const normal = {
+            consoleEnabled: true,
+            consoleLogLevel: 'info',
+            consoleLogColorize: true,
+            fileLogEnabled: true,
+            fileLogLevel: 'info',
+            fileLogFilename: 'mowa-cli.log',
+            fileLogOverwrite: true,
+            verbose: false
+        };
+
+        const debug = {
+            ...normal,
+            consoleLogLevel: 'debug',
+            fileLogLevel: 'debug',
+            verbose: true
+        };
+
         //default config
         this.config = {
-            general: {
-                consoleEnabled: true,
-                consoleLogLevel: 'info',
-                consoleLogColorize: true,
-                fileLogEnabled: true,
-                fileLogLevel: 'verbose',
-                fileLogFilename: 'mowa-deploy.log',
-                fileLogOverwrite: true,
-                verbose: false
-            }
+            general: normal
         };
     }
 
@@ -175,20 +185,7 @@ class MowaAPI {
 
         //check whether config exists
         return MowaHelper.startMowa_(this).then(server => {
-            this.server = server;
-
-            let deploySettings = Util.getValueByPath(server.settings, 'cli');
-            if (_.isEmpty(deploySettings)) {
-                if ((this.cliModuleName !== 'default' || this.command !== 'init') && this.command !== 'help') {
-                    console.error("error: Deployment config not found. Run 'mowa init' first.");
-                    process.exit(1);
-                }
-            }
-
-            //override default config
-            this.config = _.defaultsDeep({}, deploySettings, this.config);
-
-            server.options.verbose = this.config.general.verbose;
+            this.server = server;                        
             
             //init logger
             let transports = [];

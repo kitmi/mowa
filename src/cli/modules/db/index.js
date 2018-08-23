@@ -133,7 +133,7 @@ exports.enable = async api => {
     }
 
     let deps = MowaHelper.getAppModuleDependencies(appModule);
-    let pkgs = dbTypes[dbms];
+    let pkgs = dbTypes[dbms];    
 
     shell.cd(appModule.absolutePath);
 
@@ -147,7 +147,7 @@ exports.enable = async api => {
     shell.cd(api.base);
 
     //copy feature
-    let templateFeature = path.join(__dirname, 'template', 'mysql.js.template');
+    let templateFeature = path.join(__dirname, 'template', 'mysql.template.js');
     let targetPath = appModule.toAbsolutePath(Mowa.Literal.FEATURES_PATH, 'mysql.js');
     if (!fs.existsSync(targetPath)) {
         fs.copySync(templateFeature, targetPath);

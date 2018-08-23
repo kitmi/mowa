@@ -1,6 +1,5 @@
 "use strict";
 
-const inflection = require('inflection');
 const EventEmitter = require('events');
 const path = require('path');
 
@@ -58,18 +57,18 @@ class OolongEntity {
         this.info = info;
 
         /**
-         * Unique id of this entity
-         * @type {string}
-         * @public
-         */
-        this.id = oolModule.id + ':' + name;
-
-        /**
          * Fields of the entity
          * @type {object}
          * @public
          */
         this.fields = {};
+
+        /**
+         * Comment of the entity
+         * @type {string}
+         * @public
+         */
+        this.comment = undefined;
 
         /**
          * Array of initialized features
@@ -134,6 +133,7 @@ class OolongEntity {
         let cl = new OolongEntity(this.linker, this.name, this.oolModule, this.info);
         stack.set(this, cl);
 
+        OolUtils.deepCloneField(this, cl, 'comment', stack);
         OolUtils.deepCloneField(this, cl, 'fields', stack);
         OolUtils.deepCloneField(this, cl, 'features', stack);
         OolUtils.deepCloneField(this, cl, 'key', stack);        
@@ -167,6 +167,10 @@ class OolongEntity {
             //inherit fields, processed features, key and indexes
             let baseEntity = this.linker.loadEntity(this.oolModule, this.info.base);
             this._inherit(baseEntity);
+        }
+
+        if (this.info.comment) {
+            this.comment = this.info.comment;
         }
 
         // load features
@@ -267,7 +271,7 @@ class OolongEntity {
 
             index.fields = _.map(fields, field => {
 
-                let normalizedField = inflection.camelize(field, true);
+                let normalizedField = _.camelCase(field);
 
                 if (!this.hasField(normalizedField)) {
 
@@ -293,6 +297,34 @@ class OolongEntity {
     }
 
     /**
+     * Get a field object by field name or field accesor.
+     * @param fieldId
+     * @returns {OolongField}
+     */
+    getEntityAttribute(fieldId) {
+        if (fieldId[0] === '$') {
+            let token = fieldId.substr(1);
+
+            switch (token) {
+                case "key":
+                    return this.fields[this.key];
+
+                case 'feature':
+                    return this.features;
+
+                default:
+                    throw new Error(`Filed accessor "${token}" not supported!`);
+            }
+        } else {
+            if (!this.hasField(fieldId)) {
+                throw new Error(`Field "${fieldId}" not exists in entity "${this.name}".`)
+            }
+
+            return this.fields[fieldId];
+        }
+    }
+
+    /**
      * Check whether the entity has a field with given name
      * @param {string} name
      * @returns {boolean}
@@ -308,14 +340,14 @@ class OolongEntity {
      * @returns {OolongEntity}
      */
     addField(name, rawInfo) {
-        name = inflection.camelize(name, true);
+        name = _.camelCase(name);
         
         if (this.hasField(name)) {
             throw new Error(`Field name [${name}] conflicts in entity [${this.name}].`);
         }
 
         if (rawInfo.type) {
-            let fullRawInfo = Object.assign({}, this.linker.trackBackType(this.oolModule, rawInfo));
+            let fullRawInfo = this.linker.trackBackType(this.oolModule, rawInfo);
             
             this.fields[name] = new Field(name, fullRawInfo);
 
@@ -338,7 +370,9 @@ class OolongEntity {
                 relationship = 'n:1';
                 right = rawInfo.belongTo;
             } else {
-                relationship = 'n:1';
+                assert: rawInfo.bindTo, 'Invalid entity relation syntax!';
+
+                relationship = '1:1';
                 right = rawInfo.bindTo;
             }
 
@@ -415,9 +449,9 @@ class OolongEntity {
      * @returns {object}
      */
     toJSON() {
-        return {
-            id: this.id,
+        return {            
             name: this.name,
+            comment: this.comment,
             fields: _.reduce(this.fields, (r, v, k) => (r[k] = v.toJSON(), r), {}),
             features: this.features,
             key: this.key,

@@ -3,6 +3,7 @@
 const EventEmitter = require('events');
 const inflection = require('inflection');
 const path = require('path');
+const ntol = require('number-to-letter');
 
 const Util = require('../../../util.js');
 const _ = Util._;
@@ -12,6 +13,39 @@ const Oolong = require('../../lang/oolong.js');
 const OolUtil = require('../../lang/ool-utils.js');
 const OolongDbModeler = require('../db.js');
 const Entity = require('../../lang/entity.js');
+
+/*
+const MYSQL_KEYWORDS = [
+    'select',
+    'from',
+    'where',
+    'limit',
+    'order',
+    'group',
+    'distinct',
+    'insert',
+    'update',
+    'in',
+    'offset',
+    'by',
+    'asc',
+    'desc',
+    'delete',
+    'begin',
+    'end',
+    'left',
+    'right',
+    'join',
+    'on',
+    'and',
+    'or',
+    'not',
+    'returns',
+    'return',
+    'create',
+    'alter'
+];
+*/
 
 class MysqlModeler extends OolongDbModeler {
     /**
@@ -48,8 +82,8 @@ class MysqlModeler extends OolongDbModeler {
         this._references = {};
     }
 
-    modeling(schema, buildPath) {
-        super.modeling(schema, buildPath);
+    modeling(dbService, schema, buildPath) {
+        super.modeling(dbService, schema, buildPath);
 
         let modelingSchema = schema.clone();
 
@@ -61,7 +95,7 @@ class MysqlModeler extends OolongDbModeler {
             });
         }
 
-        this._events.emit('afterRelationshipBuilding');
+        this._events.emit('afterRelationshipBuilding');        
 
         //build SQL scripts
         let sqlFilesDir = path.join('mysql', schema.name);
@@ -104,8 +138,6 @@ class MysqlModeler extends OolongDbModeler {
             if (entity.info.data) {
                 //intiSQL += `-- Initial data for entity: ${entityName}\n`;
                 let entityData = [];
-
-                console.log(entity.info.data);
 
                 if (Array.isArray(entity.info.data)) {
                     entity.info.data.forEach(record => {
@@ -156,6 +188,33 @@ class MysqlModeler extends OolongDbModeler {
                 this._writeFile(path.join(buildPath, initIdxFilePath), '0-init.json\n');
             }
         }
+
+        let funcSQL = '';
+        
+        //process view
+        _.each(modelingSchema.views, (view, viewName) => {
+            view.inferTypeInfo(modelingSchema);
+
+            funcSQL += `CREATE PROCEDURE ${dbService.getViewSPName(viewName)}(`;
+            
+            if (!_.isEmpty(view.params)) {
+                let paramSQLs = [];
+                view.params.forEach(param => {
+                    paramSQLs.push(`p${_.upperFirst(param.name)} ${MysqlModeler.columnDefinition(param, true)}`);
+                });
+
+                funcSQL += paramSQLs.join(', ');
+            }
+
+            funcSQL += `)\nCOMMENT 'SP for view ${viewName}'\nREADS SQL DATA\nBEGIN\n`;
+
+            funcSQL += this._viewDocumentToSQL(modelingSchema, view) + ';';
+
+            funcSQL += '\nEND;\n\n';
+        });
+
+        let spFilePath = path.join(sqlFilesDir, 'procedures.sql');
+        this._writeFile(path.join(buildPath, spFilePath), funcSQL);
 
         return modelingSchema;
     }
@@ -516,6 +575,9 @@ class MysqlModeler extends OolongDbModeler {
             case 'stateTracking':
                 break;
 
+            case 'i18n':
+                break;
+
             default:
                 throw new Error('Unsupported feature "' + featureName + '".');
         }
@@ -548,10 +610,11 @@ class MysqlModeler extends OolongDbModeler {
         let rightKeyInfo = rightEntity.getKeyField();
         let leftField = relation.leftField || MysqlModeler.foreignKeyFieldNaming(relation.right, rightEntity);
 
-        //console.log(relation);
-
-        leftEntity
-            .addField(leftField, rightKeyInfo);
+        let fieldInfo = this._refineLeftField(rightKeyInfo);
+        if (relation.optional) {
+            fieldInfo.optional = true;
+        }
+        leftEntity.addField(leftField, fieldInfo);
 
         this._addReference(relation.left, leftField, relation.right, rightEntity.key);
     }
@@ -561,9 +624,13 @@ class MysqlModeler extends OolongDbModeler {
         let rightEntity = schema.entities[relation.right];
 
         let rightKeyInfo = rightEntity.getKeyField();
-        let leftField = MysqlModeler.foreignKeyFieldNaming(relation.right, rightEntity);
+        let leftField = relation.leftField || MysqlModeler.foreignKeyFieldNaming(relation.right, rightEntity);
 
-        leftEntity.addField(leftField, rightKeyInfo);
+        let fieldInfo = this._refineLeftField(rightKeyInfo);
+        if (relation.optional) {
+            fieldInfo.optional = true;
+        }
+        leftEntity.addField(leftField, fieldInfo);
 
         this._addReference(relation.left, leftField, relation.right, rightEntity.key);
 
@@ -621,14 +688,137 @@ class MysqlModeler extends OolongDbModeler {
         this._addReference(relationEntityName, leftField2, relation.right, rightEntity.key);
 
         schema.addEntity(relationEntityName, entity);
-    }   
+    }
+
+    _refineLeftField(fieldInfo) {
+        return Object.assign(_.pick(fieldInfo, Oolong.BUILTIN_TYPE_ATTR), { isReference: true });
+    }
+    
+    static oolOpToSql(op) {
+        switch (op) {
+            case '=':
+                return '=';
+            
+            default:
+                throw new Error('oolOpToSql to be implemented.');                
+        }
+    }
+    
+    static oolToSql(schema, doc, ool, params) {
+        if (!ool.oolType) {
+            return ool;
+        }
+
+        switch (ool.oolType) {
+            case 'BinaryExpression':
+                let left, right;
+                
+                if (ool.left.oolType) {
+                    left = MysqlModeler.oolToSql(schema, doc, ool.left, params);
+                } else {
+                    left = ool.left;
+                }
+
+                if (ool.right.oolType) {
+                    right = MysqlModeler.oolToSql(schema, doc, ool.right, params);
+                } else {
+                    right = ool.right;
+                }
+                
+                return left + ' ' + MysqlModeler.oolOpToSql(ool.operator) + ' ' + right;
+            
+            case 'ObjectReference':
+                if (!OolUtil.isMemberAccess(ool.name)) {
+                    if (params && _.find(params, p => p.name === ool.name) !== -1) {
+                        return 'p' + _.upperFirst(ool.name);
+                    }
+                    
+                    throw new Error(`Referencing to a non-existing param "${ool.name}".`);
+                }                
+                
+                let { entityNode, entity, field } = OolUtil.parseReferenceInDocument(schema, doc, ool.name);
+
+                return entityNode.alias + '.' + MysqlModeler.quoteIdentifier(field.name);
+            
+            default:
+                throw new Error('oolToSql to be implemented.'); 
+        }
+    }
+
+    static _orderByToSql(schema, doc, ool) {
+        return MysqlModeler.oolToSql(schema, doc, { oolType: 'ObjectReference', name: ool.field }) + (ool.ascend ? '' : ' DESC');
+    }
+
+    _viewDocumentToSQL(modelingSchema, view) {
+        let sql = '  ';
+        //console.log('view: ' + view.name);
+        let doc = _.cloneDeep(view.getDocumentHierarchy(modelingSchema));
+        //console.dir(doc, {depth: 8, colors: true});
+
+        let aliasMapping = {};
+        let [ colList, alias, joins ] = this._buildViewSelect(modelingSchema, doc, 0);
+        
+        sql += 'SELECT ' + colList.join(', ') + ' FROM ' + MysqlModeler.quoteIdentifier(doc.entity) + ' AS ' + alias;
+
+        if (!_.isEmpty(joins)) {
+            sql += ' ' + joins.join(' ');
+        }
+        
+        if (!_.isEmpty(view.selectBy)) {
+            sql += ' WHERE ' + view.selectBy.map(select => MysqlModeler.oolToSql(modelingSchema, doc, select, view.params)).join(' AND ');
+        }
+        
+        if (!_.isEmpty(view.groupBy)) {
+            sql += ' GROUP BY ' + view.groupBy.map(col => MysqlModeler._orderByToSql(modelingSchema, doc, col)).join(', ');
+        }
+
+        if (!_.isEmpty(view.orderBy)) {
+            sql += ' ORDER BY ' + view.orderBy.map(col => MysqlModeler._orderByToSql(modelingSchema, doc, col)).join(', ');
+        }
+
+        let skip = view.skip || 0;
+        if (view.limit) {
+            sql += ' LIMIT ' + MysqlModeler.oolToSql(modelingSchema, doc, skip, view.params) + ', ' + MysqlModeler.oolToSql(modelingSchema, doc, view.limit, view.params);
+        } else if (view.skip) {
+            sql += ' OFFSET ' + MysqlModeler.oolToSql(modelingSchema, doc, view.skip, view.params);
+        }
+
+        return sql;
+    }
+
+    _buildViewSelect(schema, doc, startIndex) {
+        let entity = schema.entities[doc.entity];
+        let alias = ntol(startIndex++);
+        doc.alias = alias;
+
+        let colList = Object.keys(entity.fields).map(k => alias + '.' + MysqlModeler.quoteIdentifier(k));
+        let joins = [];
+
+        if (!_.isEmpty(doc.subDocuments)) {
+            _.forOwn(doc.subDocuments, (doc, fieldName) => {
+                let [ subColList, subAlias, subJoins, startIndex2 ] = this._buildViewSelect(schema, doc, startIndex);
+                startIndex = startIndex2;
+                colList = colList.concat(subColList);
+                
+                joins.push('LEFT JOIN ' + MysqlModeler.quoteIdentifier(doc.entity) + ' AS ' + subAlias
+                    + ' ON ' + alias + '.' + MysqlModeler.quoteIdentifier(fieldName) + ' = ' +
+                    subAlias + '.' + MysqlModeler.quoteIdentifier(doc.linkWithField));
+
+                if (!_.isEmpty(subJoins)) {
+                    joins = joins.concat(subJoins);
+                }
+            });
+        }
+
+        return [ colList, alias, joins, startIndex ];
+    }
 
     _createTableStatement(entityName, entity) {
         let sql = 'CREATE TABLE IF NOT EXISTS `' + entityName + '` (\n';
 
         //column definitions
         _.each(entity.fields, (field, name) => {
-            sql += '  ' + MysqlModeler.quoteIdentifier(name) + ' ' + MysqlModeler.columnDefinition(entity, field) + ',\n';
+            sql += '  ' + MysqlModeler.quoteIdentifier(name) + ' ' + MysqlModeler.columnDefinition(field) + ',\n';
         });
 
         //primary key
@@ -722,7 +912,7 @@ class MysqlModeler extends OolongDbModeler {
         return result;
     }
 
-    static columnDefinition(entity, field) {
+    static columnDefinition(field, isProc) {
         let sql;
         
         switch (field.type) {
@@ -771,8 +961,10 @@ class MysqlModeler extends OolongDbModeler {
                 throw new Error('Unsupported type "' + field.type + '".');
         }
 
-        sql += this.columnNullable(field);
-        sql += this.defaultValue(field);
+        if (!isProc) {
+            sql += this.columnNullable(field);
+            sql += this.defaultValue(field);
+        }
 
         return sql;
     }

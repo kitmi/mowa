@@ -11,8 +11,9 @@ const Promise = Util.Promise;
 const api = new CliApi(modules);
 
 let env = api.getOption('env');
-if (process.env.NODE_ENV && env !== process.env.NODE_ENV) {
-    console.warn(`The current environment is "${process.env.NODE_ENV}". The program will be restarted in "${env}" mode.`);
+let currentEnv = process.env.NODE_ENV || 'development';
+if (currentEnv !== env) {
+    console.warn(`The current environment is "${currentEnv}". The program will be restarted in "${env}" mode.`);
 
     restart(env);
 } else {

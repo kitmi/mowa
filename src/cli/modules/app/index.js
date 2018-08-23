@@ -341,11 +341,9 @@ exports.pack = function (api) {
 
     const archiver = require('archiver');
 
-    let env = api.getOption('env');
-
     let releasePath = appModule.toAbsolutePath('release');
     fs.ensureDirSync(releasePath);
-    let targetZip = path.join(releasePath, `bundle-${env}.zip`);
+    let targetZip = path.join(releasePath, `app-bundle.zip`);
 
     return new Promise((resolve, reject) => {
         // create a file to stream archive data to.
@@ -379,23 +377,7 @@ exports.pack = function (api) {
         // pipe archive data to the file
         archive.pipe(output);
 
-        let files = fs.readdirSync(appModule.absolutePath);
-
-        files.forEach(f => {
-            let fp = path.join(appModule.absolutePath, f);
-            let s = fs.statSync(fp);
-            if (s.isDirectory()) {
-                if (f !== 'node_modules' && f !== 'release') {
-                    archive.directory(fp, f);
-                    api.log('info', `Adding directory "${f}" ...`);
-                }
-            } else  if(s.isFile()) {
-                if (f !== '.DS_Store') {
-                    archive.file(fp, { name: f });
-                    api.log('info', `Adding file "${f}" ...`);
-                }
-            }
-        });
+        MowaHelper.packFiles(api, archive, appModule.absolutePath);
 
         // finalize the archive (ie we are done appending files but streams have to finish yet)
         // 'close', 'end' or 'finish' may be fired right after calling this method so register to them beforehand

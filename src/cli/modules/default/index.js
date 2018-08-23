@@ -1,6 +1,7 @@
 "use strict";
 
 const path = require('path');
+const shell = require('shelljs');
 const Util = require('../../../util.js');
 const _ = Util._;
 const fs = Util.fs;
@@ -17,7 +18,8 @@ exports.moduleDesc = 'Provide commands to initiate a new project or create a new
 
 exports.commandsDesc = {
     'init': 'Run this command in a empty folder to initiate a new mowa project.',
-    'install': 'Run this command install all the packages required by a app or all apps by default.'
+    'install': 'Run this command install all the packages required by a app or all apps by default.',
+    'pack': 'Pack the server files excluding node_modules.'
 };
 
 exports.help = function (api) {
@@ -46,6 +48,9 @@ exports.help = function (api) {
                 default: false,
                 inquire: true
             };
+            break;
+
+        case 'pack':
             break;
 
         case 'help':
@@ -208,4 +213,65 @@ exports.install = async api => {
             api.log('info', `Package "${pkgDesc}" is successfully installed.`);
         });
     }
+};
+
+exports.pack = async (api) => {
+    api.log('verbose', 'exec => mowa default pack');
+
+    api.log('info', `Start packing server files ...`);
+
+    const archiver = require('archiver');
+
+    const pkg = require(path.join(api.base, 'package.json'));
+
+    let releasePath = path.join(api.base, 'release');
+    fs.ensureDirSync(releasePath);
+    let targetZip = path.join(releasePath, `${pkg.name}-v${Util.S(pkg.version).replaceAll('.', '_').s}.zip`);
+    let latestZip = path.join(releasePath, `${pkg.name}-latest.zip`);
+
+    shell.rm(latestZip);
+
+    return new Promise((resolve, reject) => {
+        // create a file to stream archive data to.
+        let output = fs.createWriteStream(targetZip);
+        let archive = archiver('zip', {
+            zlib: { level: 9 } // Sets the compression level.
+        });
+
+        output.on('close', function() {
+            api.log('info', `Files are packed to "${targetZip}". Total: ${archive.pointer()} bytes`);
+            shell.ln('-s', targetZip, latestZip);
+
+            resolve();
+        });
+
+        // good practice to catch warnings (ie stat failures and other non-blocking errors)
+        archive.on('warning', function(err) {
+            if (err.code === 'ENOENT') {
+                // log warning
+                api.log('warn', err.message);
+            } else {
+                // throw error
+                throw err;
+            }
+        });
+
+        // good practice to catch this error explicitly
+        archive.on('error', function(err) {
+            throw err;
+        });
+
+        // pipe archive data to the file
+        archive.pipe(output);
+
+        MowaHelper.packFiles(api, archive, api.base);
+
+        MowaHelper.getRunningAppModules(api).forEach(app => {
+            MowaHelper.packFiles(api, archive, app.absolutePath, 'app_modules/' + app.name);
+        });
+
+        // finalize the archive (ie we are done appending files but streams have to finish yet)
+        // 'close', 'end' or 'finish' may be fired right after calling this method so register to them beforehand
+        archive.finalize();
+    });
 };

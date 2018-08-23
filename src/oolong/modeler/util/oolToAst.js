@@ -7,35 +7,39 @@
 
 const Util = require('../../../util.js');
 const _ = Util._;
+const S = Util.S;
 const JsLang = require('./ast.js');
 const OolUtil = require('../../lang/ool-utils.js');
 const OolongModifiers = require('../../runtime/modifiers.js');
 const OolongValidators = require('../../runtime/validators.js');
 const Types = require('../../runtime/types.js');
 
-const errorMapping = {
-    invalid_request: ''  
-};
-
 const defaultError = 'InvalidRequest';
 
+const AST_BLK_FIELD_PRE_PROCESS = 'FieldPreProcess';
+const AST_BLK_PARAM_SANITIZE = 'ParameterSanitize';
+const AST_BLK_MODIFIER_CALL = 'ModifierCall';
+const AST_BLK_VALIDATOR_CALL = 'ValidatorCall';
+const AST_BLK_VIEW_OPERATION = 'ViewOperation';
+const AST_BLK_VIEW_RETURN = 'ViewReturn';
+const AST_BLK_INTERFACE_OPERATION = 'InterfaceOperation';
+const AST_BLK_INTERFACE_RETURN = 'InterfaceReturn';
+const AST_BLK_EXCEPTION_ITEM = 'ExceptionItem';
+
 /**
- * Translate a conditional expression
+ * Compile a conditional expression
  * @param {object} test
  * @param {object} compileContext
- * @property {string} compileContext.entityName
+ * @property {string} compileContext.targetName
  * @property {TopoSort} compileContext.topoSort
  * @property {object} compileContext.astMap - Topo Id to ast map
- * @param {object} topoInfo
- * @property {string} topoInfo.topoIdPrefix
+ * @param {string} startTopoId
  * @returns {string} Topo Id
  */
-function translateTest(test, compileContext, topoInfo) {
-    let { topoIdPrefix } = topoInfo;
-
+function compileConditionalExpression(test, compileContext, startTopoId) {
     if (_.isPlainObject(test)) {
         if (test.oolType === 'BinaryExpression') {
-            let topoId = topoIdPrefix + '$binOp';
+            let endTopoId = createTopoId(compileContext, startTopoId + '$binOp:done');
 
             let op;
 
@@ -68,133 +72,112 @@ function translateTest(test, compileContext, topoInfo) {
                     throw new Error('Unsupported test operator: ' + test.operator);
             }
 
-            let lastLeftId = translateTest(test.left, compileContext, { topoIdPrefix: topoIdPrefix + '$left' });
-            let lastRightId = translateTest(test.right, compileContext, { topoIdPrefix: topoIdPrefix + '$right' });
-            compileContext.topoSort.add(lastLeftId, topoId);
-            compileContext.topoSort.add(lastRightId, topoId);
+            let leftTopoId = createTopoId(compileContext, startTopoId + '$binOp:left');
+            let rightTopoId = createTopoId(compileContext, startTopoId + '$binOp:right');
 
-            compileContext.astMap[topoId] = {
-                "type": "BinaryExpression",
-                "operator": op,
-                "left": compileContext.astMap[lastLeftId],
-                "right": compileContext.astMap[lastRightId]
-            };
+            dependsOn(compileContext, startTopoId, leftTopoId);
+            dependsOn(compileContext, startTopoId, rightTopoId);
 
-            return topoId;
+            let lastLeftId = compileConditionalExpression(test.left, compileContext, leftTopoId);
+            let lastRightId = compileConditionalExpression(test.right, compileContext, rightTopoId);
+
+            dependsOn(compileContext, lastLeftId, endTopoId);
+            dependsOn(compileContext, lastRightId, endTopoId);
+
+            compileContext.astMap[endTopoId] = JsLang.astBinExp(
+                getCodeRepresentationOf(lastLeftId, compileContext),
+                op,
+                getCodeRepresentationOf(lastRightId, compileContext)
+            ); 
+
+            return endTopoId;
 
         } else if (test.oolType === 'UnaryExpression') {
-            let topoId = topoIdPrefix + '$unaOp';
+            let endTopoId = createTopoId(compileContext, startTopoId + '$unaOp:done');
+            let operandTopoId = createTopoId(compileContext, startTopoId + '$unaOp');
 
-            let argTopoId = translateTest(test.argument, compileContext, { topoIdPrefix: topoIdPrefix + '$$' });
-            compileContext.topoSort.add(argTopoId, topoId);
+            dependsOn(compileContext, startTopoId, operandTopoId);
 
-            let astArgument = compileContext.astMap[argTopoId];
+            let lastOperandTopoId = compileConditionalExpression(test.argument, compileContext, operandTopoId);
+            dependsOn(compileContext, lastOperandTopoId, endTopoId);
+
+            let astArgument = getCodeRepresentationOf(lastOperandTopoId, compileContext);
 
             switch (test.operator) {
                 case 'exists':
-                    compileContext.astMap[topoId] = JsLang.astNot(JsLang.astCall('_.isEmpty', astArgument));
+                    compileContext.astMap[endTopoId] = JsLang.astNot(JsLang.astCall('_.isEmpty', astArgument));
                     break;
 
                 case 'is-not-null':
-                    compileContext.astMap[topoId] = JsLang.astNot(JsLang.astCall('_.isNil', astArgument));
+                    compileContext.astMap[endTopoId] = JsLang.astNot(JsLang.astCall('_.isNil', astArgument));
                     break;
 
                 case 'not-exists':
-                    compileContext.astMap[topoId] = JsLang.astCall('_.isEmpty', astArgument);
+                    compileContext.astMap[endTopoId] = JsLang.astCall('_.isEmpty', astArgument);
                     break;
 
                 case 'is-null':
-                    compileContext.astMap[topoId] = JsLang.astCall('_.isNil', astArgument);
+                    compileContext.astMap[endTopoId] = JsLang.astCall('_.isNil', astArgument);
                     break;
 
                 case 'not':
-                    compileContext.astMap[topoId] = JsLang.astNot(astArgument);
+                    compileContext.astMap[endTopoId] = JsLang.astNot(astArgument);
                     break;
 
                 default:
                     throw new Error('Unsupported test operator: ' + test.operator);
             }
 
-            return topoId;
+            return endTopoId;
 
-        } else if (test.oolType === 'ComputedValue') {
-            if (_.isPlainObject(test.value)) {
-                let value = Object.assign({}, test.value, _.omit(test, [ 'oolType' ]));
-                return translateVariable(topoIdPrefix, value, compileContext, OolUtil.extractMemberAccess(value.name)[0]);
-            }
-
-            return translateConcreteValue(topoIdPrefix, test, compileContext);
-        } else if (test.oolType === 'ObjectReference') {
-            let valueTopoId = translateVariable(topoIdPrefix, test, compileContext, OolUtil.extractMemberAccess(test.name)[0]);
-            if (valueTopoId !== topoIdPrefix) {
-                compileContext.topoSort.add(valueTopoId, topoIdPrefix);
-            }
-            return valueTopoId;
         } else {
-            throw new Error('Unknown ool node: ' + JSON.stringify(test));
-        }
+            let valueStartTopoId = createTopoId(compileContext, startTopoId + '$value');
+            dependsOn(compileContext, startTopoId, valueStartTopoId);
+            return compileConcreteValueExpression(valueStartTopoId, test, compileContext);
+        } 
     }
 
-    let topoId = topoIdPrefix + '$value';
-    compileContext.astMap[topoId] = JsLang.astValue(test);
-    return topoId;
+    compileContext.astMap[startTopoId] = JsLang.astValue(test);
+    return startTopoId;
 }
 
-function validatorReducer(value, validators, compileContext, topoInfo) {
-    let l = validators.length;
-    let lastTopoId = topoInfo.lastTopoId, astCallValidators, astOfThis;
-
-    for (let i = 0; i < l; i++) {
-        let validator = validators[i];
-        let declareParams = translateFunctionParams([value].concat(validator.args));
-
-        let validatorId = translateFunctor(validator, OolUtil.FUNCTOR_VALIDATOR, compileContext, declareParams);
-        let topoId = topoInfo.topoIdPrefix + '~[' + i.toString() + ']' + validatorId;
-
-        let callArgs = validator.args ? translateArgs(topoId, validator.args, compileContext) : [];
-        astOfThis = JsLang.astCall(validatorId, [ value ].concat(callArgs));
-
-        if (lastTopoId) {
-            compileContext.topoSort.add(lastTopoId, topoId);
-        }
-
-        if (i > 0) {
-            astCallValidators = JsLang.astBinExp(astCallValidators, '&&', astOfThis);
-        } else {
-            astCallValidators = astOfThis;
-        }
-
-        lastTopoId = topoId;
-    }
-
-    let validatedTopoId = topoInfo.topoIdPrefix + ':validated';
-
-    compileContext.topoSort.add(lastTopoId, validatedTopoId);
-    compileContext.astMap[validatedTopoId] = astCallValidators;
-
-    return validatedTopoId;
-}
-
-function modifierReducer(value, modifiers, compileContext, topoInfo) {
-    let l = modifiers.length;
+/**
+ * Compile a functor from ool to ast.
+ * @param value
+ * @param functors
+ * @param compileContext
+ * @param topoInfo
+ * @property {string} topoInfo.topoIdPrefix
+ * @property {string} topoInfo.lastTopoId
+ * @param {string} functorType
+ * @returns {*|string}
+ */
+function compileFunctor(value, functors, compileContext, topoInfo, functorType) {
+    let l = functors.length;
     let lastTopoId = topoInfo.lastTopoId;
 
     for (let i = 0; i < l; i++) {
-        let modifier = modifiers[i];
-        let declareParams = translateFunctionParams([value].concat(modifier.args));
+        let functor = functors[i];
+        let declareParams = translateFunctionParams([value].concat(functor.args));
 
-        let modifierId = translateFunctor(modifier, OolUtil.FUNCTOR_MODIFIER, compileContext, declareParams);
-        let topoId = topoInfo.topoIdPrefix + '|[' + i.toString() + ']' + modifierId;
+        let functorId = translateFunctor(functor, functorType, compileContext, declareParams);
+        let topoId = createTopoId(compileContext, topoInfo.topoIdPrefix + '[' + i.toString() + ']' + functorId);
+
+        let callArgs = functor.args ? translateArgs(topoId, functor.args, compileContext) : [];
+        compileContext.astMap[topoId] = JsLang.astCall(functorId, [ value ].concat(callArgs));
 
         if (lastTopoId) {
-            compileContext.topoSort.add(lastTopoId, topoId);
+            dependsOn(compileContext, lastTopoId, topoId);
         }
 
-        let callArgs = modifier.args ? translateArgs(topoId, modifier.args, compileContext) : [];
-
-        compileContext.astMap[topoId] = JsLang.astAssign(JsLang.astVarRef(value), JsLang.astCall(modifierId, [ value ].concat(callArgs)));
-
         lastTopoId = topoId;
+
+        if (topoId.indexOf(':arg[') === -1 && topoId.indexOf('$cases[') === -1 && topoId.indexOf('$exceptions[') === -1) {
+            addCodeBlock(compileContext, topoId, {
+                type: functorType === OolUtil.FUNCTOR_VALIDATOR ? AST_BLK_VALIDATOR_CALL : AST_BLK_MODIFIER_CALL,
+                target: value.name
+            });
+        }
     }
 
     return lastTopoId;
@@ -207,6 +190,14 @@ function addFunctorToMap(functorId, functorType, functorJsFile, mapOfFunctorToFi
     mapOfFunctorToFile[functorId] = functorJsFile;
 }
 
+/**
+ * Check whether a functor is user-defined or built-in
+ * @param functor
+ * @param functorType
+ * @param compileContext
+ * @param args
+ * @returns {string} functor id
+ */
 function translateFunctor(functor, functorType, compileContext, args) {
     let functionName, fileName, functorId;
 
@@ -220,7 +211,7 @@ function translateFunctor(functor, functorType, compileContext, args) {
         //reference to other entity file
         let refEntityName = names[0];
         functionName = names[1];
-        fileName = refEntityName + '-' + functionName + '.js';
+        fileName = './' + functorType + 's/' + refEntityName + '-' + functionName + '.js';
         functorId = refEntityName + _.upperFirst(functionName);
         addFunctorToMap(functorId, functorType, fileName, compileContext.mapOfFunctorToFile);
 
@@ -238,13 +229,12 @@ function translateFunctor(functor, functorType, compileContext, args) {
                 builtins = OolongModifiers;
                 break;
 
-            case OolUtil.FUNCTOR_FUNCTION:
-                builtins = {};
-                break;
+            default:
+                throw new Error('Not supported!');
         }
 
         if (!(functionName in builtins)) {
-            fileName = compileContext.entityName + '-' + functionName + '.js';
+            fileName = './' + functorType + 's/' + compileContext.targetName + '-' + functionName + '.js';
             functorId = functionName;
             addFunctorToMap(functorId, functorType, fileName, compileContext.mapOfFunctorToFile);
 
@@ -263,83 +253,92 @@ function translateFunctor(functor, functorType, compileContext, args) {
 }
 
 /**
- * Translate a variable with validators and modifiers
- * @param {string} topoId
- * @param {object} varOol
- * @param {object} compileContext
- * @property {string} compileContext.entityName
+ * Compile a variable reference from ool to ast.
+ * @param {string} startTopoId - The topological id of the starting process to the target value
+ * @param {object} varOol - Target value ool node.
+ * @param {object} compileContext - Compilation context.
+ * @property {string} compileContext.targetName
  * @property {TopoSort} compileContext.topoSort
  * @property {object} compileContext.astMap - Topo Id to ast map
- * @param {string} dependedTopoId
  * @returns {string} Last topo Id
  */
-function translateVariable(topoId, varOol, compileContext, dependedTopoId) {
-    pre: _.isPlainObject(varOol) && (varOol.oolType === 'ObjectReference' || 'value' in varOol), Util.Message.DBC_INVALID_ARG;
+function compileVariableReference(startTopoId, varOol, compileContext) {
+    pre: _.isPlainObject(varOol) && varOol.oolType === 'ObjectReference', Util.Message.DBC_INVALID_ARG;
 
-    let lastTopoId = dependedTopoId;
-    let ast = [];
-    let value;
+    let lastTopoId = startTopoId;
 
-    if (varOol.oolType === 'ObjectReference') {
-        let [ baseName, others ] = varOol.name.split('.', 2);
-        if (compileContext.modelVars.has(baseName) && others) {
-            varOol.name = baseName + '.data' + '.' + others;
-        }
-        value = varOol;
-    } else {
-        value = varOol.value;
+    let [ baseName, others ] = varOol.name.split('.', 2);
+    if (compileContext.modelVars && compileContext.modelVars.has(baseName) && others) {
+        varOol.name = baseName + '.data' + '.' + others;
     }
 
-    if (varOol.validators0) {
-        lastTopoId = validatorReducer(value, varOol.validators0, compileContext, { topoIdPrefix: topoId + ':s0', lastTopoId });
-        ast.push(JsLang.astAssign('$' + topoId, compileContext.astMap[lastTopoId]));
-        delete varOol.validators0;
+    let simpleValue = true;
+
+    if (!_.isEmpty(varOol.validators0)) {
+        lastTopoId = compileFunctor(
+            varOol,
+            varOol.validators0,
+            compileContext,
+            { topoIdPrefix: startTopoId + ':stage0~', lastTopoId },
+            OolUtil.FUNCTOR_VALIDATOR
+        );
+        simpleValue = false;
     }
 
-    if (varOol.modifiers0) {
-        lastTopoId = modifierReducer(value, varOol.modifiers0, compileContext, { topoIdPrefix: topoId + ':s0', lastTopoId });
-        ast = ast.concat(_.castArray(compileContext.astMap[lastTopoId]));
-        delete varOol.modifiers0;
+    if (!_.isEmpty(varOol.modifiers0)) {
+        lastTopoId = compileFunctor(
+            varOol,
+            varOol.modifiers0,
+            compileContext,
+            { topoIdPrefix: startTopoId + ':stage0~', lastTopoId },
+            OolUtil.FUNCTOR_MODIFIER
+        );
+        simpleValue = false;
     }
 
-    if (varOol.validators1) {
-        lastTopoId = validatorReducer(value, varOol.validators1, compileContext, { topoIdPrefix: topoId + ':s1', lastTopoId });
-        ast.push(JsLang.astAssign('$' + topoId, compileContext.astMap[lastTopoId]));
-        delete varOol.validators1;
+    if (!_.isEmpty(varOol.validators1)) {
+        lastTopoId = compileFunctor(
+            varOol,
+            varOol.validators1,
+            compileContext,
+            { topoIdPrefix: startTopoId + ':stage1|', lastTopoId },
+            OolUtil.FUNCTOR_VALIDATOR
+        );
+        simpleValue = false;
     }
 
-    if (varOol.modifiers1) {
-        lastTopoId = modifierReducer(value, varOol.modifiers1, compileContext, { topoIdPrefix: topoId + ':s1', lastTopoId });
-        ast = ast.concat(_.castArray(compileContext.astMap[lastTopoId]));
-        delete varOol.modifiers1;
+    if (!_.isEmpty(varOol.modifiers1)) {
+        lastTopoId = compileFunctor(
+            varOol,
+            varOol.modifiers1,
+            compileContext,
+            { topoIdPrefix: startTopoId + ':stage1|', lastTopoId },
+            OolUtil.FUNCTOR_MODIFIER
+        );
+        simpleValue = false;
     }
 
-    if (lastTopoId && lastTopoId !== dependedTopoId) {
-        let replaceTopoId = topoId + ':ready';
-        compileContext.topoSort.add(lastTopoId, replaceTopoId);
-        compileContext.refDependencies[topoId] = replaceTopoId;
-        topoId = replaceTopoId;
-
-    } else if (dependedTopoId && topoId !== dependedTopoId) {
-        if (compileContext.refDependencies[dependedTopoId]) {
-            compileContext.topoSort.add(compileContext.refDependencies[dependedTopoId], topoId);
-        } else {
-            compileContext.topoSort.add(dependedTopoId, topoId);
-        }
+    if (!simpleValue) {
+        return lastTopoId;
     }
 
-    compileContext.astMap[topoId] = _.isEmpty(ast) ? JsLang.astValue(value) : ast;
-
-    return topoId;
+    //simple value
+    compileContext.astMap[startTopoId] = JsLang.astValue(varOol);
+    return startTopoId;
 }
 
+/**
+ * Get an array of parameter names.
+ * @param {array} args - An array of arguments in ool syntax
+ * @returns {array}
+ */
 function translateFunctionParams(args) {
     if (_.isEmpty(args)) return [];
 
     return _.map(args, (arg, i) => {
         if (_.isPlainObject(arg) && arg.oolType === 'ObjectReference') {
             if (OolUtil.isMemberAccess(arg.name)) {
-                return OolUtil.extractMemberAccess(arg.name).pop;
+                return OolUtil.extractMemberAccess(arg.name).pop();
             }
 
             return arg.name;
@@ -349,18 +348,53 @@ function translateFunctionParams(args) {
     });
 }
 
-function translateConcreteValue(topoId, value, compileContext) {
+/**
+ * Compile a concrete value expression from ool to ast
+ * @param {string} startTopoId - The topo id of the starting process to the target value expression
+ * @param {object} value - Ool node
+ * @param {object} compileContext - Compilation context
+ * @returns {string} Last topoId
+ */
+function compileConcreteValueExpression(startTopoId, value, compileContext) {
     if (_.isPlainObject(value)) {
-        if (value.oolType === 'ObjectReference' || 'value' in  value) {
-            return translateVariable(topoId, value, compileContext, OolUtil.extractMemberAccess(value.name)[0]);
+        if (value.oolType === 'ComputedValue') {
+            value = { ..._.omit(value, ['value']), ...value.value };
+        }
+
+        if (value.oolType === 'ObjectReference') {
+            let [ refBase, ...rest ] = OolUtil.extractMemberAccess(value.name);
+
+            let dependency;
+
+            if (compileContext.modelVars && compileContext.modelVars.has(refBase)) {
+                //user, user.password or user.data.password
+                dependency = refBase;
+            } else if (refBase === 'latest' && rest.length > 0) {
+                //latest.password
+                dependency = rest.pop() + ':ready';
+            } else if (_.isEmpty(rest)) {
+                dependency = refBase + ':ready';
+            } else {
+                throw new Error('mark');
+            }
+
+            dependsOn(compileContext, dependency, startTopoId);
+
+            return compileVariableReference(startTopoId, value, compileContext);
         }
     }
 
-    compileContext.astMap[topoId] = JsLang.astValue(value);
-    return topoId;
+    compileContext.astMap[startTopoId] = JsLang.astValue(value);
+    return startTopoId;
 }
 
-//extract dependencies information from arguments and return a array of arguments in AST form
+/**
+ * Translate an array of function arguments from ool into ast
+ * @param topoId
+ * @param args
+ * @param compileContext
+ * @returns {Array}
+ */
 function translateArgs(topoId, args, compileContext) {
     args = _.castArray(args);
     if (_.isEmpty(args)) return [];
@@ -368,19 +402,25 @@ function translateArgs(topoId, args, compileContext) {
     let callArgs = [];
 
     _.each(args, (arg, i) => {
-        let argTopoId = topoId + ':arg-' + (i+1).toString();
-        let lastTopoId = translateConcreteValue(argTopoId, arg, compileContext);
+        let argTopoId = createTopoId(compileContext, topoId + ':arg[' + (i+1).toString() + ']');
+        let lastTopoId = compileConcreteValueExpression(argTopoId, arg, compileContext);
 
-        compileContext.topoSort.add(lastTopoId, topoId);
+        dependsOn(compileContext, lastTopoId, topoId);
 
-        callArgs.push(compileContext.astMap[lastTopoId]);
+        callArgs = callArgs.concat(_.castArray(getCodeRepresentationOf(lastTopoId, compileContext)));
     });
 
     return callArgs;
 }
 
-function translateParam(index, param, compileContext) {
-    let topoId = param.name;
+/**
+ * Compile a param of interface from ool into ast
+ * @param index
+ * @param param
+ * @param compileContext
+ * @returns {string}
+ */
+function compileParam(index, param, compileContext) {
     let type = param.type;
 
     let sanitizerName;
@@ -420,45 +460,90 @@ function translateParam(index, param, compileContext) {
             throw new Error('Unknown field type: ' + type);
     }
 
+    let varRef = JsLang.astVarRef('$sanitizeState');
+    let callAst = JsLang.astCall(sanitizerName, [JsLang.astArrayAccess('$meta.params', index), JsLang.astVarRef(param.name)]);
+
+    let prepareTopoId = createTopoId(compileContext, '$params:sanitize[' + index.toString() + ']');
+    let sanitizeStarting;
+
     if (index === 0) {
-        compileContext.astBody.push(JsLang.astVarDeclare(JsLang.astVarRef('$sanitizeState'),
-            JsLang.astCall(sanitizerName, [ JsLang.astArrayAccess('$meta.params', index), JsLang.astVarRef(param.name) ]))
-        );
+        //declare $sanitizeState variable for the first time
+        sanitizeStarting = JsLang.astVarDeclare(varRef, callAst, false, false, `Sanitize param "${param.name}"`);
     } else {
-        compileContext.astBody.push(JsLang.astAssign(JsLang.astVarRef('$sanitizeState'),
-            JsLang.astCall(sanitizerName, [ JsLang.astArrayAccess('$meta.params', index), JsLang.astVarRef(param.name) ]))
-        );
+        sanitizeStarting = JsLang.astAssign(varRef, callAst, `Sanitize param "${param.name}"`);
+
+        let lastPrepareTopoId = '$params:sanitize[' + (index - 1).toString() + ']';
+        dependsOn(compileContext, lastPrepareTopoId, prepareTopoId);
     }
 
-    compileContext.astBody.push(JsLang.astIf(JsLang.astVarRef('$sanitizeState.error'),
-        JsLang.astReturn(JsLang.astVarRef('$sanitizeState')))
-    );
+    compileContext.astMap[prepareTopoId] = [
+        sanitizeStarting,
+        JsLang.astIf(JsLang.astVarRef('$sanitizeState.error'),
+            JsLang.astReturn(JsLang.astVarRef('$sanitizeState'))),
+        JsLang.astAssign(JsLang.astVarRef(param.name),
+            JsLang.astVarRef('$sanitizeState.sanitized'))
+    ];
 
-    compileContext.astBody.push(JsLang.astAssign(JsLang.astVarRef(param.name),
-        JsLang.astVarRef('$sanitizeState.sanitized'))
-    );
+    addCodeBlock(compileContext, prepareTopoId, {
+        type: AST_BLK_PARAM_SANITIZE
+    });
 
-    compileContext.astMap[topoId] = JsLang.astVarRef(param.name);
+    dependsOn(compileContext, prepareTopoId, compileContext.mainStartId);
 
-    let value = Object.assign({ oolType: 'ObjectReference', name: param.name },
-        _.pick(param, [ 'validators0', 'modifiers0', 'validators1', 'modifiers1' ]));
-    let paramTopoId = translateVariable(topoId, value, compileContext, topoId);
+    let topoId = createTopoId(compileContext, param.name);
+    dependsOn(compileContext, compileContext.mainStartId, topoId);
 
-    if (paramTopoId !== topoId) {
-        compileContext.includes.add(paramTopoId);
-    }
+    let value = normalizeVariableReference(param.name, param);
+    let endTopoId = compileVariableReference(topoId, value, compileContext);
 
-    return paramTopoId;
+    let readyTopoId = createTopoId(compileContext, topoId + ':ready');
+    dependsOn(compileContext, endTopoId, readyTopoId);
+
+    return readyTopoId;
 }
 
-function translateThenAst(topoId, then, compileContext, assignTo) {
+/**
+ * Compile a model field preprocess information into ast.
+ * @param {object} param - Field information
+ * @param {object} compileContext - Compilation context
+ * @returns {string}
+ */
+function compileField(param, compileContext) {
+    let topoId = createTopoId(compileContext, param.name);
+    let contextName = 'latest.' + param.name;
+    compileContext.astMap[topoId] = JsLang.astVarRef(contextName);
+
+    let value = normalizeVariableReference(contextName, param);
+    let endTopoId = compileVariableReference(topoId, value, compileContext);
+
+    let readyTopoId = createTopoId(compileContext, topoId + ':ready');
+    dependsOn(compileContext, endTopoId, readyTopoId);
+
+    return readyTopoId;
+}
+
+function normalizeVariableReference(name, value) {
+    return Object.assign({ oolType: 'ObjectReference', name: name },
+        _.pick(value, OolUtil.FUNCTORS_LIST));
+}
+
+/**
+ * Translate a then clause from ool into ast
+ * @param {string} startId
+ * @param {string} endId
+ * @param then
+ * @param compileContext
+ * @param assignTo
+ * @returns {object} AST object
+ */
+function translateThenAst(startId, endId, then, compileContext, assignTo) {
     if (_.isPlainObject(then)) {
         if (then.oolType === 'ThrowExpression') {
             return JsLang.astThrow(then.errorType || defaultError, then.message || []);
         }
 
         if (then.oolType === 'ReturnExpression') {
-            return translateReturnValueAst(topoId, then.value, compileContext);
+            return translateReturnValueAst(startId, endId, then.value, compileContext);
         }
     }
 
@@ -469,24 +554,77 @@ function translateThenAst(topoId, then, compileContext, assignTo) {
     return JsLang.astAssign(assignTo, then);
 }
 
-function translateFindOne(index, operation, compileContext) {
-    let topoId = 'op$' + index.toString();
-    let conditionVarName = topoId + '$condition';
+/**
+ * Translate a return clause from ool into ast
+ * @param {string} startTopoId - The topo id of the starting state of return clause
+ * @param {string} endTopoId - The topo id of the ending state of return clause
+ * @param value
+ * @param compileContext
+ * @returns {object} AST object
+ */
+function translateReturnValueAst(startTopoId, endTopoId, value, compileContext) {
+    let valueTopoId = compileConcreteValueExpression(startTopoId, value, compileContext);
+    if (valueTopoId !== startTopoId) {
+        dependsOn(compileContext, valueTopoId, endTopoId);
+    }
+
+    return JsLang.astReturn(getCodeRepresentationOf(valueTopoId, compileContext));
+}
+
+/**
+ * Compile a return clause from ool into ast
+ * @param {string} startTopoId - The topo id of the starting process to the target value expression
+ * @param value
+ * @param compileContext
+ * @returns {object} AST object
+ */
+function compileReturn(startTopoId, value, compileContext) {
+    let endTopoId = createTopoId(compileContext, '$return');
+    dependsOn(compileContext, startTopoId, endTopoId);
+
+    compileContext.astMap[endTopoId] = translateReturnValueAst(startTopoId, endTopoId, value, compileContext);
+
+    addCodeBlock(compileContext, endTopoId, {
+        type: AST_BLK_VIEW_RETURN
+    });
+
+    return endTopoId;
+}
+
+/**
+ * Compile a find one operation from ool into ast
+ * @param {int} index
+ * @param {object} operation - Ool node
+ * @param {object} compileContext -
+ * @param {string} dependency
+ * @returns {string} last topoId
+ */
+function compileFindOne(index, operation, compileContext, dependency) {
+    pre: dependency, Util.Message.DBC_ARG_REQUIRED;
+
+    let endTopoId = createTopoId(compileContext, 'op$' + index.toString());
+    let conditionVarName = endTopoId + '$condition';
 
     let ast = [
         JsLang.astVarDeclare(conditionVarName)
     ];
 
     if (operation.case) {
-        let topoIdPrefix = topoId + '$cases';
+        let topoIdPrefix = endTopoId + '$cases';
         let lastStatement;
+
         if (operation.case.else) {
-            lastStatement = translateThenAst(topoIdPrefix + '$else', operation.case.else, compileContext, conditionVarName);
+            let elseStart = createTopoId(compileContext, topoIdPrefix + ':else');
+            let elseEnd = createTopoId(compileContext, topoIdPrefix + ':end');
+            dependsOn(compileContext, elseStart, elseEnd);
+            dependsOn(compileContext, elseEnd, endTopoId);
+
+            lastStatement = translateThenAst(elseStart, elseEnd, operation.case.else, compileContext, conditionVarName);
         } else {
             lastStatement = JsLang.astThrow('ServerError', 'Unexpected state.');
         }
 
-        if (!operation.case.items) {
+        if (_.isEmpty(operation.case.items)) {
             throw new Error('Missing case items');
         }
 
@@ -495,70 +633,108 @@ function translateFindOne(index, operation, compileContext) {
                 throw new Error('Invalid case item.');
             }
 
-            let caseTopoId = topoIdPrefix + '$' + i.toString();
-            let caseResultVarName = '$' + caseTopoId;
-            ast.push(JsLang.astVarDeclare(caseResultVarName, false));
+            i = operation.case.items.length - i - 1;
 
-            let lastTopoId = translateTest(item.test, compileContext, { topoIdPrefix: caseTopoId });
-            ast = ast.concat(_.castArray(compileContext.astMap[lastTopoId]));
+            let casePrefix = topoIdPrefix + '[' + i.toString() + ']';
+            let caseTopoId = createTopoId(compileContext, casePrefix);
+            dependsOn(compileContext, dependency, caseTopoId);
 
-            lastStatement = JsLang.astIf(JsLang.astVarRef(caseResultVarName), JsLang.astBlock(translateThenAst(topoIdPrefix + '$then', item.then, compileContext, conditionVarName)), lastStatement);
-            compileContext.topoSort.add(lastTopoId, topoId);
+            let caseResultVarName = '$' + topoIdPrefix + '_' + i.toString();
+
+            let lastTopoId = compileConditionalExpression(item.test, compileContext, caseTopoId);
+            let astCaseTtem = getCodeRepresentationOf(lastTopoId, compileContext);
+
+            assert: !Array.isArray(astCaseTtem), 'Invalid case item ast.';
+
+            astCaseTtem = JsLang.astVarDeclare(caseResultVarName, astCaseTtem, true, false, `Condition ${i} for find one ${operation.model}`);
+
+            let ifStart = createTopoId(compileContext, casePrefix + ':then');
+            let ifEnd = createTopoId(compileContext, casePrefix + ':end');
+            dependsOn(compileContext, lastTopoId, ifStart);
+            dependsOn(compileContext, ifStart, ifEnd);
+
+            lastStatement = [
+                astCaseTtem,
+                JsLang.astIf(JsLang.astVarRef(caseResultVarName), JsLang.astBlock(translateThenAst(ifStart, ifEnd, item.then, compileContext, conditionVarName)), lastStatement)
+            ];
+            dependsOn(compileContext, ifEnd, endTopoId);
         });
 
         ast = ast.concat(_.castArray(lastStatement));
+    } else if (operation.condition) {
+        throw new Error('operation.condition tbi');
+    } else {
+        throw new Error('tbi');
     }
 
     ast.push(
         JsLang.astVarDeclare(operation.model, JsLang.astAwait(`this.findOne`, JsLang.astVarRef(conditionVarName)))
     );
 
-    compileContext.topoSort.add(topoId, operation.model);
-    compileContext.astMap[topoId] = ast;
-    return topoId;
+    let modelTopoId = createTopoId(compileContext, operation.model);
+    dependsOn(compileContext, endTopoId, modelTopoId);
+    compileContext.astMap[endTopoId] = ast;
+    return endTopoId;
 }
 
-function translateDbOperation(index, operation, compileContext) {
+function compileDbOperation(index, operation, compileContext, dependency) {
+    let lastTopoId;
+
     switch (operation.oolType) {
         case 'findOne':
-            return translateFindOne(index, operation, compileContext);
+            lastTopoId = compileFindOne(index, operation, compileContext, dependency);
+            break;
 
         case 'find':
             //prepareDbConnection(compileContext);
+            throw new Error('tbi');
             break;
 
         case 'update':
+            throw new Error('tbi');
             //prepareDbConnection(compileContext);
             break;
 
         case 'create':
+            throw new Error('tbi');
             //prepareDbConnection(compileContext);
             break;
 
         case 'delete':
+            throw new Error('tbi');
             //prepareDbConnection(compileContext);
             break;
 
         case 'javascript':
+            throw new Error('tbi');
             break;
 
         case 'assignment':
+            throw new Error('tbi');
             break;
 
         default:
             throw new Error('Unsupported operation type: ' + operation.type);
     }
+
+    addCodeBlock(compileContext, lastTopoId, {
+        type: AST_BLK_INTERFACE_OPERATION
+    });
+
+    return lastTopoId;
 }
 
-function translateReturnValueAst(topoId, value, compileContext) {
-    let valueTopoId = translateConcreteValue(topoId, value, compileContext);
-    return JsLang.astReturn(compileContext.astMap[valueTopoId]);
-}
-
-function translateExceptionalReturn(topoId, oolNode, compileContext) {
+/**
+ * Compile exceptional return 
+ * @param {object} oolNode
+ * @param {object} compileContext
+ * @param {string} [dependency]
+ * @returns {string} last topoId
+ */
+function compileExceptionalReturn(oolNode, compileContext, dependency) {
     pre: (_.isPlainObject(oolNode) && oolNode.oolType === 'ReturnExpression'), Util.Message.DBC_INVALID_ARG;
 
-    let topoIdPrefix = topoId + '$exceptions';
+    let endTopoId = createTopoId(compileContext, '$return'), lastExceptionId = dependency;
 
     if (!_.isEmpty(oolNode.exceptions)) {
         oolNode.exceptions.forEach((item, i) => {
@@ -567,22 +743,136 @@ function translateExceptionalReturn(topoId, oolNode, compileContext) {
                     throw new Error('Unsupported exceptional type: ' + item.oolType);
                 }
 
-                let exceptionTopoId = topoIdPrefix + '-' + i.toString();
-                let lastTopoId = translateTest(item.test, compileContext, { topoIdPrefix: exceptionTopoId });
-                compileContext.astMap[lastTopoId] = JsLang.astIf(compileContext.astMap[lastTopoId], JsLang.astBlock(translateThenAst(exceptionTopoId + '$then', item.then, compileContext)));
-                compileContext.includes.add(lastTopoId);
+                let exceptionStartId = createTopoId(compileContext, endTopoId + ':except[' + i.toString() + ']');
+                let exceptionEndId = createTopoId(compileContext, endTopoId + ':except[' + i.toString() + ']:done');
+                if (lastExceptionId) {
+                    dependsOn(compileContext, lastExceptionId, exceptionStartId);
+                }
+
+                let lastTopoId = compileConditionalExpression(item.test, compileContext, exceptionStartId);
+
+                let thenStartId = createTopoId(compileContext, exceptionStartId + ':then');
+                dependsOn(compileContext, lastTopoId, thenStartId);
+                dependsOn(compileContext, thenStartId, exceptionEndId);
+
+                compileContext.astMap[exceptionEndId] = JsLang.astIf(
+                    getCodeRepresentationOf(lastTopoId, compileContext),
+                    JsLang.astBlock(translateThenAst(
+                        thenStartId,
+                        exceptionEndId,
+                        item.then, compileContext)),
+                    null,
+                    `Return on exception #${i}`
+                );
+
+                addCodeBlock(compileContext, exceptionEndId, {
+                    type: AST_BLK_EXCEPTION_ITEM
+                });
+
+                lastExceptionId = exceptionEndId;
+            } else {
+                throw new Error('Unexpected.');
             }
         });
     }
 
-    compileContext.astMap[topoId] = translateReturnValueAst(topoId, oolNode.value, compileContext);
-    return topoId;
+    dependsOn(compileContext, lastExceptionId, endTopoId);
+
+    let returnStartTopoId = createTopoId(compileContext, '$return:value');
+    dependsOn(compileContext, returnStartTopoId, endTopoId);
+
+    compileContext.astMap[endTopoId] = translateReturnValueAst(returnStartTopoId, endTopoId, oolNode.value, compileContext);
+
+    addCodeBlock(compileContext, endTopoId, {
+        type: AST_BLK_INTERFACE_RETURN
+    });
+    
+    return endTopoId;
+}
+
+function createTopoId(compileContext, name) {
+    if (compileContext.topoNodes.has(name)) {
+        throw new Error(`Topo id "${name}" already created.`);
+    }
+
+    assert: !compileContext.topoSort.hasDependency(name), 'Already in topoSort!';
+
+    compileContext.topoNodes.add(name);
+
+    return name;
+}
+
+function dependsOn(compileContext, previousOp, currentOp) {
+    pre: previousOp !== currentOp, 'Self depending';
+
+    compileContext.logger.debug(currentOp + ' \x1b[33mdepends on\x1b[0m ' + previousOp);
+
+    if (!compileContext.topoNodes.has(currentOp)) {
+        throw new Error(`Topo id "${currentOp}" not created.`);
+    }
+
+    compileContext.topoSort.add(previousOp, currentOp);
+}
+
+function addCodeBlock(compileContext, topoId, blockMeta) {
+    if (!(topoId in compileContext.astMap)) {
+        throw new Error(`AST not found for block with topoId: ${topoId}`);
+    }
+
+    compileContext.sourceMap.set(topoId, blockMeta);
+
+    compileContext.logger.verbose(`Adding ${blockMeta.type} "${topoId}" into source code.`);
+    compileContext.logger.debug('AST:\n' + JSON.stringify(compileContext.astMap[topoId], null, 2));
+}
+
+function getCodeRepresentationOf(topoId, compileContext) {
+    let lastSourceType = compileContext.sourceMap.get(topoId);
+
+    if (lastSourceType && lastSourceType.type === AST_BLK_MODIFIER_CALL) {
+        //for modifier, just use the final result
+        return JsLang.astVarRef(lastSourceType.target);
+    }
+
+    return compileContext.astMap[topoId];
+}
+
+function createCompileContext(targetName, dbServiceId, logger, sharedContext) {
+    let compileContext = {
+        targetName,
+        dbServiceId,
+        logger,
+        topoNodes: new Set(),
+        topoSort: Util.createTopoSort(),
+        astMap: {}, // Store the AST for a node
+        sourceMap: new Map(), // Store the source code block point
+        modelVars: new Set(),
+        mapOfFunctorToFile: (sharedContext && sharedContext.mapOfFunctorToFile) || {},
+        newFunctorFiles: (sharedContext && sharedContext.newFunctorFiles) || []
+    };
+
+    compileContext.mainStartId = createTopoId(compileContext, '$main');
+
+    logger.verbose(`Created compilation context for target "${targetName}" with db service "${dbServiceId}".`);
+
+    return compileContext;
 }
 
 module.exports = {
-    translateTest,
-    translateVariable,
-    translateParam,
-    translateDbOperation,
-    translateExceptionalReturn
+    compileParam,
+    compileField,
+    compileDbOperation,
+    compileExceptionalReturn,
+    compileReturn,
+    createTopoId,
+    createCompileContext,
+    dependsOn,
+    addCodeBlock,
+    AST_BLK_FIELD_PRE_PROCESS,
+    AST_BLK_MODIFIER_CALL,
+    AST_BLK_VALIDATOR_CALL,
+    AST_BLK_VIEW_OPERATION,
+    AST_BLK_VIEW_RETURN,
+    AST_BLK_INTERFACE_OPERATION,
+    AST_BLK_INTERFACE_RETURN,
+    AST_BLK_EXCEPTION_ITEM
 };

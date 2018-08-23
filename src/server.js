@@ -6,7 +6,6 @@ const _ = Util._;
 const Promise = Util.Promise;
 
 const AppModule = require('./appmodule.js');
-const OolongRuntime = require('./oolong/runtime');
 const pkg = require('../package.json');
 
 const Literal = require('./enum/literal.js');
@@ -52,6 +51,8 @@ class MowaServer extends AppModule {
         }
 
         super(null, name, null, options);
+
+        this.env = MowaServer.env;
 
         /**
          * Array of HTTP server objects
@@ -158,6 +159,12 @@ class MowaServer extends AppModule {
 }
 
 /**
+ * Environment
+ * @memberof MowaServer
+ */
+MowaServer.env = process.env.NODE_ENV || "development";
+
+/**
  * AppModule class
  * @memberof MowaServer
  */
@@ -198,18 +205,6 @@ MowaServer.Feature = require('./enum/feature.js');
 * @memberof MowaServer
 */
 MowaServer.Literal = Literal;
-
-/**
- * Ooloon runtime context
- * @memberof MowaServer
- */
-MowaServer.OolongRuntime = OolongRuntime;
-
-/**
- * Database service base class
- * @memberof MowaServer
- */
-MowaServer.DbService = require('./dbservice.js');
 
 module.exports = MowaServer;
 

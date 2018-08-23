@@ -34,7 +34,7 @@ module.exports = (options, appModule) => {
 
             let message;
 
-            if (appModule.env === 'production') {
+            if (appModule.serverModule.env === 'production') {
                 message = error.message || error;
             } else {
                 message = error.stack || error;

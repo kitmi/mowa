@@ -88,16 +88,19 @@ class MysqlModel extends Model {
         }
 
         let conn = await this.db.conn_();
+        
+        let values = [ this.meta.name ];       
+        
+        let ld = this.meta.features.logicalDeletion;
+        if (ld) {
+            condition = { $and: [ { [ld.field]: ld.value }, condition ] };
+        }
 
-        let keyClauses = [];
-        let values = [ this.meta.name ];
+        let whereClause = this._joinCondition(conn, condition, values);
+        
+        assert: whereClause, 'Invalid condition';
 
-        _.forOwn(condition, (value, key) => {
-            keyClauses.push(conn.escapeId(key) + ' = ?');
-            values.push(value);
-        });
-
-        let sql = 'SELECT * FROM ?? WHERE ' + keyClauses.join(' AND ');
+        let sql = 'SELECT * FROM ?? WHERE ' + whereClause;
         sql = conn.format(sql, values);
 
         if (this.db.appModule.oolong.logSqlStatement) {
@@ -112,17 +115,18 @@ class MysqlModel extends Model {
     static async _doFind(condition) {
         let conn = await this.db.conn_();
 
-        let keyClauses = [];
         let values = [ this.meta.name ];
-        
-        _.forOwn(condition, (value, key) => {
-            keyClauses.push(conn.escapeId(key) + ' = ?');
-            values.push(value);
-        });      
 
+        let ld = this.meta.features.logicalDeletion;
+        if (ld) {
+            condition = { $and: [ { [ld.field]: ld.value }, condition ] };
+        }
+
+        let whereClause = this._joinCondition(conn, condition, values);
+        
         let sql = 'SELECT * FROM ??';
-        if (!_.isEmpty(keyClauses)) {
-            sql += ' WHERE ' + keyClauses.join(' AND ');
+        if (whereClause) {
+            sql += ' WHERE ' + whereClause;
         }
 
         sql = conn.format(sql, values);
@@ -131,7 +135,7 @@ class MysqlModel extends Model {
             this.db.appModule.log('verbose', sql);
         }
 
-        let [rows] = await conn.query(sql);
+        let [ rows ] = await conn.query(sql);
 
         return rows;
     }
@@ -143,24 +147,20 @@ class MysqlModel extends Model {
 
         let conn = await this.db.conn_();
 
-        let keyClauses = [];
         let values = [ this.meta.name ];
 
-        _.forOwn(condition, (value, key) => {
-            keyClauses.push(conn.escapeId(key) + ' = ?');
-            values.push(value);
-        });
+        let whereClause = this._joinCondition(conn, condition, values);
         
         let sql;
         
         if (this.meta.features.logicalDeletion) {
             let fieldName = this.meta.features.logicalDeletion.field;
             let fieldValue = this.meta.features.logicalDeletion.value; 
-            sql = 'UPDATE ?? SET ? WHERE ' + keyClauses.join(' AND ');
+            sql = 'UPDATE ?? SET ? WHERE ' + whereClause;
             values.splice(1, 0, { [fieldName]: fieldValue });
             
         } else {
-            sql = 'DELETE FROM ?? WHERE ' + keyClauses.join(' AND ');
+            sql = 'DELETE FROM ?? WHERE ' + whereClause;
         }
         
         sql = conn.format(sql, values);
@@ -176,6 +176,30 @@ class MysqlModel extends Model {
         }
 
         return true;
+    }
+
+    static _joinCondition(conn, condition, values) {
+        if (Array.isArray(condition)) {
+            return condition.map(c => this._joinCondition(conn, c, values)).join(' OR ');
+        }
+
+        if (_.isPlainObject(condition)) {
+            if (condition.$and) {
+                assert: Array.isArray(condition.$and), '$and operator value should be an array.';
+                
+                return condition.$and.map(subCondition => this._joinCondition(conn, subCondition, values)).join(' AND ') 
+                    + this._joinCondition(conn, _.omit(condition, ['$and']), values);
+            }
+            
+            return _.map(condition, (value, key) => {
+                values.push(value);
+                return conn.escapeId(key) + ' = ?';
+            }).join(' AND ');
+        }
+
+        assert: typeof(condition) === 'string', 'Unsupported condition';
+
+        return condition;
     }
 }
 

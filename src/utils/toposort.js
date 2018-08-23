@@ -16,13 +16,11 @@ class TopoSort {
 
     /**
      * Add edges(or one edge, if values is non-array).
-     * @param node
-     * @param nodes
+     * @param {string} node - Incoming node
+     * @param {string|array} nodes - Outgoing node or nodes
      */
     add = (node, nodes) => {
         nodes = Array.isArray(nodes) ? nodes : [nodes];
-
-        //console.log(nodes, 'depends on', node);
 
         // initialize node's incoming edges count.
         // The current node has 0 incoming edge.
@@ -40,6 +38,10 @@ class TopoSort {
         }
 
         this.mapFrom[node] = this.mapFrom[node] ? this.mapFrom[node].concat(nodes) : nodes;
+    };
+
+    hasNode = (node) => {
+        return this.hasDependency(node) || (this.mapFrom[node] && this.mapFrom[node].length > 0)
     };
 
     hasDependency = (node) => {
@@ -110,10 +112,6 @@ class TopoSort {
 
         return l;
     };
-
-    dumpGraph = (toFile) => {
-        
-    }
 }
 
 module.exports = TopoSort;

@@ -31,7 +31,7 @@ module.exports = {
     load_: function (appModule, options) {
         let app = appModule.router;
         
-        app.env = appModule.env;
+        app.env = appModule.serverModule.env;
         app.proxy = Util.S(options.trustProxy).toBoolean();
 
         if (('subdomainOffset' in options) && options.subdomainOffset !== 2) {

@@ -9,16 +9,16 @@ exports.componentGroup = [
     'classnames',
     'socket.io',
     'react-json-tree',
-    'dx-react-grid',
     'validator',
     'validatorjs',
-    'fontawesome'
+    'fontawesome',
+    'react-slick'
 ];
 
 exports.componentPackages = {
     'react-router-dom': [ 'react-router-dom' ],
     'react-dev-utils': [ 'react-dev-utils' ],
-    'material-ui': [ 'material-ui@next', 'material-ui-icons', 'mdi-material-ui' ],
+    'material-ui': [ '@material-ui/core', '@material-ui/icons', 'mdi-material-ui', 'typeface-roboto', "material-mowa" ],
     'jquery': [ 'jquery' ],
     'bootstrap': [ 'bootstrap', 'reactstrap@next' ],
     'mobx': [ 'mobx', 'mobx-react', 'mobx-react-devtools', 'mobx-react-form', 'mobx-react-form-devtools' ],
@@ -26,8 +26,8 @@ exports.componentPackages = {
     'classnames': [ 'classnames' ],
     'socket.io': [ 'socket.io-client' ],
     'react-json-tree': [ 'react-json-tree' ],
-    'dx-react-grid': [ '@devexpress/dx-react-core', '@devexpress/dx-react-grid', '@devexpress/dx-react-grid-material-ui' ],
     'validator': [ 'validator' ],
     'validatorjs': [ 'validatorjs' ],
-    'fontawesome': [ 'react-fontawesome' ]
+    'fontawesome': [ 'react-fontawesome' ],
+    'react-slick': [ 'react-slick', 'slick-carousel' ]
 };

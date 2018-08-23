@@ -58,13 +58,96 @@ const getReferenceNameIfItIs = (obj) => {
     return undefined;
 };
 
+exports.parseReferenceInDocument = (schema, doc, ref) => {    
+    let parts = ref.split('.');
+    let parent;
+    let l = parts.length;
+    let entityNode, entity, field;
+    
+    for (let i = 0; i < l; i++) {
+        let p = parts[i];
+        
+        if (!entityNode) {
+            if (doc.entity === p) {
+                entityNode = doc;
+                continue;
+            }
+
+            throw new Error(`Reference by path "${ref}" not found in given document.`);
+        }
+
+        if (entityNode && p[0] === '$') {
+            entity = schema.entities[entityNode.entity];
+            let attr = entity.getEntityAttribute(p);
+
+            if (attr instanceof Field) {
+                field = attr;
+                if (i !== l-1) {
+                    throw new Error(`Reference by path "${ref}" not found in given document.`);
+                }
+
+                return {
+                    entityNode,
+                    entity,
+                    field
+                };
+            } else {
+                parent = attr;
+            }
+
+            continue;
+        }
+        
+        if (parent) {
+            parent = parent[p];
+        } else {
+            if (i === l-1) {
+                //last part
+                entity = schema.entities[entityNode.entity];
+                field = entity.getEntityAttribute(p);
+
+                return {
+                    entityNode,
+                    entity,
+                    field
+                };
+            }
+
+            entityNode = entityNode.subDocuments && entityNode.subDocuments[p];
+            if (!entityNode) {
+                throw new Error(`Reference by path "${ref}" not found in given document.`);
+            }
+        }
+    }
+
+    if (!field) {
+        if (typeof parent !== 'string') {
+            throw new Error(`Reference by path "${ref}" not found in given document.`);
+        }
+
+        if (!entity) {
+            throw new Error(`Reference by path "${ref}" not found in given document.`);
+        }
+
+        field = entity.getEntityAttribute(parent);
+        if (!(field instanceof Field)) {
+            throw new Error(`Reference by path "${ref}" not found in given document.`);
+        }
+    }
+    
+    return {
+        entityNode,
+        entity,
+        field
+    };
+};
+
 exports.deepClone = deepClone;
 exports.deepCloneField = deepCloneField;
 exports.isMemberAccess = isMemberAccess;
 exports.extractMemberAccess = extractMemberAccess;
 exports.getReferenceNameIfItIs = getReferenceNameIfItIs;
 
-exports.FUNCTOR_VARIABLE = 'variable';
 exports.FUNCTOR_VALIDATOR = 'validator';
 exports.FUNCTOR_MODIFIER = 'modifier';
-exports.FUNCTOR_FUNCTION = 'function';
+exports.FUNCTORS_LIST = [ 'validators0', 'modifiers0', 'validators1', 'modifiers1' ];

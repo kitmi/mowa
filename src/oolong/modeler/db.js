@@ -24,7 +24,7 @@ class DbModeler {
      * Modeling the schemas inside the linker and returns a list of modeled schemas
      * @returns {Array}
      */
-    modeling(schema, buildPath) {
+    modeling(dbService, schema, buildPath) {
         this.logger.log('info', 'Modeling database structure for schema "' + schema.name + '" ...');
     }
 
