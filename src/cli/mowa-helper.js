@@ -53,7 +53,7 @@ exports.startMowa_ = function (api) {
  */
 exports.writeConfigBlock_ = function (loader, key, value) {
     Util.setValueByPath(loader.provider.esConfig, key, value);
-    return loader.provider.save();
+    return loader.provider.save_();
 };
 
 /**

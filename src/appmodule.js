@@ -209,7 +209,7 @@ class AppModule extends EventEmitter {
         };
 
         this.configLoader = new Config(new AppModule.ConfigProvider(this.toAbsolutePath(this.options.etcPath), this._etcPrefix, this.serverModule.env));
-        return this.configLoader.load(configVariables).then(cfg => {
+        return this.configLoader.load_(configVariables).then(cfg => {
             this.config = cfg;
 
             if (!_.isEmpty(extraFeatures)) _.extend(this.config, extraFeatures);
