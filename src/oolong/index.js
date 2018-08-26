@@ -187,6 +187,7 @@ exports.import = async (context, db, dataSetDir) => {
  * @property {Logger} context.logger - Logger object
  * @property {AppModule} context.currentApp - Current app module
  * @property {bool} context.verbose - Verbose mode
+ * @property {bool} context.removeTablePrefix - Whether to remove table prefix
  * @param {string} db
  * @param {string} extractedOolPath
  * @returns {Promise}
@@ -199,7 +200,7 @@ exports.reverse = async (context, db, extractedOolPath) => {
     let DbModeler = require(`./modeler/db/${service.dbType}.js`);
     let dbModeler = new DbModeler(context, dbmsOptions);
 
-    return dbModeler.extract(service, extractedOolPath);
+    return dbModeler.extract(service, extractedOolPath, context.removeTablePrefix);
 };
 
 exports.Linker = Linker;

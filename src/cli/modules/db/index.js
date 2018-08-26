@@ -42,7 +42,7 @@ exports.help = function (api) {
                 required: true,
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
-            cmdOptions['type'] = {
+            cmdOptions['dbms'] = {
                 desc: 'The database type',
                 promptMessage: 'Please select the target database type:',
                 inquire: true,
@@ -58,7 +58,7 @@ exports.help = function (api) {
                 alias: [ 'database' ]
             };
             cmdOptions['conn'] = {
-                desc: 'Specify the value of the connection string',
+                desc: 'Connection string (default: empty)',
                 alias: [ 'c', 'connection' ],
                 inquire: true
             };
@@ -74,8 +74,8 @@ exports.help = function (api) {
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
             cmdOptions['dbms'] = {
-                desc: 'The dbms type',
-                promptMessage: 'Please select the target dbms:',
+                desc: 'The database type',
+                promptMessage: 'Please select the target database type:',
                 inquire: true,
                 promptType: 'list',
                 required: true,
@@ -170,15 +170,15 @@ exports.add = async api => {
 
     let appModule = MowaHelper.getAppModuleToOperate(api);
 
-    await exports.enable(api);
-
-    let type = api.getOption('type');
+    let type = api.getOption('dbms');
     let dbName = api.getOption('db');
     assert: {
         dbName, Util.Message.DBC_VAR_NOT_NULL;
     }
 
-    let conn = api.getOption('conn') || 'to be defined';
+    let conn = api.getOption('conn') || `${type}://...`;
 
-    return MowaHelper.writeConfigBlock_(appModule.configLoader, `${type}.${dbName}.connection`, conn);
+    await MowaHelper.writeConfigBlock_(appModule.configLoader, `${type}.${dbName}.connection`, conn);
+
+    api.log('info', `Added connection string under "${type}.${dbName}".`);
 };

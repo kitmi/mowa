@@ -1,6 +1,7 @@
 "use strict";
 
 const RkUtil = require('rk-utils');
+const _ = RkUtil._;
 
 /**
  * @module Utilities
@@ -40,7 +41,11 @@ const U = RkUtil._.assignIn({}, RkUtil, {
      * Error messages.
      * @member {string}
      */
-    Message: require('./message.js')
+    Message: require('./message.js'),
+
+    normalizeDisplayName(name) {        
+        return _.upperFirst(_.trim(_.snakeCase(name), '_').split('_').join(' '));
+    }
 });
 
 module.exports = U;

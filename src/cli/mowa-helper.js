@@ -63,6 +63,10 @@ exports.writeConfigBlock_ = function (loader, key, value) {
 exports.getAvailableAppNames = function (api) {
     let appModulesPath = path.resolve(api.base, Mowa.Literal.APP_MODULES_PATH);
 
+    if (!fs.existsSync(appModulesPath)) {
+        throw new Error('No app modules found. You may run "mowa app create" to create the first app.');
+    }
+
     let modules = fs.readdirSync(appModulesPath, 'utf8');
 
     return _.filter(modules, f => fs.lstatSync(path.join(appModulesPath, f)).isDirectory());
@@ -96,7 +100,7 @@ exports.getAppModuleToOperate= function (api) {
 
 exports.getAppModuleDependencies = function (appModule) {
     let pkg = require(appModule.toAbsolutePath('package.json'));
-    return pkg.dependencies;
+    return pkg.dependencies || {};
 };
 
 /**
@@ -105,6 +109,8 @@ exports.getAppModuleDependencies = function (appModule) {
  * @returns {Array}
  */
 exports.getAllDbmsFeatures = function (appModule) {
+    console.log(appModule.features);
+
     return _.filter(appModule.features, { type: Mowa.Feature.DBMS });
 };
 
@@ -175,8 +181,6 @@ exports.getAppDbConnections = function(api) {
     });
 
     features = MowaHelper.getAllDbmsFeatures(appModule);
-
-    let appDbs = {};
 
     features.forEach(feature => {
 

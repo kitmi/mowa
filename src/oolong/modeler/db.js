@@ -28,7 +28,7 @@ class DbModeler {
         this.logger.log('info', 'Modeling database structure for schema "' + schema.name + '" ...');
     }
 
-    async extract(dbService, extractedOolPath) {
+    async extract(dbService, extractedOolPath, removeTablePrefix) {
         this.logger.log('info', `Extracting database structure from "${dbService.serviceId}" ...`);
     }
 

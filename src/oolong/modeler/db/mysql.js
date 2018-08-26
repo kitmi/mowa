@@ -14,6 +14,8 @@ const OolUtil = require('../../lang/ool-utils.js');
 const OolongDbModeler = require('../db.js');
 const Entity = require('../../lang/entity.js');
 
+const Rules = require('./mysql/rules-reverse');
+
 /*
 const MYSQL_KEYWORDS = [
     'select',
@@ -219,7 +221,7 @@ class MysqlModeler extends OolongDbModeler {
         return modelingSchema;
     }
 
-    async extract(dbService, extractedOolPath) {
+    async extract(dbService, extractedOolPath, removeTablePrefix) {
         await super.extract(dbService, extractedOolPath);
 
         fs.ensureDirSync(extractedOolPath);
@@ -235,9 +237,11 @@ class MysqlModeler extends OolongDbModeler {
         fs.ensureDirSync(entitiesOolPath);
 
         await Util.eachAsync_(tables, async table => {
-            entities.push({ entity: table.TABLE_NAME });
+            let entityName = MysqlModeler.removeTableNamePrefix(table.TABLE_NAME, removeTablePrefix);
 
-            await this.extractTableDetails(dbService, conn, table, oolcodegen, entitiesOolPath);
+            entities.push({ entity: entityName });
+
+            await this.extractTableDetails(entityName, dbService, conn, table, oolcodegen, entitiesOolPath, removeTablePrefix);
         });
 
         let json = {
@@ -258,13 +262,15 @@ class MysqlModeler extends OolongDbModeler {
         dbService.closeConnection(conn);
     }
 
-    async extractTableDetails(dbService, conn, table, oolcodegen, extractedOolPath) {
+    async extractTableDetails(entityName, dbService, conn, table, oolcodegen, extractedOolPath, removeTablePrefix) {
         let [ columns ] = await conn.query("select * from information_schema.columns where table_schema = ? and table_name = ?",
             [dbService.physicalDbName, table.TABLE_NAME]);
 
         let features = [], fields = {}, indexes = [], types = {}, key;
 
         columns.forEach(col => {
+            let colName = OolUtil.fieldNaming(col.COLUMN_NAME);
+
             if (col.EXTRA === 'auto_increment') {
                 let featureInfo = {
                     "name": "autoId",
@@ -273,8 +279,8 @@ class MysqlModeler extends OolongDbModeler {
                     }
                 };
 
-                if (col.COLUMN_NAME !== 'id') {
-                    featureInfo.options.name = col.COLUMN_NAME;
+                if (colName !== 'id') {
+                    featureInfo.options.name = colName;
                 }
 
                 features.push(featureInfo);
@@ -299,7 +305,7 @@ class MysqlModeler extends OolongDbModeler {
                 return;
             }
 
-            if (col.COLUMN_NAME === 'isDeleted' && col.COLUMN_TYPE === 'tinyint(1)') {
+            if (colName === 'isDeleted' && col.COLUMN_TYPE === 'tinyint(1)') {
                 let featureInfo = {
                     "name": "logicalDeletion"
                 };
@@ -317,11 +323,11 @@ class MysqlModeler extends OolongDbModeler {
                 fieldInfo.default = col.COLUMN_DEFAULT;
             }
 
-            fields[col.COLUMN_NAME] = fieldInfo;
+            fields[colName] = fieldInfo;
             
             if (col.COLUMN_KEY === 'UNI') {
                 indexes.push({
-                    fields: col.COLUMN_NAME,
+                    fields: colName,
                     unique: true
                 });
             }
@@ -331,40 +337,40 @@ class MysqlModeler extends OolongDbModeler {
         let fk = {};
         indexInfo.forEach(i => {
             if (i.Key_name === 'PRIMARY') {
-                key = i.Column_name
+                key = OolUtil.fieldNaming(i.Column_name)
             } else {
-                fk[i.Column_name] = {
+                let fkColName = OolUtil.fieldNaming(i.Column_name);
+                fk[fkColName] = {
                     keyName: i.Key_name,
-                    fieldName: i.Column_name,
+                    fieldName: fkColName,
                     unique: i.Non_unique === 0
                 };
             }
         });
 
-        //console.dir(indexInfo, {depth: 8, colors: true});
-
         let [ referencesInfo ] = await conn.query("SELECT * FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE `REFERENCED_TABLE_SCHEMA` = ? AND `TABLE_NAME` = ? AND `REFERENCED_TABLE_NAME` IS NOT NULL",
             [ dbService.physicalDbName, table.TABLE_NAME ]);
-
-        //console.dir(referencesInfo, {depth: 8, colors: true});
 
         let l = referencesInfo.length;
         for (let i = 0; i < l; i++) {
             let ref = referencesInfo[i];
             let [ [refTableKey] ] = await conn.query("SHOW INDEXES FROM ?? WHERE `Key_name` = 'PRIMARY'", [ ref.REFERENCED_TABLE_NAME ]);
-            //console.log(refTableKey);
 
             if (refTableKey.Column_name !== ref.REFERENCED_COLUMN_NAME) {
-                throw new Error('To be implemented.');
+                throw new Error('Not reference to a primary key column. To be implemented.');
             }
 
-            if (fk[ref.COLUMN_NAME].unique) {
-                fields[ref.COLUMN_NAME] = {
-                    bindTo: ref.REFERENCED_TABLE_NAME + '.' + ref.REFERENCED_TABLE_NAME
+            let fkColName = OolUtil.fieldNaming(ref.COLUMN_NAME);
+
+            if (fk[fkColName].unique) {
+                fields[fkColName] = {
+                    bindTo: MysqlModeler.removeTableNamePrefix(ref.REFERENCED_TABLE_NAME, removeTablePrefix)
+                        + '.' + MysqlModeler.removeTableNamePrefix(ref.REFERENCED_TABLE_NAME, removeTablePrefix)
                 }
             } else {
-                fields[ref.COLUMN_NAME] = {
-                    belongTo: ref.REFERENCED_TABLE_NAME + '.' + ref.REFERENCED_TABLE_NAME
+                fields[fkColName] = {
+                    belongTo: MysqlModeler.removeTableNamePrefix(ref.REFERENCED_TABLE_NAME, removeTablePrefix)
+                        + '.' + MysqlModeler.removeTableNamePrefix(ref.REFERENCED_TABLE_NAME, removeTablePrefix)
                 }
             }
         }
@@ -372,7 +378,7 @@ class MysqlModeler extends OolongDbModeler {
         let entity = {
             type: types,
             entity: {
-                [table.TABLE_NAME]: {
+                [entityName]: {
                     features,
                     fields,
                     key,
@@ -381,16 +387,19 @@ class MysqlModeler extends OolongDbModeler {
             }
         };
 
-        //console.dir(entity, {depth: 8, colors: true});
-
         let entityContent = oolcodegen.generate(entity);
-        let entityFile = path.join(extractedOolPath, table.TABLE_NAME + '.ool');
+        let entityFile = path.join(extractedOolPath, entityName + '.ool');
         fs.writeFileSync(entityFile, entityContent);
         this.logger.log('info', `Extracted entity definition file "${entityFile}".`);
     }
 
     _mysqlTypeToOolType(table, col, types) {
-        let typeInfo = {};
+        let applicableRule = _.find(Rules.columnTypeConversions, rule => rule.test(table, col));
+        if (applicableRule) {
+            return applicableRule.apply(table, col);
+        }
+        
+        let typeInfo = {};        
 
         switch (col.DATA_TYPE) {
             case 'varchar':
@@ -407,15 +416,42 @@ class MysqlModeler extends OolongDbModeler {
                 }
                 break;
 
+            case 'bigint':
+                typeInfo.type = 'int';
+                typeInfo.digits = col.NUMERIC_PRECISION || 18;
+                typeInfo.bytes = 8;
+                if (_.endsWith(col.COLUMN_TYPE, ' unsigned')) typeInfo.unsigned = true;
+                break;
+
             case 'int':
                 typeInfo.type = 'int';
+                typeInfo.digits = col.NUMERIC_PRECISION || 10;
+                typeInfo.bytes = 4;
+                if (_.endsWith(col.COLUMN_TYPE, ' unsigned')) typeInfo.unsigned = true;
+                break;
+
+            case 'mediumint':
+                typeInfo.type = 'int';
+                typeInfo.digits = col.NUMERIC_PRECISION || 7;
+                typeInfo.bytes = 3;
+                if (_.endsWith(col.COLUMN_TYPE, ' unsigned')) typeInfo.unsigned = true;
+                break;
+
+            case 'smallint':
+                typeInfo.type = 'int';
+                typeInfo.digits = col.NUMERIC_PRECISION || 4;
+                typeInfo.bytes = 2;
+                if (_.endsWith(col.COLUMN_TYPE, ' unsigned')) typeInfo.unsigned = true;
                 break;
 
             case 'tinyint':
-                if (col.COLUMN_TYPE === 'tinyint(1)') {
+                if (_.startsWith(col.COLUMN_TYPE, 'tinyint(1)')) {
                     typeInfo.type = 'bool';
                 } else {
                     typeInfo.type = 'int';
+                    typeInfo.digits = col.NUMERIC_PRECISION || 2;
+                    typeInfo.bytes = 1;
+                    if (_.endsWith(col.COLUMN_TYPE, ' unsigned')) typeInfo.unsigned = true;
                 }
                 break;
 
@@ -1048,6 +1084,8 @@ class MysqlModeler extends OolongDbModeler {
                 sql = 'LONGTEXT';
             } else if (info.maxLength > 65535) {
                 sql = 'MEDIUMTEXT';
+            } else if (info.maxLength > 2000) {
+                sql = 'TEXT';
             } else {
                 sql = 'VARCHAR';
                 if (info.fixedLength) {
@@ -1190,6 +1228,20 @@ class MysqlModeler extends OolongDbModeler {
         
         return sql;
     }
+
+    static removeTableNamePrefix(entityName, removeTablePrefix) {
+        if (removeTablePrefix) {
+            entityName = _.trim(_.snakeCase(entityName));
+
+            removeTablePrefix = _.trimEnd(_.snakeCase(removeTablePrefix), '_') + '_';
+
+            if (_.startsWith(entityName, removeTablePrefix)) {
+                entityName = entityName.substr(removeTablePrefix.length);
+            }
+        }
+
+        return OolUtil.entityNaming(entityName);
+    };
 }
 
 module.exports = MysqlModeler;

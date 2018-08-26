@@ -162,7 +162,7 @@ class MowaAPI {
 
         //default config
         this.config = {
-            general: normal
+            general: debug
         };
     }
 

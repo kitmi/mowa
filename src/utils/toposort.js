@@ -11,8 +11,8 @@ class TopoSort {
      * @type {Object}
      */
     ins = Object.create(null);
-    mapFrom = new Map();
-    mapTo = new Map();
+    mapFrom = {};
+    mapTo = {};
 
     /**
      * Add edges(or one edge, if values is non-array).

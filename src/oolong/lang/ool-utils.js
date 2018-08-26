@@ -147,6 +147,8 @@ exports.deepCloneField = deepCloneField;
 exports.isMemberAccess = isMemberAccess;
 exports.extractMemberAccess = extractMemberAccess;
 exports.getReferenceNameIfItIs = getReferenceNameIfItIs;
+exports.entityNaming = name => _.camelCase(name);
+exports.fieldNaming = name => _.camelCase(name);
 
 exports.FUNCTOR_VALIDATOR = 'validator';
 exports.FUNCTOR_MODIFIER = 'modifier';

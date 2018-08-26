@@ -20,7 +20,7 @@
 
 
 #basic types
-# int[(digits)]
+# int[([bytes, ]digits)]
 # number[(totalDigits, decimalDigits)] [exact]
 # bool
 # boolean
@@ -51,8 +51,8 @@ type
   phone : text(20) ~matches(/^((\+|00)\d+)?\d+(-\d+)?$/)
   money : number exact
 
-  url : text(2000) ~isURL
-  path : text(2000) ~isURL({allow_protocol_relative_urls: true})
+  url : text ~isURL
+  path : text ~isURL({allow_protocol_relative_urls: true})
 
   uuid : text(36) fixedLength ~isUUID
   ip : text(40) ~isIP

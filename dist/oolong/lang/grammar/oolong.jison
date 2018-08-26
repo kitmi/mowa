@@ -146,7 +146,7 @@
         }
     };
 
-    var UNITS = new Map([['K', 1024], ['M', 1048576], ['G', 1073741824], ['B', 1099511627776]]);
+    var UNITS = new Map([['K', 1024], ['M', 1048576], ['G', 1073741824], ['T', 1099511627776]]);
 
     function parseSize(size) {
         if (UNITS.has(size.substr(-1))) {
@@ -181,7 +181,7 @@
         "not", "and", "or", "xor", "mod", "div", "in", "is", "like", //operators
         'int', 'integer', 'number', 'text', 'bool', 'boolean', 'blob', 'binary', 'datetime', 'date', 'time', 'year', 'timestamp', 'json', 'xml', 'enum', 'csv',
         'exact', 'unsigned', "only", "fixedLength",
-        "import", "type", "entity", "schema", "database", "relation", "default", "auto", "entities", "data", "comment",
+        "import", "type", "entity", "schema", "database", "relation", "default", "auto", "entities", "data",
         "with", "has", "have", "key", "index", "as", "unique", "for",
         "every", "may", "a", "several", "many", "great", "of", "one", "to", "an",
         "optional", "readOnly", "fixedValue", "forceUpdate",
@@ -202,6 +202,8 @@
     ]);
 
     var BUILTIN_TYPES = new Set([ 'int', 'float', 'decimal', 'text', 'bool', 'binary', 'datetime', 'json', 'xml', 'enum', 'csv' ]);
+    var OOL_TYPE_KEYWORDS = new Set([ 'int', 'integer', 'number', 'text', 'bool', 'boolean', 'blob', 'binary',
+        'datetime', 'date', 'time', 'timestamp', 'json', 'xml', 'enum', 'csv' ]);
 
     var BUILTIN_TYPE_ATTR = [
         'type',
@@ -216,6 +218,7 @@
 
     if (typeof exports !== 'undefined') {
         exports.BUILTIN_TYPES = BUILTIN_TYPES;
+        exports.OOL_TYPE_KEYWORDS = OOL_TYPE_KEYWORDS;
         exports.BUILTIN_TYPE_ATTR = BUILTIN_TYPE_ATTR;
         exports.KEYWORDS = KEYWORDS;
     }
@@ -248,7 +251,8 @@ xid_continue            {xid_start1}|{digit}
 bool_value              ("true")|("false")
 
 // numbers
-bit_integer             {integer}("K"|"M"|"G"|"B")
+bytes                   {integer}("B"|"b")
+bit_integer             {integer}("K"|"M"|"G"|"T")
 integer                 ({decinteger})|({hexinteger})|({octinteger})
 decinteger              (([1-9]{digit}*)|"0")
 hexinteger              "0"[x|X]{hexdigit}+
@@ -425,15 +429,18 @@ escapeseq               \\.
                             yytext = parseFloat(yytext);
                             return 'FLOAT';
                         %}
-<INLINE>{integer}       %{
-                            yytext = parseInt(yytext);
-                            return 'INTEGER';
-                        %}
 <INLINE>{bit_integer}   %{
                             yytext = parseSize(yytext);
                             return 'INTEGER';
                         %}
-
+<INLINE>{bytes}         %{
+                            yytext = parseInt(yytext.substr(0, yytext.length - 1));
+                            return 'BYTES';
+                        %}
+<INLINE>{integer}       %{
+                            yytext = parseInt(yytext);
+                            return 'INTEGER';
+                        %}
 <INLINE>{member_access}    %{
                                 yytext = normalizeDotName(yytext);
                                 return 'DOTNAME';
@@ -554,10 +561,8 @@ type_base
     ;
 
 types
-    : int_keyword unsigned_or_not
-        { $$ = Object.assign({ type: 'int' }, $2); }
-    | int_keyword '(' INTEGER ')' unsigned_or_not
-        { $$ = Object.assign({ type: 'int', digits: parseInt($3) }, $5); }
+    : int_type unsigned_or_not
+        { $$ = Object.assign({}, $1, $2); }
     | number_type
         { $$ = Object.assign({ type: 'float' }, $1); }
     | number_type 'exact'
@@ -593,6 +598,13 @@ types
 int_keyword
     : 'int'
     | 'integer'
+    ;
+
+int_type
+    : int_keyword -> { type: 'int' }
+    | int_keyword '(' INTEGER ')' -> { type: 'int', digits: parseInt($3) }
+    | int_keyword '(' BYTES ',' INTEGER  ')' -> { type: 'int', bytes: $3, digits: parseInt($5) }
+    | int_keyword '(' BYTES ')' -> { type: 'int', bytes: $3 }
     ;
 
 unsigned_or_not
@@ -680,7 +692,7 @@ entity_statement_block
 
 comment_or_not
     :
-    | "comment" STRING NEWLINE
+    | "--" STRING NEWLINE
         { $$ = { comment: $2 }; }
     ;
 
@@ -1329,6 +1341,9 @@ literal
 
 identifier
     : NAME
+    | "order"
+    | "type"
+    | "desc"
     ;
 
 indefinite_article

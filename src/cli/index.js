@@ -27,8 +27,8 @@ if (currentEnv !== env) {
 
             return api.server.stop_();
         }).catch(e => {
-            
             api.log('error', e.stack ? e.stack : e);
+            //api.log('error', e.message ? e.message : e);
             process.exit(1);
         });
 }

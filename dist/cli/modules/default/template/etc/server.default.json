@@ -3,13 +3,9 @@
         "cli": {
             "general": {
                 "consoleEnabled": true,
-                "consoleLogLevel": "info",
-                "consoleLogColorize": true,
                 "fileLogEnabled": true,
-                "fileLogLevel": "verbose",
                 "fileLogFilename": "mowa-cli.log",
-                "fileLogOverwrite": true,
-                "verbose": false
+                "fileLogOverwrite": true
             }
         }
     },

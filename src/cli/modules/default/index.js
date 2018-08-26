@@ -29,7 +29,7 @@ exports.help = function (api) {
         case 'init':
             cmdOptions['skip-npm-install'] = {
                 desc: 'Skip running npm install after initialization',
-                promptMessage: 'Disable the local strategy?',
+                promptMessage: 'Skip running npm install after initialization?',
                 promptDefault: false,
                 bool: true,
                 alias: [ 'skip' ],

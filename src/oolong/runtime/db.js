@@ -77,6 +77,7 @@ class Db {
                 this.ctx.postActions.push(() => {
                     this.service.closeConnection(this._conn);
                     delete this._conn;
+                    delete this.ctx;
                 });
             }
         }

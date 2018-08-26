@@ -25,7 +25,7 @@ class OolongField {
          * @type {string}
          * @public
          */
-        this.displayName = _.upperFirst(this.name);
+        this.displayName = Util.normalizeDisplayName(this.name);
     }
 
     /**

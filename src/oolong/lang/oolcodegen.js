@@ -9,9 +9,13 @@ const KW_ENTITIES = 'entities';
 const KW_ENTITY_AS_ALIAS = 'as';
 const KW_TYPE_DEFINE = 'type';
 const KW_ENTITY = 'entity';
+const KW_COMMENT = '--';
 const KW_WITH_FEATURE = 'with';
 const KW_FIELDS = 'has';
 const KW_INDEXES = 'index';
+
+const Oolong = require('./oolong.js');
+const validator = require('validator');
 
 class OolCodeGen {
     indented = 0;
@@ -132,20 +136,43 @@ class OolCodeGen {
         post: this.indented == 0, 'Unexpected indented state.';
     }
 
+    generate_field_comment(entityName, colName) {
+        let colNameFullSnake = _.trimStart(_.snakeCase(colName), '_');
+        let  [ colNameFirstWord, colNameRest ] = colNameFullSnake.split('_', 2);
+
+        let result;
+
+        let entityNameFullSnake = _.trim(_.snakeCase(entityName), '_');
+        if (_.endsWith(entityNameFullSnake, colNameFirstWord)) {
+            result = entityNameFullSnake + '_' + colNameRest;
+        } else {
+            result = entityNameFullSnake + '_' + colNameFullSnake;
+        }
+
+        return Util.normalizeDisplayName(result);
+    }
+
     generate_entity(entities) {
         pre: {
             _.isPlainObject(entities), 'Invalid entities.';
             this.indented == 0, 'Unexpected indented state.';
         }
 
-        _.forOwn(entities, (entity, name) => {
-            this.appendLine(KW_ENTITY, name).indent();
-            let firstSection = true;
+        _.forOwn(entities, (entity, enityName) => {
+            this.appendLine(KW_ENTITY, enityName).indent();
+
+            this.appendLine(KW_COMMENT, Util.quote(Util.normalizeDisplayName(enityName)));
+
+            let hasAutoId = false;
 
             if (!_.isEmpty(entity.features)) {
                 this.appendLine(KW_WITH_FEATURE).indent();
 
                 entity.features.forEach(feature => {
+                    if (feature.name === 'autoId') {
+                        hasAutoId = true;
+                    }
+
                     if (feature.options) {
                         this.appendLine(feature.name + '(' + JSON.stringify(feature.options) + ')');
                     } else {
@@ -154,32 +181,71 @@ class OolCodeGen {
                 });
 
                 this.dedent();
-
-                firstSection = false;
             }
 
             if (!_.isEmpty(entity.fields)) {
-                if (!firstSection) {
-                    this.appendLine();
-                }
+                let typeDef;
 
-                this.appendLine(KW_FIELDS).indent();
+                this.appendLine().appendLine(KW_FIELDS).indent();
 
                 _.forOwn(entity.fields, (field, name) => {
                     let lineInfo = [];
-                    lineInfo.push(name);
+                    lineInfo.push(Oolong.OOL_TYPE_KEYWORDS.has(name) ? Util.quote(name) : name);
 
                     if (field.type && field.type !== name) {
                         lineInfo.push(':');
 
                         switch (field.type) {
                             case 'int':
-                                lineInfo.push(field.type);
+                                typeDef = 'int';
+
+                                let hasBytes = false;
+                                let needCloseBracket = false;
+                                if (field.hasOwnProperty('bytes')) {
+
+                                    if (field.bytes > 32) {
+                                        throw new Error('Integer with more than 32 bytes is not supported.');
+                                    }
+
+                                    hasBytes = true;
+                                    needCloseBracket = true;
+                                    typeDef += '(' + field.bytes.toString() + 'B';
+                                }
+
+                                if (field.hasOwnProperty('digits')) {
+
+                                    if (field.digits > 78) {
+                                        throw new Error('Integer with more than 78 digits is not supported.');
+                                    }
+
+                                    needCloseBracket = true;
+
+                                    if (hasBytes) {
+                                        typeDef += ', ';
+                                    } else {
+                                        typeDef += '(';
+                                    }
+
+                                    typeDef += field.digits.toString();
+                                }
+
+                                if (needCloseBracket) {
+                                    typeDef += ')';
+                                }
+                                lineInfo.push(typeDef);
+
+                                if (field.unsigned) {
+                                    lineInfo.push('unsigned');
+                                }
+
+                                if ('default' in field) {
+                                    field.default = validator.toInt(field.default);
+                                }
                                 break;
 
                             case 'float':                            
                             case 'decimal':
-                                let typeDef = 'number';
+                                typeDef = 'number';
                                 if (field.hasOwnProperty('totalDigits') || field.hasOwnProperty('decimalDigits')) {
                                     typeDef += '(';
 
@@ -198,6 +264,10 @@ class OolCodeGen {
                                 if (field.type === 'decimal') {
                                     lineInfo.push('exact');
                                 }
+
+                                if ('default' in field) {
+                                    field.default = validator.toFloat(field.default);
+                                }
                                 break;
 
                             case 'text':
@@ -214,6 +284,15 @@ class OolCodeGen {
 
                             case 'datetime':
                                 lineInfo.push(field.type);
+                                break;
+                            
+                            case 'bool':
+                                lineInfo.push(field.type);
+
+                                if ('default' in field) {
+                                    field.default = validator.toBoolean(field.default);
+                                }
+                                
                                 break;
 
                             default:
@@ -277,30 +356,28 @@ class OolCodeGen {
                         });
                     }
 
+                    lineInfo.push('-- ' + Util.quote(this.generate_field_comment(enityName, name)));
+
                     this.appendLine(...lineInfo);
                 });
 
                 this.dedent();
-
-                firstSection = false;
             }
 
-            if (entity.key) {
-                this.appendLine('key', entity.key).appendLine();
+            if (entity.key && !hasAutoId) {
+                this.appendLine().appendLine('key', entity.key).appendLine();
             }
 
             if (!_.isEmpty(entity.indexes)) {
-                if (!firstSection) {
-                    this.appendLine();
-                }
-
-                this.appendLine(KW_INDEXES).indent();
+                this.appendLine().appendLine(KW_INDEXES).indent();
 
                 entity.indexes.forEach(i => {
                     let indexInfo = [];
 
                     if (Array.isArray(i.fields)) {
-                        indexInfo.push('[' + i.fields.join(', ') + ']')
+                        indexInfo.push('[' + i.fields.join(', ') + ']');
+                    } else {
+                        indexInfo.push(i.fields);
                     }
 
                     if (i.unique) {

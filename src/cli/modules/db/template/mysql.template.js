@@ -9,7 +9,7 @@ const mysql = require('mysql2/promise');
 const Mowa = require('mowa');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
-const DbService = require('mowa/oolong/runtime/dbservice.js');
+const DbService = require('mowa/dist/oolong/runtime/dbservice');
 
 const poolByConn = {};
 

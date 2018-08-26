@@ -74,24 +74,26 @@ class MysqlDeployer extends OolongDbDeployer {
                     return Promise.reject(`Database script "${file}" found. Try run "mowa oolong build" first`);
                 }
 
-                let sql = fs.readFileSync(sqlFile, { encoding: 'utf8' });
-                let results = await dbConnection.query(sql);
+                let sql = _.trim(fs.readFileSync(sqlFile, { encoding: 'utf8' }));
+                if (sql) {
+                    let results = await dbConnection.query(sql);
 
-                let [ result, fields ] = results;
+                    let [ result, fields ] = results;
 
-                if (!_.isArray(result)) {
-                    result = [ result ];
-                }
+                    if (!_.isArray(result)) {
+                        result = [result];
+                    }
 
-                let warningRows = _.reduce(result, (sum, row) => {
-                    sum += row.warningStatus;
-                    return sum;
-                }, 0);
+                    let warningRows = _.reduce(result, (sum, row) => {
+                        sum += row.warningStatus;
+                        return sum;
+                    }, 0);
 
-                if (warningRows > 0) {
-                    this.logger.log('warn', `${warningRows} warning(s) reported while running "${file}".`);
-                } else {
-                    this.logger.log('info', `Database script "${realDbName}" run successfully.`);
+                    if (warningRows > 0) {
+                        this.logger.log('warn', `${warningRows} warning(s) reported while running "${file}".`);
+                    } else {
+                        this.logger.log('info', `Database script "${realDbName}" run successfully.`);
+                    }
                 }
             });
         } finally {

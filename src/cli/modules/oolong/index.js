@@ -214,6 +214,10 @@ exports.help = function (api) {
                 promptType: 'list',
                 choicesProvider: () => MowaHelper.getAppDbConnections(api)
             };
+            cmdOptions['remove-table-prefix'] = {
+                desc: 'To remove the table name prefix',
+                alias: [ 'rmp', 'rm-prefix' ]
+            };
             break;
 
         case 'help':
@@ -271,11 +275,9 @@ exports.config = async (api) => {
         deployTo.push(db);
     }
 
-    return MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, deployTo).then(/*() => {
-        return MowaHelper.writeConfigBlock_(appModule.configLoader, dbOfSchemaPath, schemaName);
-    }).then(*/() => {
-        api.log('info', `Deployment of schema "${schemaName}" is configured.`);
-    });
+    await MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, deployTo);
+
+    api.log('info', `Deployment of schema "${schemaName}" is configured.`);
 };
 
 /**
@@ -423,9 +425,11 @@ exports.reverse = async api => {
 
     let appModule = MowaHelper.getAppModuleToOperate(api);
     let db = api.getOption('db');
+    
+    let removeTablePrefix = api.getOption('remove-table-prefix') || false;    
 
     let now = new Date();
-    let folder = `extracted_${now.getFullYear()}-${now.getMonth()}-${now.getDay()}`;
+    let folder = `extracted_${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}`;
     let extractedOolPath = appModule.toAbsolutePath(Mowa.Literal.OOLONG_PATH, folder);
     let num = 1;
 
@@ -437,6 +441,7 @@ exports.reverse = async api => {
     return oolong.reverse({
         logger: api.logger,
         currentApp: appModule,
-        verbose: api.server.options.verbose
+        verbose: api.server.options.verbose,
+        removeTablePrefix
     }, db, extractedOolPath);
 };

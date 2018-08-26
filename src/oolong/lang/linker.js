@@ -13,7 +13,6 @@ const Entity = require('./entity.js');
 const View = require('./view.js');
 const Document = require('./document.js');
 const Oolong = require('./oolong.js');
-const OolUtil = require('./ool-utils.js');
 
 const OolongParser = Oolong.parser;
 
