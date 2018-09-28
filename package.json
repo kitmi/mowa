@@ -8,7 +8,7 @@
     "test:only": "mocha test/*.mocha.js --timeout 5000",
     "test": "npm run build:test && npm run test:only",
     "cover": "nyc --reporter=html --reporter=text mocha test/*.mocha.js --timeout 5000",
-    "travis": "npm run build:test && nyc --reporter=lcovonly mocha test/*.mocha.js --timeout 5000 && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage",
+    "travis": "npm run build:test && nyc --reporter=lcovonly mocha test/*.mocha.js --timeout 10000 && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage",
     "bulid:clean": "rm -rf lib",
     "build": "npm run bulid:clean && NODE_ENV=production babel src -d lib --copy-files",
     "build:test": "npm run bulid:clean && NODE_ENV=test babel src -d lib --copy-files && node test/prepare-for-test",

@@ -18,6 +18,7 @@ describe('mowa-cli', function () {
     describe('mowa -v', function () {
         it('Should return correct version', async function() {
             let output = await Mowa.Util.runCmd_(MOWA_CLI_CMD + '-v');
+            console.log(output);
             
             const pkg = require('../package.json');            
             output.stderr.should.be.empty();
@@ -28,6 +29,8 @@ describe('mowa-cli', function () {
     describe('mowa', function() {
         it('Should show usage', async function() {    
             let output = await Mowa.Util.runCmd_(MOWA_CLI_CMD);        
+            console.log(output);
+            
             output.stderr.should.be.empty();
             output.stdout.should.containEql('Usage');
         });
@@ -44,7 +47,7 @@ describe('mowa-cli', function () {
             });
 
             after(function() {
-                //Util.fs.removeSync(TEST_NEW_PROJECT_FOLDER);
+                Util.fs.removeSync(TEST_NEW_PROJECT_FOLDER);
             });       
 
             it('no stderr', function () {                        
