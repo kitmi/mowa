@@ -9,6 +9,7 @@ const request = require('supertest');
 const Mowa = require('../lib/server.js');
 const Util = Mowa.Util;
 
+const BVT_CWD = path.resolve(__dirname, '..');
 const BVT_FOLDER = path.resolve(__dirname, 'temp', 'bvt');
 const BVT_LOGS_FOLDER = path.join(BVT_FOLDER, 'logs');
 
@@ -18,6 +19,7 @@ function createMowa() {
 
 describe('mowa-bvt', function () {
     before(function () {
+        process.chdir(BVT_CWD);  
         Util.fs.emptyDirSync(BVT_LOGS_FOLDER);
     });
 

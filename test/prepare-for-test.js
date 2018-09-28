@@ -11,10 +11,8 @@ const fs = Util.fs;
 
 const { run_, mowa_ } = require('./test-utils.js');
 
-const BIN_PATH = path.resolve(__dirname, '..', 'bin');
 const TEST_WORK_FOLDER = path.resolve(__dirname, 'temp', 'fixtures');
 const TEST_PROJECTS_FOLDER = path.join(TEST_WORK_FOLDER, 'projects');
-const MOWA_CLI_CMD = `node ${BIN_PATH}/mowa.js --skip-update-check `;
 const MOWA_PATH = path.resolve(__dirname, '..');
 
 // Copy all fixtures to test working folder
