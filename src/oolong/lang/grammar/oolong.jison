@@ -80,6 +80,18 @@
             this.parsed.namespace.push(namespace);
         },
 
+        defConst(name, value, line) {
+            if (!this.parsed.const) {
+                this.parsed.const = {};
+            }
+
+            if (name in this.parsed.const) {
+                throw new Error('Duplicate constant definition detected at line ' + line + '.');
+            }
+
+            this.parsed.const[name] = value;
+        },
+
         defType(type, def) {
             if (!this.parsed.type) {
                 this.parsed.type = {};
@@ -181,7 +193,7 @@
         "not", "and", "or", "xor", "mod", "div", "in", "is", "like", //operators
         'int', 'integer', 'number', 'text', 'bool', 'boolean', 'blob', 'binary', 'datetime', 'date', 'time', 'year', 'timestamp', 'json', 'xml', 'enum', 'csv',
         'exact', 'unsigned', "only", "fixedLength",
-        "import", "type", "entity", "schema", "database", "relation", "default", "auto", "entities", "data",
+        "import", "const", "type", "entity", "schema", "database", "relation", "default", "auto", "entities", "data",
         "with", "has", "have", "key", "index", "as", "unique", "for",
         "every", "may", "a", "several", "many", "great", "of", "one", "to", "an",
         "optional", "readOnly", "fixedValue", "forceUpdate",
@@ -513,6 +525,7 @@ input0
 
 statement
     : use_statement
+    | const_statement
     | type_statement
     | entity_statement
     | schema_statement
@@ -534,6 +547,23 @@ use_statement_block
         { state.use($1); }
     ;
 
+const_statement
+    : "const" const_statement_item NEWLINE
+    | "const" NEWLINE INDENT const_statement_block DEDENT
+    ;
+
+const_statement_item
+    : identifier "=" literal
+        {
+            state.defConst($1, $3, @1.first_line);   
+        }
+    ;
+
+const_statement_block
+    : const_statement_item NEWLINE
+    | const_statement_item NEWLINE const_statement_block
+    ;    
+
 type_statement
     : "type" type_statement_item NEWLINE
     | "type" NEWLINE INDENT type_statement_block DEDENT
@@ -541,13 +571,13 @@ type_statement
 
 type_statement_item
     /* type definition can only contain 0-stage validators */
-    : identifier type_base_or_not type_validators0_or_not
+    : identifier type_base_or_not default_value_or_not type_validators0_or_not
         {
             var n = $1;
             if (state.isTypeExist(n)) throw new Error('Duplicate type definition detected at line ' + @1.first_line + '.');
             if (BUILTIN_TYPES.has(n)) throw new Error('Cannot use built-in type "' + n + '" as a custom type name at line ' + @1.first_line + '.');
 
-            state.defType(n, Object.assign({type: 'text'}, $2, $3));
+            state.defType(n, Object.assign({type: 'text'}, $2, $3, $4));
         }
     ;
 
@@ -662,6 +692,11 @@ type_validators0
         { $$ = { validators0: $1.validators }; }
     ;
 
+default_value_or_not
+    :
+    | default_value
+    ;
+
 type_statement_block
     : type_statement_item NEWLINE
     | type_statement_item NEWLINE type_statement_block
@@ -766,6 +801,9 @@ concrete_default_value
 default_value
     : concrete_default_value
     | "default" "(" "auto" ")" -> { auto: true }
+    | "auto" -> { auto: true } /** generator by base type **/
+    | "auto" "(" identifier_or_string ")" -> { auto: true, generator: $3 }    
+    | "auto" "(" identifier_or_string literal ")" -> { auto: true, generator: { name: $3, options: $4 } }    
     ;
 
 field_qualifiers_or_not
@@ -1387,6 +1425,7 @@ feature_param
 value
     : modifiable_value
     | identifier_or_member_access
+        { $$ = { oolType: 'ConstReference', name: $1 } }
     | function_call
         { $$ = Object.assign({ oolType: 'FunctionCall' }, $1); }
     ;
@@ -1483,8 +1522,8 @@ feature_param_list0
     ;    
 
 identifier_or_str_array
-    : "[" identifier_or_str_list "]"
-        { $$ = $2; }
+    : "[" "]" -> []
+    | "[" identifier_or_str_list "]" -> $2
     ;
 
 identifier_or_str_list

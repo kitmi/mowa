@@ -140,15 +140,17 @@ exports.enable = async api => {
     pkgs.forEach(p => {
         if (!(p in deps)) {
             let stdout = Util.runCmdSync(`npm i --save ${p}`);
-            api.log('verbose', stdout);
+            api.log('info', stdout);
         }
     });
 
     shell.cd(api.base);
 
+    const templatePath = api.getTemplatePath('db');
+
     //copy feature
-    let templateFeature = path.join(__dirname, 'template', 'mysql.template.js');
-    let targetPath = appModule.toAbsolutePath(Mowa.Literal.FEATURES_PATH, 'mysql.js');
+    let templateFeature = path.join(templatePath, `${dbms}.template.js`);
+    let targetPath = appModule.toAbsolutePath(Mowa.Literal.FEATURES_PATH, `${dbms}.js`);
     if (!fs.existsSync(targetPath)) {
         fs.copySync(templateFeature, targetPath);
     }

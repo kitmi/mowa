@@ -64,11 +64,11 @@ class ModelOperationError extends Error.ServerError {
      */
     constructor(message, related, detail) {
         if (related) {
-            message += ', related: ' + related;
+            message += ' Related: ' + related;
         }
 
         if (detail) {
-            message += ', detail: ' + detail;
+            message += ' Detail: ' + detail;
         }
 
         super(message);

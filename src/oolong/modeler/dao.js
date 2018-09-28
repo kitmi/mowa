@@ -3,7 +3,6 @@
 const Util = require('../../util.js');
 const _ = Util._;
 const fs = Util.fs;
-const S = Util.S;
 
 const path = require('path');
 const OolUtil = require('../lang/ool-utils.js');
@@ -63,7 +62,7 @@ class DaoModeler {
 
     _generateEntityModel(schema, dbService) {
         _.forOwn(schema.entities, (entity, entityInstanceName) => {
-            let capitalized = _.upperFirst(entityInstanceName);
+            let capitalized = Util.pascalCase(entityInstanceName);
 
             let ast = JsLang.astProgram();
 
@@ -71,10 +70,10 @@ class DaoModeler {
             JsLang.astPushInBody(ast, JsLang.astVarDeclare('Util', JsLang.astVarRef('Mowa.Util'), true));
             JsLang.astPushInBody(ast, JsLang.astVarDeclare('_', JsLang.astVarRef('Util._'), true));
             //JsLang.astPushInBody(ast, JsLang.astVarDeclare(['InvalidRequest', 'ServerError'], JsLang.astVarRef('Mowa.Error'), true, true));
-            JsLang.astPushInBody(ast, JsLang.astRequire('Model', `mowa/dist/oolong/runtime/models/${dbService.dbType}`));
-            JsLang.astPushInBody(ast, JsLang.astRequire('validators', 'mowa/dist/oolong/runtime/validators'));
-            JsLang.astPushInBody(ast, JsLang.astRequire('modifiers', 'mowa/dist/oolong/runtime/modifiers'));
-            //JsLang.astPushInBody(ast, JsLang.astRequire(['ModelValidationError', 'ModelOperationError', 'ModelResultError'], 'mowa/dist/oolong/runtime/errors', true));
+            JsLang.astPushInBody(ast, JsLang.astRequire('Model', `mowa/lib/oolong/runtime/models/${dbService.dbType}`));
+            JsLang.astPushInBody(ast, JsLang.astRequire('validators', 'mowa/lib/oolong/runtime/validators'));
+            JsLang.astPushInBody(ast, JsLang.astRequire('modifiers', 'mowa/lib/oolong/runtime/modifiers'));
+            //JsLang.astPushInBody(ast, JsLang.astRequire(['ModelValidationError', 'ModelOperationError', 'ModelResultError'], 'mowa/lib/oolong/runtime/errors', true));
 
             //shared information with model CRUD and customized interfaces
             let sharedContext = {
@@ -99,7 +98,7 @@ class DaoModeler {
                 schemaName: schema.name,
                 name: entityInstanceName,
                 keyField: entity.key,
-                fields: _.mapValues(entity.fields, f => _.omit(f.toJSON(), ['subClass'])),
+                fields: _.mapValues(entity.fields, f => _.omit(f.toJSON(), OolUtil.FUNCTORS_LIST.concat(['subClass']))),
                 indexes: entity.indexes || [],
                 features: entity.features || {},
                 uniqueKeys
@@ -153,7 +152,7 @@ class DaoModeler {
             JsLang.astPushInBody(ast, JsLang.astRequire('Mowa', 'mowa'));
             JsLang.astPushInBody(ast, JsLang.astVarDeclare('Util', JsLang.astVarRef('Mowa.Util'), true));
             JsLang.astPushInBody(ast, JsLang.astVarDeclare('_', JsLang.astVarRef('Util._'), true));
-            JsLang.astPushInBody(ast, JsLang.astRequire('View', 'mowa/dist/oolong/runtime/view'));
+            JsLang.astPushInBody(ast, JsLang.astRequire('View', 'mowa/lib/oolong/runtime/view'));
 
             let compileContext = OolToAst.createCompileContext(viewName, dbService.serviceId, this.logger);
 
@@ -251,10 +250,11 @@ class DaoModeler {
         const allFinished = OolToAst.createTopoId(compileContext, 'done.');
         const validStateName = '$validState';
 
-        let index = 0;
-
         _.forOwn(entity.fields, (field, fieldName) => {
-            assert: 'name' in field, 'Missing name attr in field!';
+            assert: {
+                'name' in field, 'Missing name attr in field!';
+                field.name === fieldName, 'Inconsist field name!';
+            }
 
             let topoId = OolToAst.compileField(field, compileContext);
             OolToAst.dependsOn(compileContext, topoId, allFinished);
@@ -263,17 +263,26 @@ class DaoModeler {
         let deps = compileContext.topoSort.sort();
         deps = deps.filter(dep => compileContext.sourceMap.has(dep));
 
-        let methodBodyCreate = [], methodBodyUpdate = [], lastFieldName, methodBodyUpdateCache = [],
+        let methodBodyCreate = [], methodBodyUpdate = [], lastFieldName, 
+            methodBodyUpdateCache = [], methodBodyCreateCache = [],
             lastBlock, lastAstType, hasValidator = false;
 
         const _mergePreUpdateCode = function (fieldName, astCache) {
             if (lastFieldName && lastFieldName !== fieldName) {
-                methodBodyUpdate = methodBodyUpdate.concat(Snippets._preUpdateCheckPendingUpdate(lastFieldName, methodBodyUpdateCache));
+                methodBodyUpdate = methodBodyUpdate.concat(Snippets._fieldExistenseCheck(lastFieldName, methodBodyUpdateCache));
                 methodBodyUpdateCache = [];
             }
 
-            lastFieldName = fieldName;
             methodBodyUpdateCache = methodBodyUpdateCache.concat(astCache);
+        };
+
+        const _mergePreCreateCode = function (fieldName, astCache) {
+            if (lastFieldName && lastFieldName !== fieldName) {
+                methodBodyCreate = methodBodyCreate.concat(Snippets._fieldExistenseCheck(lastFieldName, methodBodyCreateCache));
+                methodBodyCreateCache = [];
+            }
+            
+            methodBodyCreateCache = methodBodyCreateCache.concat(astCache);
         };
 
         _.each(deps, (dep, i) => {
@@ -304,21 +313,21 @@ class DaoModeler {
                     Snippets._preCreateValidateCheck(validStateName, fieldName)
                 ];
 
-                methodBodyCreate = methodBodyCreate.concat(astCache);
-                _mergePreUpdateCode(fieldName, astCache);
-                return;
-            }
-
-            if (sourceMap.type === OolToAst.AST_BLK_MODIFIER_CALL) {
+                _mergePreCreateCode(fieldName, astCache);
+                _mergePreUpdateCode(fieldName, astCache);                                
+            } else if (sourceMap.type === OolToAst.AST_BLK_MODIFIER_CALL) {
                 let astCache = JsLang.astAssign(JsLang.astVarRef(sourceMap.target), astBlock, `Modifying ${fieldName}`);
-                methodBodyCreate.push(astCache);
+
+                _mergePreCreateCode(fieldName, astCache);
                 _mergePreUpdateCode(fieldName, astCache);
-                return;
+            } else {
+                astBlock = _.castArray(astBlock);
+
+                _mergePreCreateCode(fieldName, astCache);
+                _mergePreUpdateCode(fieldName, astBlock);                
             }
 
-            astBlock = _.castArray(astBlock);
-            methodBodyCreate = methodBodyCreate.concat(astBlock);
-            _mergePreUpdateCode(fieldName, astBlock);
+            lastFieldName = fieldName;
         });
 
         if (hasValidator) {
@@ -331,15 +340,19 @@ class DaoModeler {
             methodBodyUpdate = methodBodyUpdate.concat(Snippets._preUpdateCheckPendingUpdate(lastFieldName, methodBodyUpdateCache));
         }
 
+        if (!_.isEmpty(methodBodyCreateCache)) {
+            methodBodyCreate = methodBodyCreate.concat(Snippets._preCreateValidateWrapper(lastFieldName, methodBodyCreateCache));
+        }
+
         //generate _preCreate and _preUpdate functions
         ast.push(JsLang.astClassDeclare(capitalized, 'Model', [
             JsLang.astMemberMethod('_preCreate', [],
                 Snippets._preCreateHeader.concat(methodBodyCreate).concat([ JsLang.astReturn(JsLang.astId('context')) ]),
-                false, true, false
+                false, true, true
             ),
             JsLang.astMemberMethod('_preUpdate', [],
                 Snippets._preUpdateHeader.concat(methodBodyUpdate).concat([ JsLang.astReturn(JsLang.astId('context')) ]),
-                false, true, false
+                false, true, true
             )
         ], `${capitalized} model`));
 
@@ -347,7 +360,7 @@ class DaoModeler {
     };
 
     _generateSchemaModel(schema, dbService) {
-        let capitalized = Util.S('-' + schema.name).camelize().s;
+        let capitalized = Util.pascalCase('-' + schema.name);
 
         let locals = {
             className: capitalized,
@@ -452,7 +465,7 @@ class DaoModeler {
                 astBody = astBody.concat(_.castArray(astBlock));
             });
             
-            ast.push(JsLang.astMemberMethod(name, Object.keys(paramMeta), astBody, false, true, true, S(_.kebabCase(name)).replaceAll('-', ' ').s));
+            ast.push(JsLang.astMemberMethod(name, Object.keys(paramMeta), astBody, false, true, true, Util.replaceAll(_.kebabCase(name), '-', ' ')));
         });
 
         return ast;
@@ -463,7 +476,7 @@ class DaoModeler {
 
         acceptParams.forEach((param, i) => {
             OolToAst.compileParam(i, param, compileContext);
-            paramMeta[param.name] = _.omit(param, OolUtil.FUNCTORS_LIST);
+            paramMeta[param.name] = _.omit(param, OolUtil.FUNCTORS_LIST.concat(['subClass']));
         });
 
         return paramMeta;

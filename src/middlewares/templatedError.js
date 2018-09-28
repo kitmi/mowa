@@ -5,6 +5,9 @@
  * @summary Error response middleware with template engines
  */
 
+const Mowa = require('../server.js');
+ const path = require('path');
+
 /**
  * @function
  * @param {Object} options - Template options
@@ -16,4 +19,24 @@
  **/
 const koaError = require('koa-error');
 
-module.exports = koaError;
+module.exports = (options, appModule) => {
+    if (!options.template) {        
+        if (options.engine && options.engine !== 'swig') {
+            throw new Mowa.Error.InvalidConfiguration(
+                'Missing template option.',
+                appModule,
+                'middlewares.templatedError.template'
+            );        
+        }
+
+        options.template = 'defaultError.swig';
+    }
+
+    options.template = path.resolve(appModule.backendPath, Mowa.Literal.VIEWS_PATH, options.template); 
+
+    if (!options.engine) {
+        options.engine = 'swig';
+    }
+
+    return koaError(options);
+} 

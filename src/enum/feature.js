@@ -8,6 +8,10 @@
 
 const FeatureLevels = module.exports = {
     /**
+     * Configuration
+     */
+    CONF: '00-conf',
+    /**
      * Server initialization, e.g. bootstrap, settings
      */
     INIT: '10-init',

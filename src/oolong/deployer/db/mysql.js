@@ -10,10 +10,6 @@ const path = require('path');
 
 const OolongDbDeployer = require('../db.js');
 
-function checkInsertResult(logger, result) {
-    console.log(result);
-}
-
 class MysqlDeployer extends OolongDbDeployer {
     /**
      * Oolong mysql deployer
@@ -110,25 +106,40 @@ class MysqlDeployer extends OolongDbDeployer {
         if (ext === '.json') {
             let data = JSON.parse(content);
 
-            return Promise.resolve(Util.eachAsync_(data, async (records, entityName) => {
+            try {
+                await Util.eachAsync_(data, async (records, entityName) => {
+                    let Model = db.model(entityName);    
+                    let items = Array.isArray(records) ? records : [ records ];
+    
+                    return Util.eachAsync_(items, async item => {
+                        try {
+                            let model = new Model(item);
+                            let result = await model.save();
+                            if (!result || !result.data) {
+                                throw new Error(`Unknown error occurred during saving a new "${entityName}" entity.`);
+                            }
 
-                let Model = db.model(entityName);
-
-                let items = Array.isArray(records) ? records : [ records ];
-
-                return Util.eachAsync_(items, async item => {
-                    let model = new Model(item);
-                    return model.save();
+                            this.logger.log('verbose', `Added a new "${entityName}" entity.`, result.data);
+                        } catch (error) {
+                            if (error.errors && error.errors.length === 1 && error.errors[0].code === 'ER_DUP_ENTRY') {
+                                this.logger.log('warn', error.message);       
+                            } else {
+                                throw error;
+                            }                            
+                        }
+                    });
                 });
-            })).finally(() => {
+            } finally {
                 db.release();
-            });
+            }
         } else if (ext === '.sql') {
-            let conn = await db.conn_();
-            let [ result ] = await conn.query(content);
-            console.log(result);
-            db.release();
-
+            try {
+                let conn = await db.conn_();
+                let [ result ] = await conn.query(content);
+                this.logger.log('verbose', `Executed a new SQL file.`, result);
+            } finally {
+                db.release();
+            }
         } else {
             throw new Error('Unsupported data file format.');
         }

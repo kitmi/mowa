@@ -1,7 +1,7 @@
 'use strict';
 
 const Mowa = require('mowa');
-const Db = require('mowa/dist/oolong/runtime/db');
+const Db = require('mowa/lib/oolong/runtime/db');
 
 class {{ className }}Db extends Db {
     constructor(appModule, ctx) {

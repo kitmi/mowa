@@ -150,6 +150,21 @@ exports.getReferenceNameIfItIs = getReferenceNameIfItIs;
 exports.entityNaming = name => _.camelCase(name);
 exports.fieldNaming = name => _.camelCase(name);
 
+exports.applyFeature = (ruleName, meta, context, db) => {
+    _.forOwn(meta.features, (featureSettings, name) => {
+        _.castArray(featureSettings).forEach(featureSetting => {
+            let rules = Features[name + '.' + ruleName];
+            if (rules) {
+                _.find(rules, rule => rule.test(meta, featureSetting, context, db) && !rule.apply(meta, featureSetting, context, db));
+            }
+        });        
+    });       
+};
+
 exports.FUNCTOR_VALIDATOR = 'validator';
 exports.FUNCTOR_MODIFIER = 'modifier';
 exports.FUNCTORS_LIST = [ 'validators0', 'modifiers0', 'validators1', 'modifiers1' ];
+
+exports.RULE_POST_RAW_DATA_PRE_PROCESS = 'postRawDataPreProcess';
+exports.RULE_POST_CREATE_CHECK = 'postCreateCheck';
+exports.RULE_POST_UPDATE_CHECK = 'postUpdateCheck';

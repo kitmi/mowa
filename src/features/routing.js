@@ -27,16 +27,29 @@ module.exports = {
         let promises = [];
         let result = Promise.resolve();
 
-        Util._.forOwn(routes, function (routersConfig, route) {
+        Util._.forOwn(routes, (routersConfig, route) => {
             let mount = route;//Util.urlJoin(appModule.route, route);
 
-            if (Util._.isObject(routersConfig)) {
+            if (Util._.isPlainObject(routersConfig)) {
                 Util._.forOwn(routersConfig, function (options, type) {
-                    if (appModule.serverModule.options.deaf && type !== 'mod') {
+                    if (appModule.serverModule.options.deaf && type !== 'app') {
                         return;
                     }
 
-                    let loader_ = require('../routers/' + type + '.js');
+                    let loader_; 
+                    
+                    try {
+                        loader_ = require('../routers/' + type + '.js');
+                    } catch (error) {
+                        if (error.code === 'MODULE_NOT_FOUND') {
+                            throw new Mowa.Error.InvalidConfiguration(
+                                'Supported router type: ' + type,
+                                appModule,
+                                `routing[${route}]`
+                            );
+                        }
+                    }
+                    
                     promises.push(() => {
                         appModule.log('verbose', `A "${type}" router is created at "${mount}" in module [${appModule.name}].`);
 

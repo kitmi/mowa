@@ -6,7 +6,6 @@ const Mowa = require('../server.js');
 const Util = require('../util.js');
 const fs = Util.fs;
 const _ = Util._;
-const S = Util.S;
 const Linker = require('./lang/linker.js');
 
 /**
@@ -162,7 +161,7 @@ exports.import = async (context, db, dataSetDir) => {
         return Promise.reject(`Data entry list file "${dataListFile}" not found.`);
     }
 
-    let dataList = S(fs.readFileSync(dataListFile)).lines();
+    let dataList = fs.readFileSync(dataListFile).toString().match(/^.+$/gm);
     let Deployer = require(`./deployer/db/${dbType}.js`);
     let service = context.currentApp.getService(db);
     let deployer = new Deployer(context, service);

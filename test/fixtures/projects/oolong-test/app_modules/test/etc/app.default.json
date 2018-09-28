@@ -1,0 +1,38 @@
+{
+    "i18n": {
+        "store": "file"
+    },
+    "oolong": {
+        "logSqlStatement": true,
+        "schemas": {
+            "oolong-test": {
+                "deployTo": [
+                    "mysql:oolong-test"
+                ]
+            }
+        }
+    },
+    "mysql": {
+        "oolong-test": {
+            "connection": "mysql://root:root@127.0.0.1/oolong-test"
+        }
+    },    
+    "routing": {
+        "/": {
+            "rule": {
+                "middlewares": {
+                    "views": {
+                        "extension": "swig"
+                    }
+                },
+                "rules": {
+                    "/": {
+                        "get": {
+                            "action": "home.index"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

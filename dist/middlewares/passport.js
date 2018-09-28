@@ -1,1 +1,0 @@
-'use strict';const Mowa=require('../server.js');let createMiddleware=(opt,appModule)=>{let passport=appModule.getService('passport');if(!passport){throw new Mowa.Error.InvalidConfiguration('Passport feature is not enabled.',appModule,'passport')}return opt&&opt.useSession?passport.initialize():[passport.initialize(),passport.session()]};module.exports=createMiddleware;

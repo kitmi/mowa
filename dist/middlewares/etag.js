@@ -1,1 +1,0 @@
-"use strict";const koaEtag=require("koa-etag");module.exports=koaEtag;

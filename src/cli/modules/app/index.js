@@ -21,7 +21,7 @@ exports.moduleDesc = 'Provide commands to config a app.';
 exports.commandsDesc = {
     'list': "List all apps in the project",
     'create': 'Create a new app in the project',
-    'require': 'Install npm module for an app and save as dependency',
+    'install': 'Install npm module for an app and save as dependency',
     'bootstrap': 'Add a bootstrap file for an app',
     'remove': "Remove an app from the project",
     'pack': "Pack the app into a distributable archive"
@@ -49,35 +49,30 @@ exports.help = function (api) {
                 bool: true
             };
             break;
-        case 'require':
-            cmdOptions['app'] = {
-                desc: 'The name of the app to operate',
-                required: true,
-                inquire: true,
-                promptType: 'list',
-                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
-            };
-            cmdOptions['nm'] = {
-                desc: 'The name of the npm module to install',
-                alias: [ 'module', 'npm-module' ],
+
+        case 'install':
+            api.makeAppChoice(cmdOptions);
+
+            cmdOptions['package'] = {
+                desc: 'The name of the npm package to install',
+                promptMessage: 'Please enter the package to install:',                
+                alias: [ 'pkg' ],
                 required: true,
                 inquire: true
             };
             cmdOptions['dev'] = {
                 desc: 'Install for development mode or not',
+                promptMessage: 'Install the package as devDependency',            
+                promptDefault: false,    
                 default: false,
-                bool: true
+                bool: true,
+                inquire: true
             };
             break;
 
         case 'bootstrap':
-            cmdOptions['app'] = {
-                desc: 'The name of the app to operate',
-                required: true,
-                inquire: true,
-                promptType: 'list',
-                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
-            };
+            api.makeAppChoice(cmdOptions);
+
             cmdOptions['name'] = {
                 desc: 'The name of the bootstrap file',
                 required: true,
@@ -86,13 +81,8 @@ exports.help = function (api) {
             break;
 
         case 'remove':
-            cmdOptions['app'] = {
-                desc: 'The name of the app to be removed',
-                required: true,
-                inquire: true,
-                promptType: 'list',
-                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
-            };
+            api.makeAppChoice(cmdOptions);
+
             cmdOptions['y'] = {
                 desc: 'Skip removal confirmation',
                 default: false,
@@ -101,13 +91,7 @@ exports.help = function (api) {
             break;
 
         case 'pack':
-            cmdOptions['app'] = {
-                desc: 'The name of the app to be packed',
-                required: true,
-                inquire: true,
-                promptType: 'list',
-                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
-            };
+            api.makeAppChoice(cmdOptions);
             break;
 
         case 'help':
@@ -161,7 +145,8 @@ exports.create = function (api) {
     fs.ensureDirSync(appDest);
 
     //copy app_directory
-    const templateFolder = path.resolve(__dirname, 'template', 'app');
+    const templatePath = api.getTemplatePath('app');
+    const templateFolder = path.join(templatePath, 'newApp');
     fs.copySync(templateFolder, appDest);
     api.log('info', 'Generated app files.');
 
@@ -173,7 +158,7 @@ exports.create = function (api) {
     }
 
     let routing = Object.assign({}, api.server.config.routing, { [mountingPoint]: {
-        mod: {
+        app: {
             name: appName
         }
     }});
@@ -186,22 +171,22 @@ exports.create = function (api) {
 
         const interpolates = { project: pkg.name, name: appName };
 
-        const startSource = path.join(__dirname, 'template', 'standalone.template.js');
+        const startSource = path.join(templatePath, 'standalone.template.js');
         const startDest = path.join(appDest, 'standalone.js');
         let startContent = fs.readFileSync(startSource, 'utf8');
-        startContent = Util.S(startContent).template(interpolates).s;
+        startContent = Util.template(startContent, interpolates);
         fs.writeFileSync(startDest, startContent, 'utf8');
         api.log('info', 'Generated standalone.js for smoke test.');
 
-        const indexSource = path.join(__dirname, 'template', 'index.template.js');
+        const indexSource = path.join(templatePath, 'index.template.js');
         const indexDest = path.join(appDest, 'index.js');
         fs.copySync(indexSource, indexDest);
         api.log('info', 'Generated index.js.');
 
-        const packageSource = path.join(__dirname, 'template', 'package.template.json');
+        const packageSource = path.join(templatePath, 'package.template.json');
         const packageDest = path.join(appDest, 'package.json');
         let pkgContent = fs.readFileSync(packageSource, 'utf8');
-        pkgContent = Util.S(pkgContent).template(interpolates).s;
+        pkgContent = Util.template(pkgContent, interpolates);
         fs.writeFileSync(packageDest, pkgContent, 'utf8');
         api.log('info', 'Generated package.json for npm init.');
 
@@ -215,33 +200,27 @@ exports.create = function (api) {
     });
 };
 
-exports.require = function (api) {
-    api.log('verbose', 'exec => mowa app require');
+exports.install = function (api) {
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
 
-    let appName = api.getOption('app');
-    assert: appName, Util.Message.DBC_VAR_NOT_NULL;
+    api.log('verbose', 'exec => mowa app install');
 
-    const modFolder = path.join(api.base, Mowa.Literal.APP_MODULES_PATH, appName);
-    if (!fs.existsSync(modFolder)) {
-        return Promise.reject('App "' + appName + '" not exist!');
-    }
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+    let packageName = api.getOption('package');
 
-    let moduleName = api.getOption('nm');
-    if (!moduleName) {
-        return Promise.reject('Npm module name is required!');
+    if (!packageName) {
+        return Promise.reject('Npm package name is required!');
     }
 
     let saveMode = api.getOption('dev') ? '--save-dev' : '--save';
 
-    shell.cd(modFolder);
-    let stdout = Util.runCmdSync(`npm install ${moduleName} ${saveMode}`);
+    shell.cd(appModule.absolutePath);
+    let stdout = Util.runCmdSync(`npm install ${packageName} ${saveMode}`);
     shell.cd(api.base);
 
-    api.log('verbose', stdout.toString());
+    api.log('info', stdout.toString());
 
-    api.log('info', `Installed a npm module "${moduleName}" for app "${appName}".`);
-
-    return Promise.resolve();
+    api.log('info', `Installed a npm package "${packageName}" for app "${appModule.name}".`);
 };
 
 exports.bootstrap = function (api) {
@@ -255,10 +234,12 @@ exports.bootstrap = function (api) {
         return Promise.reject('App "' + appName + '" not exist!');
     }
 
+    const templatePath = api.getTemplatePath('app');
+
     let bootstrapFileName = api.getOption('name');
     return (bootstrapFileName ? Promise.resolve(bootstrapFileName) : inputName()).then(bn => {
-        const templateFolder = path.resolve(__dirname, 'template');
-        const bootstrapSource = path.join(templateFolder, 'bootstrap.template.js');
+        
+        const bootstrapSource = path.join(templatePath, 'bootstrap.template.js');
         const bootstrapDir = path.join(modFolder, Mowa.Literal.SERVER_CFG_NAME, 'bootstrap');
 
         fs.ensureDirSync(bootstrapDir);
@@ -312,7 +293,7 @@ exports.remove = function (api) {
         let routing = Object.assign({}, api.server.configLoader.data.routing);
 
         _.forOwn(api.server.configLoader.data.routing, (config, route) => {
-            if (config.mod && config.mod.name === appName) {
+            if (config.app && config.app.name === appName) {
                 delete routing[route];
                 needRewrite = true;
             }

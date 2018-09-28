@@ -1,7 +1,7 @@
 "use strict";
 
 const EventEmitter = require('events');
-const inflection = require('inflection');
+const pluralize = require('pluralize');
 const path = require('path');
 const ntol = require('number-to-letter');
 
@@ -13,6 +13,8 @@ const Oolong = require('../../lang/oolong.js');
 const OolUtil = require('../../lang/ool-utils.js');
 const OolongDbModeler = require('../db.js');
 const Entity = require('../../lang/entity.js');
+
+const { Generators } = require('../../runtime');
 
 const Rules = require('./mysql/rules-reverse');
 
@@ -95,7 +97,7 @@ class MysqlModeler extends OolongDbModeler {
             _.each(modelingSchema.relations, (relation) => {
                 this._buildRelation(modelingSchema, relation);
             });
-        }
+        }        
 
         this._events.emit('afterRelationshipBuilding');        
 
@@ -108,6 +110,8 @@ class MysqlModeler extends OolongDbModeler {
         let tableSQL = '', relationSQL = '', data = {};
 
         _.each(modelingSchema.entities, (entity, entityName) => {
+            entity.addIndexes();
+
             let result = MysqlModeler.complianceCheck(entity);
             if (result.errors.length) {
                 let message = '';
@@ -127,13 +131,7 @@ class MysqlModeler extends OolongDbModeler {
                         this._featureReducer(entity, featureName, f);
                     }
                 });
-            }
-            
-            _.forOwn(this._references, (refs, entityName) => {
-                _.each(refs, ref => {
-                    relationSQL += MysqlModeler.addForeignKeyStatement(entityName, schema.entities[entityName], ref) + '\n';
-                });
-            });
+            }            
 
             tableSQL += this._createTableStatement(entityName, entity) + '\n';
 
@@ -178,6 +176,12 @@ class MysqlModeler extends OolongDbModeler {
 
                 //intiSQL += '\n';
             }
+        });
+
+        _.forOwn(this._references, (refs, srcEntityName) => {
+            _.each(refs, ref => {
+                relationSQL += MysqlModeler.addForeignKeyStatement(srcEntityName, schema.entities[srcEntityName], ref) + '\n';
+            });
         });
 
         this._writeFile(path.join(buildPath, dbFilePath), tableSQL);
@@ -579,14 +583,14 @@ class MysqlModeler extends OolongDbModeler {
             case 'autoId':
                 field = entity.fields[feature.field];
 
-                if (field.type === 'int') {
+                if (field.type === 'int' && !field.generator) {
                     field.autoIncrementId = true;
                     if ('startFrom' in field) {
                         this._events.on('setTableOptions:' + entity.name, extraOpts => {
                             extraOpts['AUTO_INCREMENT'] = field.startFrom;
                         });
                     }
-                }
+                } 
                 break;
 
             case 'createTimestamp':
@@ -684,7 +688,7 @@ class MysqlModeler extends OolongDbModeler {
     }
 
     _buildNToNRelation(schema, relation) {
-        let relationEntityName = relation.left + inflection.camelize(inflection.pluralize(relation.right));
+        let relationEntityName = relation.left + Util.pascalCase(pluralize.plural(relation.right));
 
         if (schema.hasEntity(relationEntityName)) {
             let fullName = schema.entities[relationEntityName].id;
@@ -914,8 +918,8 @@ class MysqlModeler extends OolongDbModeler {
     }
 
     static foreignKeyFieldNaming(entityName, entity) {
-        let leftPart = inflection.camelize(entityName, true);
-        let rightPart = inflection.camelize(entity.key);
+        let leftPart = Util._.camelCase(entityName);
+        let rightPart = Util.pascalCase(entity.key);
 
         if (_.endsWith(leftPart, rightPart)) {
             return leftPart;

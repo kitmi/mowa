@@ -40,8 +40,6 @@ const Router = require('koa-router');
  }
  */
 
-const ALLOWED_METHODS = new Set(['options', 'get', 'head', 'post', 'put', 'delete', 'trace', 'connect']);
-
 module.exports = function (appModule, baseRoute, options) {
     let controllerPath = path.join(appModule.backendPath, Mowa.Literal.CONTROLLERS_PATH);
     
@@ -59,7 +57,7 @@ module.exports = function (appModule, baseRoute, options) {
                 throw new Mowa.Error.InvalidConfiguration(
                     'Invalid route rule syntax: ' + subRoute, 
                     appModule, 
-                    `routing.${baseRoute}.rule.rules`);
+                    `routing[${baseRoute}].rule.rules`);
             }
             
             // like get:/, or post:/
@@ -72,25 +70,21 @@ module.exports = function (appModule, baseRoute, options) {
 
         subRoute = Util.ensureLeftSlash(subRoute);
 
-        if (_.isString(methods)) {
+        if (typeof methods === 'string') {
             methods = { get: methods };
         }
 
         _.forOwn(methods, (middlewares, method) => {
-            if (!ALLOWED_METHODS.has(method)) {
+            if (!Mowa.Literal.ALLOWED_HTTP_METHODS.has(method)) {
                 throw new Mowa.Error.InvalidConfiguration(
                     'Unsupported http method: ' + method,
                     appModule,
-                    `routing.${baseRoute}.rule.rules.${subRoute}`);
+                    `routing[${baseRoute}].rule.rules[${subRoute}]`);
             }
 
-            if (_.isString(middlewares)) {
-                middlewares = { action: path.join(controllerPath, middlewares) };
-            } else {
-                if ('action' in middlewares) {
-                    middlewares['action'] = path.resolve(controllerPath, middlewares['action']);
-                }
-            }
+            if (typeof middlewares === 'string') {
+                middlewares = { action: middlewares };
+            } 
 
             appModule.addRoute(router, method, subRoute, middlewares);
         });

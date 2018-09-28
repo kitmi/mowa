@@ -24,6 +24,11 @@ module.exports = {
      * Load the feature
      * @param {AppModule} appModule - The app module object
      * @param {object} config - Passport settings
+     * @property {object} config.localAuth - Passport local config          
+     * @property {string} config.localAuth.store - Storage for localAuth info, url or session
+     * @property {string} config.localAuth.loginUrl - The url of login page
+     * @property {string} config.localAuth.redirectToUrlFieldName - The field name of redirect url used in session or url
+     * @property {string} config.localAuth.defaultLandingPage - Default landing page when logging in without redirect url
      * @property {array} config.strategies - Passport strategies, e.g. [ 'local', 'facebook' ]
      * @returns {Promise.<*>}
      */
@@ -32,11 +37,18 @@ module.exports = {
 
         let passport = new KoaPassport();
         if (Util._.isEmpty(config) || !config.strategies) {
-            throw new Mowa.Error.InvalidConfiguration('Missing passport strategies.',
+            throw new Mowa.Error.InvalidConfiguration(
+                'Missing passport strategies.',
                 appModule,
                 'passport.strategies'
             );
-        }
+        }        
+
+        passport.config = config;
+        passport.config.localAuth = Object.assign(
+            { store: 'session', loginUrl: '/login', redirectToUrlFieldName: 'redirectToUrl' }, 
+            passport.config.localAuth
+        );
 
         appModule.registerService('passport', passport);
 

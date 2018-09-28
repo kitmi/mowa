@@ -1,5 +1,4 @@
 const path = require('path');
-const webpack = require( 'webpack');
 
 const Util = require('../../../util.js');
 const _ = Util._;
@@ -8,8 +7,6 @@ const Promise = Util.Promise;
 const shell = require('shelljs');
 
 const MowaHelper = require('../../mowa-helper.js');
-
-const webpackComponents = require('./components.js');
 
 /**
  * @module MowaCLI_Webpack
@@ -20,9 +17,7 @@ exports.moduleDesc = 'Provide commands to run webpack tasks.';
 
 exports.commandsDesc = {
     'init': 'Initialize webpack environment.',
-    'config': 'Regenerate webpack config',
-    'install': "Install webpack components",
-    'babel': 'Install babel plugins',
+    'config': 'Regenerate webpack config',        
     'build': 'Build client bundles with webpack.'
 };
 
@@ -30,51 +25,54 @@ exports.help = function (api) {
     let cmdOptions = {};
 
     switch (api.command) {
-        case 'init':
-        case 'config':
-        case 'build':        
-            cmdOptions['app'] = {
-                desc: 'The name of the app to operate',
-                required: true,
-                inquire: true,
-                promptType: 'list',
-                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
+        case 'init':                
+            api.makeAppChoice(cmdOptions);
+            break;
+
+        case 'config':    
+            api.makeAppChoice(cmdOptions);
+
+            cmdOptions['clean-before-build'] = {
+                desc: 'Clean previous output before rebuild',
+                promptMessage: 'Whether to clean previous output before each build?', 
+                promptDefault: false,
+                alias: [ 'clean' ],                     
+                bool: true,
+                default: false,
+                inquire: true
+            };
+
+            cmdOptions['extract-css'] = {
+                desc: 'Extract CSS into separate files',
+                promptMessage: 'Whether to extract CSS into separate files?', 
+                promptDefault: false,
+                bool: true,
+                default: false,
+                inquire: true
             };
             break;
 
-        case 'babel':
-            cmdOptions['app'] = {
-                desc: 'The name of the app to operate',
-                required: true,
+        case 'build':  
+            api.makeAppChoice(cmdOptions);        
+            
+            cmdOptions['mode'] = {
+                desc: 'Webpack configuration mode',
+                promptMessage: 'Environment?', 
+                promptDefault: 'development',                                
                 inquire: true,
                 promptType: 'list',
-                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
-            };
-            cmdOptions['plugins'] = {
-                desc: 'The babel plugins to install',
-                required: true,
-                inquire: true,
-                promptType: 'checkbox',
-                choicesProvider: () => Promise.resolve(require('./babelPlugins.js'))
-            };
-            break;
-
-        case 'install':
-            cmdOptions['app'] = {
-                desc: 'The name of the app to operate',
-                required: true,
-                inquire: true,
-                promptType: 'list',
-                choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
-            };
-            cmdOptions['package'] = {
-                desc: 'The name of the webpack component package to install',
-                alias: [ 'pkg' ],
-                required: true,
-                inquire: true,
-                promptType: 'list',
-                choicesProvider: () => Promise.resolve(webpackComponents.componentGroup)
-            };
+                choicesProvider: () => [ 'development', 'production' ]
+            };    
+            
+            cmdOptions['w'] = {
+                desc: 'Watch for changes in files of the dependency graph and perform the build again',
+                promptMessage: 'Watch for changes?', 
+                promptDefault: false,
+                alias: [ 'watch' ],                
+                bool: true,
+                default: false,
+                inquire: () => api.getOption('mode') === 'development'
+            };    
             break;
 
         case 'help':
@@ -93,13 +91,34 @@ exports.init = async api => {
 
     await exports.config(api);
 
+    api.log('info', 'Installing webpack components ...');
+
     shell.cd(appModule.absolutePath);
-    let stdout = Util.runCmdSync('npm i --save-dev babel-loader babel-core babel-preset-env babel-preset-react ' +
-        'webpack webpack-merge ' +
-        'extract-text-webpack-plugin css-loader style-loader file-loader expose-loader sass-loader node-sass');
+    let stdout = Util.runCmdSync('npm i --save-dev babel-loader @babel/core @babel/preset-env @babel/preset-react ' +
+        'webpack webpack-cli webpack-merge clean-webpack-plugin optimize-css-assets-webpack-plugin mini-css-extract-plugin ' +
+        'ts-loader css-loader style-loader file-loader expose-loader sass-loader node-sass ' + 
+        '@babel/plugin-proposal-class-properties @babel/plugin-proposal-decorators');
     shell.cd(api.base);
 
     api.log('verbose', stdout);
+    
+    let pkgFile = path.join(appModule.absolutePath, 'package.json');
+    let pkgConfig = require(pkgFile);
+
+    if (!pkgConfig.scripts['webpack']) {
+        pkgConfig.scripts['webpack'] = 'webpack --config ./etc/webpack.development.js --verbose';
+    }
+
+    if (!pkgConfig.scripts['webpack:watch']) {
+        pkgConfig.scripts['webpack:watch'] = 'webpack --config ./etc/webpack.development.js --watch';
+    }
+
+    if (!pkgConfig.scripts['webpack:prod']) {
+        pkgConfig.scripts['webpack:prod'] = 'webpack --config ./etc/webpack.production.js';
+    }
+
+    fs.writeJsonSync(pkgFile, pkgConfig, { spaces: 4, encoding: 'utf8' });    
+
     api.log('info', 'Enabled webpack.');
 };
 
@@ -107,19 +126,20 @@ exports.config = async api => {
     api.log('verbose', 'exec => mowa webpack config');
 
     let appModule = MowaHelper.getAppModuleToOperate(api);
+    let cleanBeforeBuild = api.getOption('clean');
+    let extractCss = api.getOption('extrat-css');
 
     //write default webpack
-    const swig  = require('swig-templates');
-    let defaultTemplate = path.resolve(__dirname, 'template', 'etc', 'webpack.default.js.swig');
-    let webpackOptions = Util.getValueByPath(appModule.settings, 'deploy.webpack', {});
+    const swig = require('swig-templates');
+    let defaultTemplate = path.resolve(api.getTemplatePath('webpack'), 'etc', 'webpack.default.js.swig');    
 
-    let appEtcPath = appModule.toAbsolutePath(appModule.options.etcPath);
     let templateValues = {
         profileName: 'browser',
-        clientPath: path.relative(appEtcPath, appModule.frontendPath),
-        outputPath: path.relative(appEtcPath, appModule.frontendStaticPath),
+        clientPath: path.relative(appModule.absolutePath, appModule.frontendPath),
+        outputPath: path.relative(appModule.absolutePath, appModule.frontendStaticPath),
         publicPath: Util.ensureRightSlash(Util.ensureLeftSlash(appModule.route)),
-        cleanBeforeBuild: webpackOptions.cleanBeforeBuild || false
+        cleanBeforeBuild,
+        extractCss
     };
 
     let webpackDefault = swig.renderFile(defaultTemplate, templateValues);
@@ -127,63 +147,17 @@ exports.config = async api => {
     fs.writeFileSync(path.join(appModule.absolutePath, 'etc', 'webpack.default.js'), webpackDefault);
     api.log('info', 'Generated webpack.default.js.');
 
-    let devTemplate = path.resolve(__dirname, 'template', 'etc', 'webpack.development.js.swig');
+    let devTemplate = path.resolve(api.getTemplatePath('webpack'), 'etc', 'webpack.development.js.swig');
     let webpackDev= swig.renderFile(devTemplate, templateValues);
 
     fs.writeFileSync(path.join(appModule.absolutePath, 'etc', 'webpack.development.js'), webpackDev);
     api.log('info', 'Generated webpack.development.js.');
 
-    let prodTemplate = path.resolve(__dirname, 'template', 'etc', 'webpack.production.js.swig');
+    let prodTemplate = path.resolve(api.getTemplatePath('webpack'), 'etc', 'webpack.production.js.swig');
     let webpackProd= swig.renderFile(prodTemplate, templateValues);
 
     fs.writeFileSync(path.join(appModule.absolutePath, 'etc', 'webpack.production.js'), webpackProd);
     api.log('info', 'Generated webpack.production.js.');
-};
-
-exports.install = function (api) {
-    api.log('verbose', 'exec => mowa webpack install');
-
-    let pkgName = api.getOption('pkg');
-    assert: {
-        pkgName, Util.Message.DBC_VAR_NOT_NULL;
-    }
-
-    let appModule = MowaHelper.getAppModuleToOperate(api);
-
-    let pkgs = webpackComponents.componentPackages[pkgName];
-    let pkgsLine = pkgs.join(' ');
-
-    let appPath = appModule.absolutePath;
-
-    shell.cd(appPath);
-    let stdout = Util.runCmdSync(`npm i --save-dev ${pkgsLine}`);
-    shell.cd(api.base);
-
-    api.log('verbose', stdout);
-    api.log('info', `Installed webpack component: ${pkgsLine}.`);
-};
-
-exports.babel = function (api) {
-    api.log('verbose', 'exec => mowa webpack babel');
-
-    let appModule = MowaHelper.getAppModuleToOperate(api);
-
-    let plugins = api.getOption('plugins');
-
-    let cmdLine = plugins.map(p => 'babel-plugin-' + p).join(' ');
-
-    shell.cd(appModule.absolutePath);
-    let stdout = Util.runCmdSync('npm i --save-dev ' + cmdLine);
-    shell.cd(api.base);
-
-    api.log('verbose', stdout);
-    api.log('info', 'Babel plugins installed');
-    api.log('info', 'Add below plugins into the plugin list of babel-loader in webpack config file to enable these features.');
-    api.log('info', "plugins: [ '" + plugins.join("', '") + "' ]");
-
-    if (plugins.indexOf("transform-decorators-legacy") > -1 || plugins.indexOf("transform-class-properties") > -1) {
-        api.log('info', 'Notice: "transform-decorators-legacy" should appear before "transform-class-properties"');
-    }
 };
 
 exports.build = function (api) {
@@ -193,26 +167,20 @@ exports.build = function (api) {
 
     api.log('info', `Start webpacking ...`);
 
-    let env = api.getOption('env');
+    let mode = api.getOption('mode');
+    let cmd;
 
-    let config = require(appModule.toAbsolutePath('etc', 'webpack.' + env + '.js'));
+    if (api.getOption('watch')) {
+        cmd = 'npm run webpack:watch';
+    } else if (mode === 'production') {
+        cmd = 'npm run webpack:prod';
+    } else {
+        cmd = 'npm run webpack';
+    }
 
-    var compiler = webpack(config);
+    shell.cd(appModule.absolutePath);
+    let stdout = Util.runCmdSync(cmd);
+    shell.cd(api.base);
 
-    return new Promise((resolve, reject) => {
-        compiler.run(function (err, stats) {
-            if (err) {
-                reject(err);
-            } else {
-                var jsonStats = stats.toJson("minimal");
-                if (jsonStats.errors.length > 0) {
-                    reject(jsonStats.errors.join('\n'));
-                } else {
-                    api.log('verbose', stats.toString({chunks: false, colors: true}));
-                    api.log('info', `Client files are packed successfully.`);
-                    resolve();
-                }
-            }
-        });
-    });
+    api.log('info', stdout);
 };

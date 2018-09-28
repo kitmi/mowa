@@ -2,6 +2,8 @@
 
 const Util = require('../../../util.js');
 const _ = Util._;
+const OolUtil = require('../ool-utils.js');
+
 const FEATURE_NAME = 'atLeastOneNotNull';
 
 /**
@@ -14,7 +16,7 @@ const FEATURE_NAME = 'atLeastOneNotNull';
  * @param {OolongEntity} entity - Entity to apply this feature
  * @param {array} fields - List of field names
  */
-function initialize(entity, fields) {
+function feature(entity, fields) {
     if (!fields) {
         throw new Error('Missing field names!');
     }
@@ -34,4 +36,29 @@ function initialize(entity, fields) {
     });
 }
 
-module.exports = initialize;
+feature.__metaRules = {
+    [OolUtil.RULE_POST_CREATE_CHECK]: [{
+        test: (meta, featureSetting, context, db) => {
+            return _.every(featureSetting, fieldName => _.isNil(context.latest[fieldName]));
+        },
+        apply: (meta, featureSetting, context, db) => {
+            throw new ModelValidationError({
+                fields: featureSetting.map(f => meta.fields[f]),
+                message: 'At least one of these fields should not be null.'
+            });
+        }
+    }],
+    [OolUtil.RULE_POST_UPDATE_CHECK]: [{
+        test: (meta, featureSetting, context, db) => {
+            return _.every(featureSetting, fieldName => ((fieldName in context.latest) && _.isNil(context.latest[fieldName])) || (!(fieldName in context.latest) && _.isNil(context.existing[fieldName])));
+        },
+        apply: (meta, featureSetting, context, db) => {
+            throw new ModelValidationError({
+                fields: featureSetting.map(f => meta.fields[f]),
+                message: 'At least one of these fields should not be null.'
+            });
+        }
+    }]
+};
+
+module.exports = feature;

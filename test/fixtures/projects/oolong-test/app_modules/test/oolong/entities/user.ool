@@ -1,0 +1,60 @@
+type
+  userStatus : ['inactive', 'active', 'disabled', 'forbidden', 'deleted']
+
+entity user
+  -- 'User Credential'
+
+  with
+    autoId({ startFrom: 100000 })
+    createTimestamp
+    updateTimestamp
+    logicalDeletion({ status: 'deleted' })
+    stateTracking({
+        field: "status",
+        reversible: true
+    })
+    atLeastOneNotNull(email, mobile)
+
+  has
+    email
+    mobile : phone ~isMobilePhone(@latest.locale | stringDasherize) | normalizeMobile
+    # @existing (existing data in db), @latest (latest data in db, or new data ready to put in db), @raw (raw input)
+    password | hashPassword(@latest.passwordSalt) 
+    passwordSalt : text(32) fixedLength default(auto) readOnly fixedValue
+    displayName : name optional
+    locale : shortName default('en_AU')
+    isEmailVerified : flag default(false)
+    isMobileVerified : flag default(false)
+    status : userStatus default('inactive')
+    tag optional
+
+  index
+    email is unique
+    mobile is unique
+
+  data [
+    {
+      email: 'admin@anyemail.any',
+      mobile: '0412345678',
+      password: '123456',
+      displayName: 'Admin',
+      isEmailVerified: true,
+      isMobileVerified: true,
+      status: 'active'
+    }
+  ]
+
+  interface
+    validateUserCredential
+      accept
+        identity : text(200)
+        password
+
+      find one user by case
+        @identity ~isEmail => { email: @identity }
+        @identity ~matches(/^(\+?\d{6,})$/) => { mobile: @identity | normalizeMobile }
+        otherwise return { error: { message: 'invalid_identity' } }
+
+      return @user unless
+        @user not exists => { error: { message: 'user_not_found' } }
+        @password | hashPassword(@user.passwordSalt) != @user.password => { error: { message: 'invalid_password' } }

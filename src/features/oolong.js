@@ -29,7 +29,7 @@ module.exports = {
         
         appModule.on('after:' + Mowa.Feature.MIDDLEWARE, () => {
             if (!appModule.hasPostActions) {
-                appModule.useMiddlewares(appModule.router, { postActions: {} })
+                appModule.useMiddlewares(appModule.router, 'postActions');                
             } 
         });
 

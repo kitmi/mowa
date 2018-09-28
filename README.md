@@ -105,18 +105,17 @@ Options:
 
 ### Design by contract
 
-Refer to: https://github.com/codemix/babel-plugin-contracts
+Refer to: https://www.npmjs.com/package/babel-plugin-contract
 
 ### Action
 * this context
     * appModule - the webModule instance
     * state - the default view state for view renderer
-        * _ctx - koa context object
-    	* _module - appModule instance
-    	* _util - helper functions to be used during view rendering
-    		* __ - i18n interface
-    		* makePath(relativePath, query)
-    		* makeUrl(relativePath, query)
+        * _self - Current landing url    	
+		* __ - i18n interface
+		* _makePath(relativePath, query)
+		* _makeUrl(relativePath, query)
+		* _csrf - if csrf middleware attached
 
 
 ## License

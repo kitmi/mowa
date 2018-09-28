@@ -1,0 +1,52 @@
+{
+    "settings": {
+        "cli": {
+            "general": {
+                "consoleEnabled": true,
+                "fileLogEnabled": true,
+                "fileLogFilename": "mowa-cli.log",
+                "fileLogOverwrite": true
+            }
+        }
+    },
+    "loggers": {
+        "general": {
+            "transports": [{
+                "type": "console",
+                "options": {
+                    "level": "verbose",
+                    "colorize": true
+                }
+            }, {
+                "type": "file",
+                "options": {
+                    "level": "info",
+                    "filename": "#!es6:general-${now.format('YYYYMMDD')}.log"
+                }
+            }]
+        },
+        "access": {
+            "transports": [{
+                "type": "daily-rotate-file",
+                "options": {
+                    "level": "info",
+                    "json": false,
+                    "formatter": "#!es6:${options => options.message}",
+                    "filename": "access-",
+                    "datePattern": "yyyyMMdd.log"
+                }
+            }]
+        }
+    },
+    "koa": {
+        "httpPort": 3000
+    },
+    "middlewares": {
+        "accessLog": { "logger": "access" },
+        "compress": {},
+        "etag": {}
+    },
+    "routing": {
+        "/": "home.index"
+    }
+}

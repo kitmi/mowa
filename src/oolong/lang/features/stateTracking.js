@@ -1,8 +1,10 @@
 "use strict";
 
-const inflection = require('inflection');
 const Util = require('../../../util.js');
 const _ = Util._;
+const OolUtil = require('../ool-utils.js');
+const { Generators } = require('../../runtime');
+
 const FEATURE_NAME = 'stateTracking';
 
 /**
@@ -17,7 +19,7 @@ const FEATURE_NAME = 'stateTracking';
  * @property {string} options.field - State field to track
  * @property {bool} [options.reversible=false] - Specify whether the field can be set to a previous state again
  */
-function initialize(entity, options) {
+function feature(entity, options) {
     if (!options) {
         throw new Error('Missing field options!');
     }
@@ -34,7 +36,8 @@ function initialize(entity, options) {
         type: 'datetime',
         range: 'timestamp',
         readOnly: true,
-        optional: true
+        optional: true,
+        auto: true
     };
 
     if (!options.reversible) {
@@ -60,7 +63,20 @@ function initialize(entity, options) {
             entity.addField(fieldName, stateSetTimestamp);
         });
     });
-
 }
 
-module.exports = initialize;
+feature.__metaRules = {
+    [OolUtil.RULE_POST_RAW_DATA_PRE_PROCESS]: [{
+        test: (meta, feature, context, db) => {
+            return feature.field in context.latest;
+        },
+        apply: (meta, feature, context, db) => {
+            let targetState = context.latest[feature.field];
+            let timestampFieldName = feature.field + Util.pascalCase(targetState) + 'Timestamp';
+            context.latest[timestampFieldName] = Generators.$auto(meta.fields[timestampFieldName], (db.ctx && db.ctx.__) || db.appModule.__);
+            return true;
+        }
+    }]
+};
+
+module.exports = feature;

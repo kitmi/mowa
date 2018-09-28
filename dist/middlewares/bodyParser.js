@@ -1,1 +1,0 @@
-'use strict';const koaBetterBody=require('koa-better-body'),convert=require('koa-convert');module.exports=options=>convert(koaBetterBody(options));

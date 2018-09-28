@@ -9,8 +9,7 @@ const _ = Util._;
 const Errors = require('../errors.js');
 
 class MysqlModel extends Model {
-
-    async _doCreate(context) {
+    async _doCreate(context, ignoreDuplicate, retrieveSaved) {
         let conn = await this.db.conn_();
 
         let sql = 'INSERT INTO ?? SET ?';
@@ -23,32 +22,51 @@ class MysqlModel extends Model {
             this.appModule.log('verbose', sql);
         }
 
-        let result;
+        let result, hasDuplicate;
 
         try {
             [ result ] = await conn.query(sql);
         } catch (error) {
             if (error.code && error.code === 'ER_DUP_ENTRY') {
-                let field = error.message.split("' for key '").pop();
-                field = field.substr(0, field.length-1);
+                if (!ignoreDuplicate) {
+                    let field = error.message.split("' for key '").pop();
+                    field = field.substr(0, field.length-1);
 
-                throw new Errors.ModelValidationError({ message: error.message, field: this.meta.fields[field] });
+                    throw new Errors.ModelValidationError({ code: error.code, message: error.message, field: this.meta.fields[field] });
+                } else {
+                    hasDuplicate = true;
+                }
+            } else {
+                throw error;
             }
-            throw error;
         }
-
-        if (result.affectedRows !== 1) {
+        
+        if (result.affectedRows !== 1 && !hasDuplicate) {
             throw new Errors.ModelResultError('Insert operation may fail. "affectedRows" is 0.');
         }
 
-        if (this.meta.features.autoId) {
-            context.latest[this.meta.features.autoId.field] = result.insertId;
-        }
+        let autoIdFeature = this.meta.features.autoId;
+        if (autoIdFeature && this.meta.fields[autoIdFeature.field].autoIncrementId) {              
+            if (!hasDuplicate) {
+                if ('insertId' in result) {
+                    if (retrieveSaved) {
+                        return this.constructor.findOne({[autoIdFeature.field]: result.insertId });
+                    }
+                    context.latest[autoIdFeature.field] = result.insertId;            
+                } else {
+                    throw new Errors.ModelResultError('Last insert id does not exist in result record.');
+                }
+            } // if hasDuplicate, the latest record will not 
+        } 
 
-        return this.fromDb(context.latest);
+        if (!retrieveSaved) {
+            return this.fromDb(context.latest);
+        }
+        
+        return this.constructor.findOne(context.latest);
     }
     
-    async _doUpdate(context) {
+    async _doUpdate(context, retrieveSaved) {
         let keyField = this.meta.keyField;
         let keyValue = (keyField in context.latest) ? context.latest[keyField] : context.existing[keyField];
 
@@ -75,25 +93,27 @@ class MysqlModel extends Model {
 
         let [ result ] = await conn.query(sql);
 
+        console.log(result);
+
         if (result.affectedRows !== 1) {
             throw new Errors.ModelResultError('Update operation may fail. "affectedRows" is 0.');
+        }
+
+        if (retrieveSaved) {
+            
         }
 
         return this.fromDb(context.latest);
     }
 
     static async _doFindOne(condition) {
-        if (_.isEmpty(condition)) {
-            throw new Errors.ModelOperationError('Empty condition.', this.meta.name);
-        }
-
         let conn = await this.db.conn_();
         
         let values = [ this.meta.name ];       
         
         let ld = this.meta.features.logicalDeletion;
         if (ld) {
-            condition = { $and: [ { [ld.field]: ld.value }, condition ] };
+            condition = { $and: [ { $not: { [ld.field]: ld.value } }, condition ] };
         }
 
         let whereClause = this._joinCondition(conn, condition, values);
@@ -141,10 +161,6 @@ class MysqlModel extends Model {
     }
 
     static async _doRemoveOne(condition) {
-        if (_.isEmpty(condition)) {
-            throw new Errors.ModelOperationError('Empty condition.', this.meta.name);
-        }
-
         let conn = await this.db.conn_();
 
         let values = [ this.meta.name ];
@@ -178,28 +194,97 @@ class MysqlModel extends Model {
         return true;
     }
 
-    static _joinCondition(conn, condition, values) {
+    /**
+     * SQL condition representation
+     *   Rules:
+     *     default: 
+     *        array: OR
+     *        kv-pair: AND
+     *     $and: 
+     *        array: AND
+     *     $or:
+     *        kv-pair: OR
+     *     $not:
+     *        array: not ( or )
+     *        kv-pair: not ( and )
+     * @param {object} conn 
+     * @param {object} condition 
+     * @param {array} valuesSeq 
+     */
+    static _joinCondition(conn, condition, valuesSeq, joinOperator) {
         if (Array.isArray(condition)) {
-            return condition.map(c => this._joinCondition(conn, c, values)).join(' OR ');
+            if (!joinOperator) {
+                joinOperator = 'OR';
+            }
+            return condition.map(c => this._joinCondition(conn, c, valuesSeq)).join(` ${joinOperator} `);
         }
 
-        if (_.isPlainObject(condition)) {
-            if (condition.$and) {
-                assert: Array.isArray(condition.$and), '$and operator value should be an array.';
-                
-                return condition.$and.map(subCondition => this._joinCondition(conn, subCondition, values)).join(' AND ') 
-                    + this._joinCondition(conn, _.omit(condition, ['$and']), values);
+        if (_.isPlainObject(condition)) { 
+            if (!joinOperator) {
+                joinOperator = 'AND';
             }
             
             return _.map(condition, (value, key) => {
-                values.push(value);
-                return conn.escapeId(key) + ' = ?';
-            }).join(' AND ');
+                if (key === '$and') {
+                    assert: Array.isArray(value), '"$and" operator value should be an array.';                    
+
+                    return this._joinCondition(conn, value, valuesSeq, 'AND');
+                }
+    
+                if (key === '$or') {
+                    assert: _.isPlainObject(value), '"$or" operator value should be a plain object.';       
+                    
+                    return this._joinCondition(conn, value, valuesSeq, 'OR');
+                }
+
+                if (key === '$not') {                    
+                    if (Array.isArray(value)) {
+                        assert: value.length > 0, '"$not" operator value should be non-empty.';                     
+
+                        return 'NOT (' + this._joinCondition(conn, value, valuesSeq) + ')';
+                    } else if (_.isPlainObject(value)) {
+                        let numOfElement = Object.keys(value).length;   
+                        assert: numOfElement > 0, '"$not" operator value should be non-empty.';                     
+
+                        if (numOfElement === 1) {
+                            let keyOfElement = Object.keys(value)[0];
+                            let valueOfElement = value[keyOfElement];
+
+                            return this._wrapCondition(conn, keyOfElement, valueOfElement, valuesSeq, true);
+                        }
+
+                        return 'NOT (' + this._joinCondition(conn, value, valuesSeq) + ')';
+                    } 
+
+                    assert: typeof value === 'string', 'Unsupported condition!';
+
+                    return 'NOT (' + condition + ')';                    
+                }
+
+                return this._wrapCondition(conn, key, value, valuesSeq);
+            }).join(` ${joinOperator} `);
         }
 
-        assert: typeof(condition) === 'string', 'Unsupported condition';
+        assert: typeof condition === 'string', 'Unsupported condition!';
 
         return condition;
+    }
+
+    /**
+     * Wrap a condition clause
+     * @param {object} conn 
+     * @param {string} key 
+     * @param {*} value 
+     * @param {array} valuesSeq 
+     * @param {bool} [not=false] 
+     */
+    static _wrapCondition(conn, key, value, valuesSeq, not = false) {
+        if (_.isNil(value)) {
+            return conn.escapeId(key) + (not ? 'IS NOT NULL' : ' IS NULL');
+        }
+
+        valuesSeq.push(value);
+        return conn.escapeId(key) + ' ' + (not ? '<>' : '=') + ' ?';
     }
 }
 

@@ -5,7 +5,13 @@
  * @summary Http request body parser middleware
  */
 
-const koaBetterBody = require('koa-better-body');
-const convert = require('koa-convert');
+const bodyParser = require('koa-bodyparser');
 
-module.exports = options => convert(koaBetterBody(options));
+/**
+ * @param [Object] opts
+ *   - {String} jsonLimit default '1mb'
+ *   - {String} formLimit default '56kb'
+ *   - {string} encoding default 'utf-8'
+ *   - {Object} extendTypes
+ */
+module.exports = bodyParser;

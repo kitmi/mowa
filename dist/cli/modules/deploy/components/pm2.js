@@ -1,1 +1,0 @@
-'use strict';const NpmGlobalComponent=require('../npmGlobalComponent.js');let Pm2=class Pm2 extends NpmGlobalComponent{async doTest_(){let result={},ver=await this._ssh_('pm2 -v',false);if(0<ver.length&&0<ver.indexOf('.')){return{installed:true,started:false}}return{installed:false,started:false}}};Pm2.componentType='pm2';module.exports=Pm2;

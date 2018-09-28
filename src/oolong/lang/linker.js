@@ -13,6 +13,13 @@ const Entity = require('./entity.js');
 const View = require('./view.js');
 const Document = require('./document.js');
 const Oolong = require('./oolong.js');
+const OolUtil = require('./ool-utils.js');
+
+const ELEMENT_CLASS_MAP = {
+    entity: Entity,
+    view: View,
+    document: Document
+};
 
 const OolongParser = Oolong.parser;
 
@@ -82,6 +89,13 @@ class OolongLinker {
          * @private
          */
         this._docCache = {};
+
+        /**
+         * Element cache
+         * @type {object}
+         * @private
+         */
+        this._elementsCache = {};
 
 
         this._namingTable = new Map();
@@ -203,7 +217,7 @@ class OolongLinker {
         
         this.log('debug','Loading entity: ' + entityName);
 
-        if (!moduleName && oolModule.entity && entityName in oolModule.entity) {
+        if (oolModule.entity && entityName in oolModule.entity) {
             entityModule = oolModule;
         } else {
             let index = _.findLastIndex(oolModule.namespace, ns => {
@@ -331,7 +345,7 @@ class OolongLinker {
         });
 
         if (index === -1) {
-            throw new Error(`View reference "${docName}" in "${oolModule.id}" not found.`);
+            throw new Error(`Document reference "${docName}" in "${oolModule.id}" not found.`);
         }
 
         let document = docModule.document[docName];
@@ -442,6 +456,55 @@ class OolongLinker {
         }
         derivedInfo.subClass.push(info.type);
         return derivedInfo;
+    }    
+    
+    translateOolValue(oolModule, value) {
+        if (_.isPlainObject(value)) {
+            if (value.oolType === 'ConstReference') {
+                return this._loadElement(oolModule, 'const', value.name);
+            }
+
+            return _.mapValues(value, v => this.translateOolValue(oolModule, v));
+        }
+
+        if (Array.isArray(value)) {
+            return value.map(v => this.translateOolValue(oolModule, v));
+        }
+
+        return value;
+    }
+
+    _loadElement(oolModule, elementType, elementName) {
+        let elementRefId = elementName + '#' + elementType + '@' + oolModule.id;
+        if (elementRefId in this._elementsCache) {
+            return this._elementsCache[elementRefId];
+        }
+
+        let targetModule;
+
+        this.log('debug', `Loading ${elementType}: ${elementName}`);
+
+        if (elementType in oolModule && elementName in oolModule[elementType]) {
+            targetModule = oolModule;
+        } else {
+            let index = _.findLastIndex(oolModule.namespace, ns => {
+                if (ns.endsWith('*')) return undefined;
+
+                let modulePath = ns + '.ool';
+
+                this.log('debug', `Searching "${modulePath}" for ${elementType} "${elementName}" ...`);
+
+                targetModule = this.loadModule(modulePath);
+
+                return targetModule && targetModule[elementType] && (elementName in targetModule[elementType]);
+            });
+
+            if (index === -1) {
+                throw new Error(`${elementType} reference "${elementName}" in "${oolModule.id}" not found.`);
+            }
+        }
+
+        return this._elementsCache[elementRefId] = targetModule[elementType][elementName];
     }
 
     _compile(oolFile) {
@@ -461,10 +524,7 @@ class OolongLinker {
 
         if (!ool) {
             throw new Error('Unknown error occurred while compiling.');
-        }
-
-        let jsFile = oolFile + '.json';
-        fs.writeFileSync(jsFile, JSON.stringify(ool, null, 4));
+        }        
 
         let namespace;
 
@@ -530,7 +590,10 @@ class OolongLinker {
             : './' + path.relative(this.currentAppModule.oolongPath, oolFile);
         ool.namespace = namespace;
         ool.name = baseName;
-        ool.path = currentPath;        
+        ool.path = currentPath;      
+        
+        let jsFile = oolFile + '.json';
+        fs.writeFileSync(jsFile, JSON.stringify(ool, null, 4));
 
         return ool;
     }

@@ -4,6 +4,7 @@ const Util = require('../../util.js');
 const _ = Util._;
 
 const validator = require('validator');
+const Convertors = require('./convertors.js');
 const Types = require('./types.js');
 const xml = require("tiny-xml");
 
@@ -35,21 +36,11 @@ function processFloat(meta, raw) {
 }
 
 function processBool(meta, raw) {
-    let sanitized = raw;
-
-    if (typeof raw !== 'boolean') {
-        sanitized = validator.toBoolean(raw, true);
-    }
-
-    return { raw, sanitized };
+    return { raw, sanitized: Convertors.toBoolean(raw) };
 }
 
 function processText(meta, raw) {
-    let sanitized = (typeof raw !== 'string') ? raw.toString() : raw;
-
-    sanitized = sanitized.trim();
-
-    return { raw, sanitized };
+    return { raw, sanitized: Convertors.toText(raw) };
 }
 
 function processBinary(meta, input) {

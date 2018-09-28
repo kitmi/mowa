@@ -94,10 +94,9 @@ class MowaAPI {
             }
 
             MowaAPI.showBanner();
-            console.error('error: Command not given!\n');
 
             this._showUsage();
-            process.exit(1);
+            process.exit(0);
         }
 
         MowaAPI.showBanner();
@@ -113,8 +112,8 @@ class MowaAPI {
             command = argTrial._[1];
         }
 
-        this.cliModuleName = Util.S(cliModuleName).camelize().s;
-        this.command = Util.S(command).camelize().s;
+        this.cliModuleName = Util._.camelCase(cliModuleName);
+        this.command = Util._.camelCase(command);
         this.cliModule = modules[this.cliModuleName];
 
         //cli module not found
@@ -162,7 +161,7 @@ class MowaAPI {
 
         //default config
         this.config = {
-            general: debug
+            general: normal
         };
     }
 
@@ -289,6 +288,34 @@ class MowaAPI {
         return this.config[moduleName];
     }
 
+    /**
+     * Get the template path
+     * @memberof MowaAPI
+     * @param {string} templateName - Template name
+     * @returns {string}
+     */
+    getTemplatePath(templateName) {
+        post: {
+            fs.existsSync(it), 'Template folder not exists.';
+        }
+        return path.resolve(__dirname, '..', '..', 'templates', templateName);
+    }
+
+    /**
+     * Push app choice in options 
+     * @param {*} cmdOptions 
+     */
+    makeAppChoice(cmdOptions) {
+        cmdOptions['app'] = {
+            desc: 'The name of the app to operate',
+            promptMessage: 'Please select the target app:',                
+            required: true,
+            inquire: true,
+            promptType: 'list',
+            choicesProvider: () => MowaHelper.getAvailableAppNames(this)
+        };
+    }
+
     _validateArgv() {
         let valid = true;
 
@@ -304,8 +331,6 @@ class MowaAPI {
     }
 
     async _inquire_() {
-        let dataFetchers = [];
-
         let doInquire = item => inquirer.prompt([item]).then(answers => {
             _.forOwn(answers, (ans, name) => {
                 this.argv[name] = ans;
@@ -357,7 +382,7 @@ class MowaAPI {
                 }
             } else if (name in this.argv && 'nonInquireFilter' in opts) {
                 this.argv[name] = await opts.nonInquireFilter(this.argv[name]);
-            }
+            } 
         });
     }
 
@@ -365,17 +390,19 @@ class MowaAPI {
         let cliModule = this.cliModuleName || '[cli module]';
         let command = (this.command && this.command !== 'help') ? this.command : '<command>';
 
-        let usage = `Usage: ${path.basename(process.argv[1])} ${cliModule} ${command} [options]\n\n`;
+        let usage = `Usage: ${path.basename(process.argv[1])} ${cliModule} ${command} [options]\n`;
 
         if (cliModule === '[cli module]') {
-            usage += 'Available cli modules: '
+            usage += '\nAvailable cli modules: '
                 + _.reduce(this.modules, (sum, value, key) => (sum + '\n  ' + key + ': ' + value.moduleDesc), '')
                 + '\n\n';
         } else if (command === '<command>' && this.cliModule) {
-            usage += '"' + cliModule + '" module: ' + this.cliModule.moduleDesc + '\n\n';
+            usage += '\nModule "' + cliModule + '": ' + this.cliModule.moduleDesc + '\n\n';
             usage += 'Available commands for "' + this.cliModuleName + '" module: '
                 + _.reduce(_.omit(this.cliModule, ['moduleDesc', 'commandsDesc', 'help']), (sum, value, key) => (sum + '\n  ' + key + ': ' + this.cliModule.commandsDesc[key]), '')
                 + '\n\n';
+        } else if (this.cliModule) {
+            usage += '\nCommand "' + cliModule + '.' + this.command + '": ' + this.cliModule.commandsDesc[this.command] + '\n\n';
         }
 
         usage += `Options:\n`;

@@ -45,9 +45,7 @@ class Db {
         
         if (ctx) {
             //auto destruct if ctx given            
-            if (!('postActions' in ctx)) {
-                throw new Mowa.Error.ServerError('"postActions" middleware is required for auto-close feature of database connection.');
-            }
+            assert: appModule.hasPostActions, 'postActions middleware is required for using db model in http request';
             
             /**
              * Request context
@@ -72,18 +70,18 @@ class Db {
      */
     async conn_() {
         if (!this._conn) {
-            this._conn = await this.service.getConnection();
+            this._conn = await this.service.getConnection_();
             if (this.ctx) {
-                this.ctx.postActions.push(() => {
-                    this.service.closeConnection(this._conn);
-                    delete this._conn;
-                    delete this.ctx;
-                });
+                this._autoRelease = () => {
+                    this.release();
+                }
+
+                this.ctx.addPostAction(this._autoRelease);
             }
         }
 
         return this._conn;
-    }
+    }    
 
     /**
      * Release the database connection
@@ -91,11 +89,40 @@ class Db {
      */
     release() {
         if (this._conn) {
+            if (this.ctx) {
+                this.ctx.removePostAction(this._autoRelease);
+                delete this._autoRelease;
+            }
+
             this.service.closeConnection(this._conn);
             delete this._conn;
         }
 
         return this;
+    }    
+
+    async doTransaction_(businessLogic_) {
+        let conn = await this.conn_();
+        let result;
+
+        try {
+            await this.service.startTransaction_(conn);            
+
+            try {            
+                result = await businessLogic_(conn);
+                console.log(result);
+                result = await this.service.commitTransaction_(conn);
+                console.log(result);
+            } catch (error) {
+                await this.service.rollbackTransaction_(conn);
+            }     
+        } finally {
+            if (!this.ctx) {
+                this.release();
+            }
+        }        
+
+        return result;
     }
 }
 

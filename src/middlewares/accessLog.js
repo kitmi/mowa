@@ -79,7 +79,7 @@ module.exports = (opt, appModule) => {
 
         await next();
 
-        let msg = Util.S(format).template(reader).s;
+        let msg = Util.template(format, reader);
         logger.info(msg);
     };
 };

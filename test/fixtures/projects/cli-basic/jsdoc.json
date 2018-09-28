@@ -1,0 +1,25 @@
+{
+    "tags": {
+        "allowUnknownTags": true
+    },
+    "plugins": [
+        "plugins/markdown"
+    ],
+    "templates": {
+        "systemName": "cli-test",
+        "footer": "",
+        "includeDate": false,
+        "navType": "vertical",
+        "theme": "cerulean",
+        "linenums": true,
+        "collapseSymbols": false,
+        "inverseNav": true,
+        "outputSourceFiles": false,
+        "outputSourcePath": true,
+        "cleverLinks": true
+    },
+    "markdown": {
+        "parser": "gfm",
+        "hardwrap": true
+    }
+}

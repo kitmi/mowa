@@ -39,7 +39,7 @@ module.exports = async (appModule, baseRoute, options) => {
     let files = Util.glob.sync(resourcesPath, {nodir: true});
 
     _.each(files, file => {
-        let urlName = Util.S(path.basename(file, '.js')).underscore().s;
+        let urlName = Util._.snakeCase(path.basename(file, '.js'));
         ctrlsMap.set(urlName, require(file));
     });
 

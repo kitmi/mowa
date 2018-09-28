@@ -2,14 +2,37 @@
 
 /**
  * @module Middleware_Session
- * @summary Response time middleware adds a x-response-time header field in http response
+ * @summary Session middleware
  */
 
 const Mowa = require('../server.js');
 const Util = Mowa.Util;
 
-const session = require('koa-session-minimal');
+const session = require('koa-session-mowa');
 
+const DEFAULT_OPTS = {
+    key: 'mowa.sid',
+    prefix: 'mowa:sess:'
+};
+
+/**
+ * Initialize session middleware
+ * @param {object} options - Session options 
+ * @property {string} [options.key='mowa:sid'] - Cookie name defaulting to mowa.sid 
+ * @property {string} [options.prefix='mowa:sess:'] - Session prefix for store, defaulting to mowa:sess:
+ * @property {number} [options.maxAge] - SessionStore's expiration time (ms), defaulting to 86400000 (1 day)
+ * @property {bool} [options.autoCommit=true] - Automatically commit headers (default true)
+ * @property {bool} [options.overwrite=true] - Can overwrite or not (default true) 
+ * @property {bool} [options.httpOnly=true] - HttpOnly or not (default true)
+ * @property {bool} [options.signed=true] - Signed or not
+ * @property {bool} [options.rolling=false] - Force a session identifier cookie to be set on every response. The expiration is reset to the original maxAge, resetting the expiration countdown. (default is false) 
+ * @property {bool} [options.renew=false] - Renew session when session is nearly expired, so we can always keep user logged in. (default is false)
+ * @property {function} [options.genSid] - The way of generating external session id is controlled by the options.genid, which defaults to Date.now() + '-' + uid.sync(24)
+ * @property {function} [options.valid] - valid(ctx, session), valid session value before use it
+ * @property {function} [options.beforeSave] - beforeSave(ctx, session), hook before save session
+ * @property {object} [options.store] - Session store instance. It can be any Object that has the methods set, get, destroy like MemoryStore.
+ * @param {AppModule} appModule 
+ */
 module.exports = (options, appModule) => {
 
     let store = options.store || { type: 'memory' };
@@ -22,26 +45,27 @@ module.exports = (options, appModule) => {
         );        
     }
 
-    let storeGenerator;
+    let storeObject;
 
     switch (store.type) {
         case 'redis':
-            storeGenerator = require('koa-redis');
+            storeObject = require('koa-redis')(store.options);
             break;
         case 'mysql':
-            storeGenerator = require('koa-mysql-session');
+            storeObject = require('koa-mysql-session')(store.options);
             break;
         case 'mongodb':
-            storeGenerator = require('koa-generic-session-mongo');
+            storeObject = require('koa-generic-session-mongo')(store.options);
             break;
         case 'pgsql':
-            storeGenerator = require('koa-pg-session');
+            storeObject = require('koa-pg-session')(store.options);
             break;
         case 'sqlite3':
-            storeGenerator = require('koa-sqlite3-session');
+            storeObject = require('koa-sqlite3-session')(store.options);
             break;
         case 'memory':
-            storeGenerator = () => { return undefined; }; // default store
+            const MemoryStore = require('koa-session-memory');
+            storeObject = new MemoryStore();
             break;
         default:
             throw new Mowa.Error.InvalidConfiguration(
@@ -51,7 +75,7 @@ module.exports = (options, appModule) => {
             );
     }
 
-    let sessionOptions = Object.assign({}, options, {store: storeGenerator(store.options)});
+    let sessionOptions = Object.assign({}, DEFAULT_OPTS, options, {store: storeObject});
 
     return session(sessionOptions);
 };

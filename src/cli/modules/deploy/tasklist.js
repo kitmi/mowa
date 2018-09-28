@@ -45,7 +45,7 @@ class TaskList {
             }
 
             const pkg = require(path.join(this.manager.api.base, 'package.json'));
-            const bundleName = pkg.name + '-' + Util.S(projectInfo.bundleVersion).replaceAll('.', '_').s + '.zip';
+            const bundleName = pkg.name + '-' + Util.replaceAll(projectInfo.bundleVersion, '.', '_') + '.zip';
             const bundlePath = path.join(this.manager.api.base, 'release', bundleName);
             if (!Util.fs.existsSync(bundlePath)) {
                 return Promise.reject(`Specified bundle "${bundleName}" does not exist!`);
@@ -72,7 +72,7 @@ class TaskList {
 
         let [ typeOfDeployer, instanceName ] = component.name.split('.');
 
-        let Deployer = require(path.resolve(__dirname, './components', Util.S(typeOfDeployer).camelize().s + '.js'));
+        let Deployer = require(path.resolve(__dirname, './components', Util._.camelCase(typeOfDeployer) + '.js'));
         return new Deployer(this.manager, session, instanceName, Object.assign({}, componentConfig, component.overrides));
     }
 }

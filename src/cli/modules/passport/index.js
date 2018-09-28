@@ -11,7 +11,8 @@ const Promise = Util.Promise;
 const Mowa = require('../../../server.js');
 const MowaHelper = require('../../mowa-helper.js');
 
-const passportStrategies = require('./strategies.js');
+const PASSPORT_STRATEGIES = require('./strategies.js');
+const CONFIG_PATH = 'passport.strategies';    
 
 /**
  * @module MowaCLI_App
@@ -20,9 +21,9 @@ const passportStrategies = require('./strategies.js');
 
 exports.moduleDesc = 'Provide commands to enable react in an app.';
 
-exports.commandsDesc = {
-    'enable': "Enable the passport feature.",
-    'install': "Install passport strategy."
+exports.commandsDesc = {    
+    'install': "Install passport strategy.",
+    'enable': "Enable a passport strategy.",
 };
 
 exports.help = function (api) {
@@ -38,13 +39,21 @@ exports.help = function (api) {
                 promptMessage: 'Please select the target app:',
                 choicesProvider: () => Promise.resolve(MowaHelper.getAvailableAppNames(api))
             };
-            cmdOptions['no-local'] = {
-                desc: 'Disable local strategy',
-                promptMessage: 'Disable the local strategy?',
-                promptDefault: false,
+            cmdOptions['strategies'] = {
+                desc: 'The passport strategies to enable',
+                promptMessage: 'Select the strategies to enable?',
+                alias: [ 'sg' ], //strategy groups
                 required: true,
                 inquire: true,
-                bool: true
+                promptType: 'checkbox',
+                choicesProvider: () => {
+                    let appModule = MowaHelper.getAppModuleToOperate(api);
+                    let ps = MowaHelper.getAvailablePassportStrategies(appModule);
+                    let enabled = new Set(Util.getValueByPath(appModule.config, CONFIG_PATH, []));                                       
+                    
+                    return ps.map(s => ({ name: s, checked: enabled.has(s) }));
+                },
+                nonInquireFilter: value => value.split(',')
             };
             break;
 
@@ -64,7 +73,7 @@ exports.help = function (api) {
                 required: true,
                 inquire: true,
                 promptType: 'checkbox',
-                choicesProvider: () => require('./strategies.js'),
+                choicesProvider: () => Object.keys(require('./strategies.js')),
                 nonInquireFilter: value => value.split(',')
             };
             break;
@@ -82,20 +91,11 @@ exports.enable = async api => {
     api.log('verbose', 'exec => mowa passport enable');
 
     let appModule = MowaHelper.getAppModuleToOperate(api);
-    let pkgToInstall = 'koa-passport';
+    let strategies = api.getOption('strategies');
+    
+    await MowaHelper.writeConfigBlock_(appModule.configLoader, CONFIG_PATH, strategies);
 
-    shell.cd(appModule.absolutePath);
-    let stdout = Util.runCmdSync('npm i --save ' + pkgToInstall);
-    api.log('verbose', stdout);
-    shell.cd(api.base);
-
-    let noLocal = api.getOption('no-local');
-    if (!noLocal) {
-        api.setOption('strategies', [ 'local' ]);
-        await exports.install(api);
-    }
-
-    api.log('info', 'Enabled passport feature.');
+    api.log('info', 'Enabled passport strategies: ' + strategies.join(', '));
 };
 
 exports.install = async api => {
@@ -110,15 +110,23 @@ exports.install = async api => {
 
     let strategyGroups = [];
 
+    let passportStrategies = Util.getValueByPath(appModule.config, CONFIG_PATH, []);
+    let psSet = new Set(passportStrategies);
+
     strategies.forEach(sg => {
-        if (!(sg in passportStrategies)) {
+        if (!(sg in PASSPORT_STRATEGIES)) {
             throw new Error('Unknown passport strategy group: ' + sg);
         }
-        strategyGroups = strategyGroups.concat(passportStrategies[sg]);
+
+        //add into passport feature    
+        psSet.add(sg);
+
+        strategyGroups = strategyGroups.concat(PASSPORT_STRATEGIES[sg]);
 
         let strategyBootstrapFile = sg + '.js';
 
-        let localTemplate = path.join(__dirname, 'template', strategyBootstrapFile);
+        let templatePath = api.getTemplatePath('passport');
+        let localTemplate = path.join(templatePath, strategyBootstrapFile);
         let targetPath = path.join(strategiesPath, strategyBootstrapFile);
 
         if (!fs.existsSync(targetPath)) {
@@ -127,12 +135,14 @@ exports.install = async api => {
         }
     });
 
-    let pkgsLine = strategyGroups.join(' ');
+    let pkgsLine = 'koa-passport ' + strategyGroups.join(' ');
 
     shell.cd(appModule.absolutePath);
     let stdout = Util.runCmdSync(`npm i --save ${pkgsLine}`);
     api.log('verbose', stdout);
-    shell.cd(api.base);
+    shell.cd(api.base);   
+
+    await MowaHelper.writeConfigBlock_(appModule.configLoader, CONFIG_PATH, Array.from(psSet));
 
     api.log('info', `Installed passport strategies: ${pkgsLine}.`);
 };

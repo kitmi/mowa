@@ -1,6 +1,5 @@
 "use strict";
 
-const inflection = require('inflection');
 const Util = require('../../../util.js');
 const _ = Util._;
 const FEATURE_NAME = 'i18n';
@@ -47,6 +46,8 @@ function initialize(entity, options) {
         let suffixSet = new Set(Object.values(options.locales));
 
         for (let suffix of suffixSet) {
+            if (suffix === 'default') continue;
+
             let fieldName = options.field + '_' + suffix;
             entity.addField(fieldName, fieldInfo);
         }

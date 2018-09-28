@@ -4,6 +4,7 @@ const path = require('path');
 const util = require('util');
 const Util = require('./util.js');
 const Promise = Util.Promise;
+const { Convertors } = require('./oolong/runtime');
 
 class I18n {
     /**
@@ -19,8 +20,8 @@ class I18n {
         config || (config = {});
 
         this.supportedLocales = config.supportedLocales ? config.supportedLocales.map(l => I18n.normalizeLocale(l)) : [ 'en_AU', 'en_US', 'zh_CN' ];
-        this.reverseUpdate = util.isNullOrUndefined(config.reverseUpdate) ? false : Util.S(config.reverseUpdate).toBoolean();
-        this.updateWithMeta = util.isNullOrUndefined(config.updateWithMeta) ? false : Util.S(config.updateWithMeta).toBoolean();
+        this.reverseUpdate = util.isNullOrUndefined(config.reverseUpdate) ? false :  Convertors.toBoolean(config.reverseUpdate);
+        this.updateWithMeta = util.isNullOrUndefined(config.updateWithMeta) ? false : Convertors.toBoolean(config.updateWithMeta);
         this.timezone = config.timezone;
         this.pendingUpdates = {};
     }
@@ -62,7 +63,7 @@ class I18n {
             phrase = phrase['text'];
         }
 
-        return Util._.isEmpty(values) ? phrase : Util.S(phrase).template(values).s;
+        return Util._.isEmpty(values) ? phrase : Util.template(phrase, values);
     }
 
     addToDictionary(token, text, saveImmediate) {
@@ -207,7 +208,7 @@ class FileI18n extends I18n {
 
         for (let p of fileSet) {
             let content = Util.getValueByPath(this.dictionary, p);
-            let f = Util.S(p).replaceAll('.', path.delimiter) + '.json';
+            let f = Util.replaceAll(p, '.', path.delimiter) + '.json';
 
             Util.fs.outputJsonSync(path.join(bp, f), content);
         }

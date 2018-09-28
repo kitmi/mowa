@@ -5,7 +5,6 @@ const Util = require('../util.js');
 const Promise = Util.Promise;
 
 const Router = require('koa-router');
-const inflection = require('inflection');
 
 /*
  '<base path>': {
@@ -36,7 +35,7 @@ module.exports = function loadRpcRouter(appModule, baseRoute, options) {
     let files = Util.glob.sync(controllersPath, {nodir: true});
 
     Util._.each(files, file => {
-        let urlName = Util.S(path.basename(file, '.js')).slugify().s;
+        let urlName = Util._.kebabCase(path.basename(file, '.js'));
         ctrlsMap.set(urlName, require(file));
     });
 

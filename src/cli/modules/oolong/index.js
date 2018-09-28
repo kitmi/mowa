@@ -49,7 +49,7 @@ exports.commandsDesc = {
     'build': 'Generate database script and access models',
     'deploy': 'Create database structure',
     'listDataSet': 'List available data set',
-    'importDataSet': 'Import data set',
+    'importData': 'Import data set',
     'reverse': 'Reverse engineering against a db (from db to ool)'
 };
 
@@ -174,7 +174,7 @@ exports.help = function (api) {
             };
             break;
 
-        case 'importDataSet':
+        case 'importData':
             cmdOptions['app'] = {
                 desc: 'The name of the app to operate',
                 promptMessage: 'Please select the target app:',
@@ -241,6 +241,44 @@ exports.list = async (api) => {
     api.log('info', `Schemas in app [${appModule.name}]:\n${schemas.join('\n')}\n`);
 };
 
+/**
+ * Create a database schema
+ * @example <caption>Create a database schema in oolong file</caption>
+ * mowa oolong create -s <schema name> -c <connection key>
+ * @param api
+ * @returns {*}
+ */
+exports.create = function (api) {
+    pre: api, Util.Message.DBC_ARG_REQUIRED;
+
+    api.log('verbose', 'exec => mowa oolong create');
+
+    let appModule = MowaHelper.getAppModuleToOperate(api);
+
+    let schemaName = api.getOption('schema');
+
+    assert: {
+        schemaName, Util.Message.DBC_VAR_NOT_NULL;
+    }
+    
+    let entitiesPath = path.join(appModule.oolongPath, 'entities');
+    fs.ensureDirSync(entitiesPath);
+    
+    let schemaFile = path.join(appModule.oolongPath, `${schemaName}.ool`);
+    if (fs.existsSync(schemaFile)) {
+        return Promise.reject(`Oolong schema "${schemaName}" has already exist.`);
+    }
+
+    let templatePath = api.getTemplatePath('oolong');
+    
+    let schemaContent = fs.readFileSync(path.join(templatePath, 'schema.ool'));
+    fs.writeFileSync(schemaFile, Util.template(schemaContent, { schemaName: schemaName }));
+    api.log('info', `Created "${schemaName}.ool" file.`);
+  
+    fs.copySync(path.join(templatePath, 'sampleEntity.ool'), path.join(entitiesPath, 'sampleEntity.ool'));
+    api.log('info', 'Created "sampleEntity.ool" file.');
+};
+
 exports.config = async (api) => {
     pre: api, Util.Message.DBC_ARG_REQUIRED;
 
@@ -278,44 +316,6 @@ exports.config = async (api) => {
     await MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, deployTo);
 
     api.log('info', `Deployment of schema "${schemaName}" is configured.`);
-};
-
-/**
- * Create a database schema
- * @example <caption>Create a database schema in oolong file</caption>
- * mowa oolong create -s <schema name> -c <connection key>
- * @param api
- * @returns {*}
- */
-exports.create  = function (api) {
-    pre: api, Util.Message.DBC_ARG_REQUIRED;
-
-    api.log('verbose', 'exec => mowa oolong create');
-
-    let appModule = MowaHelper.getAppModuleToOperate(api);
-
-    let schemaName = api.getOption('schema');
-
-    assert: {
-        schemaName, Util.Message.DBC_VAR_NOT_NULL;
-    }
-    
-    let entitiesPath = path.join(appModule.oolongPath, 'entities');
-    fs.ensureDirSync(entitiesPath);
-    
-    let schemaFile = path.join(appModule.oolongPath, `${schemaName}.ool`);
-    if (fs.existsSync(schemaFile)) {
-        return Promise.reject(`Oolong schema "${schemaName}" has already exist.`);
-    }
-
-    let templatePath = path.resolve(__dirname, 'template');
-
-    let schemaContent = fs.readFileSync(path.join(templatePath, 'schema.ool'));
-    fs.writeFileSync(schemaFile, Util.S(schemaContent).template({ schemaName: schemaName }).s);
-    api.log('info', `Created "${schemaName}.ool" file.`);
-  
-    fs.copySync(path.join(templatePath, 'sampleEntity.ool'), path.join(entitiesPath, 'sampleEntity.ool'));
-    api.log('info', 'Created "sampleEntity.ool" file.');
 };
 
 exports.build = async api => {
@@ -389,10 +389,10 @@ exports.listDataSet = function (api) {
     }
 };
 
-exports.importDataSet = async api => {
+exports.importData = async api => {
     pre: api, Util.Message.DBC_ARG_REQUIRED;
 
-    api.log('verbose', 'exec => mowa oolong importDataSet');
+    api.log('verbose', 'exec => mowa oolong importData');
 
     let db = api.getOption('db');
     let dataSet = api.getOption('dataSet');

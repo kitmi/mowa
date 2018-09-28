@@ -3,6 +3,7 @@
 const Mowa = require('../server.js');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
+const { ModelOperationError } = require('../oolong/runtime/errors');
 
 /**
  * @module Middleware_PassportAuth
@@ -35,22 +36,25 @@ let createMiddleware = (opt, appModule) => {
 
     if (opt.customHandler) {
         return (ctx, next) => {
-            return passport.authenticate(opt.strategy, (err, user, info, status) => {
+            return passport.authenticate(opt.strategy, opt.options, (err, user, info, status) => {
                 if (err) {
-                    throw new Mowa.Error.ServerError(err);
+                    throw new ModelOperationError(err.Error || err.sqlMessage || err.message, err.code);
                 }
 
                 if (user) {
-                    return ctx.login(user).then(() => next());
+                    return ctx.login(user).then(next);
                 }
 
                 ctx.loginError = info;
+                if (typeof status === 'number') {
+                    ctx.status = status;
+                }
                 return next();
             })(ctx, next);
         };
     }
     
     return passport.authenticate(opt.strategy, opt.options);
-};
+}
 
 module.exports = createMiddleware;

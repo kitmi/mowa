@@ -36,7 +36,7 @@ let self = module.exports = {
     install_: function (session, logger) {
         logger.info('Installing Docker ...');
 
-        let dist = U.S(session.os['Distributor ID']).capitalize().s;
+        let dist = U.pascalCase(session.os['Distributor ID']);
         let osSpecificFile = path.resolve(__dirname, 'docker-' + dist + '.js');
         let osSpecificObj;
 
@@ -56,7 +56,7 @@ let self = module.exports = {
     uninstall_: function (session, logger) {
         logger.info('Uninstalling Docker ...');
 
-        let dist = U.S(session.os['Distributor ID']).capitalize().s;
+        let dist = U.pascalCase(session.os['Distributor ID']);
         let osSpecificFile = path.resolve(__dirname, 'docker-' + dist + '.js');
         let osSpecificObj;
 

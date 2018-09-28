@@ -20,7 +20,7 @@ module.exports = {
     /**
      * Load the feature
      * @param {AppModule} appModule - The app module object
-     * @param {object} middlewares - Middlewares and options
+     * @param {*} middlewares - Middlewares and options
      * @returns {Promise.<*>}
      */
     load_: function (appModule, middlewares) {

@@ -1,1 +1,0 @@
-const fs=require('fs'),path=require('path'),modules={};module.exports=modules;fs.readdirSync(__dirname).filter(isMowaModule).forEach(loadModule);function isMowaModule(name){const moduleDir=path.join(__dirname,name);return fs.statSync(moduleDir).isDirectory()}function loadModule(name){const moduleDir=path.join(__dirname,name);modules[name]=require(moduleDir)}

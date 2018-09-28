@@ -180,7 +180,7 @@ class OolongEntity {
                 let featureName = feature.name;
 
                 let fn = require(path.resolve(__dirname, `./features/${featureName}.js`));
-                fn(this, feature.options);
+                fn(this, this.linker.translateOolValue(this.oolModule, feature.options));
             });
         }
 
@@ -193,13 +193,7 @@ class OolongEntity {
             });
         }
 
-        this._events.emit('afterFields');
-
-        if (this.info.indexes) {
-            _.each(this.info.indexes, index => {
-                this.addIndex(index);
-            });
-        }
+        this._events.emit('afterFields');        
 
         if (this.info.key) {
             this.key = this.info.key;
@@ -246,6 +240,17 @@ class OolongEntity {
         return _.findIndex(this.indexes, index => {
                 return _.findIndex(index.fields, (f, idx) => (fields.length <= idx || fields[idx] !== f)) === -1;
             }) != -1;
+    }
+
+    /**
+     * Add all indexes
+     */
+    addIndexes() {
+        if (this.info.indexes) {
+            _.each(this.info.indexes, index => {
+                this.addIndex(index);
+            });
+        }
     }
 
     /**

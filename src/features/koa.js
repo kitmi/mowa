@@ -4,6 +4,7 @@ const Mowa = require('../server.js');
 const Util = Mowa.Util;
 const _ = Util._;
 const Promise = Util.Promise;
+const { Convertors } = require('../oolong/runtime')
 
 /**
  * @module Feature_Koa
@@ -29,10 +30,12 @@ module.exports = {
      * @returns {Promise.<*>}
      */
     load_: function (appModule, options) {
+        if (appModule.serverModule.options.deaf) return Promise.resolve();
+
         let app = appModule.router;
         
         app.env = appModule.serverModule.env;
-        app.proxy = Util.S(options.trustProxy).toBoolean();
+        app.proxy = options.trustProxy && Convertors.toBoolean(options.trustProxy);
 
         if (('subdomainOffset' in options) && options.subdomainOffset !== 2) {
             if (options.subdomainOffset < 2) {
@@ -58,25 +61,23 @@ module.exports = {
             if (err.status && err.status < 500) {
                 appModule.log('warn', `[${err.status}] ` + err.message, ctx && _.pick(ctx, ['method', 'url', 'ip']));
             } else {
-                appModule.log('error', err.message, err.stack);
+                appModule.log('error', err.message, { status: err.status, stack: err.stack });
             }
         });
 
         let port = options.httpPort || 2331;
 
-        if (!appModule.serverModule.options.deaf) {
-            appModule.httpServer = require('http').createServer(app.callback());
-            appModule.serverModule.addHttpServer(appModule, appModule.httpServer);
+        appModule.httpServer = require('http').createServer(app.callback());
+        appModule.serverModule.addHttpServer(appModule, appModule.httpServer);
 
-            appModule.on('after:' + Mowa.Feature.ROUTING, () => {
-                appModule.httpServer.listen(port, function (err) {
-                    if (err) throw err;
+        appModule.on('after:' + Mowa.Feature.ROUTING, () => {
+            appModule.httpServer.listen(port, function (err) {
+                if (err) throw err;
 
-                    appModule.log('info', `A http service is listening on port [${this.address().port}] ...`);
-                    appModule.emit('httpReady');
-                });
+                appModule.log('info', `A http service is listening on port [${this.address().port}] ...`);
+                appModule.emit('httpReady');
             });
-        }
+        });
 
         return Promise.resolve();
     }

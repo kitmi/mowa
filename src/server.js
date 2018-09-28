@@ -31,10 +31,15 @@ class MowaServer extends AppModule {
      * @property {string} [options.modulePath] - The path of the server
      * @property {string} [options.childModulesPath='app_modules'] - Relative path of child modules
      * @property {string} [options.etcPath='etc'] - Relative path of configuration files
+     * @property {string} [options.etcPrefix='server'] - Configuration file basename
+     * @property {string} [options.backendPath='server'] - Relative path of back-end server files
+     * @property {string} [options.frontendPath='client'] - Relative path of front-end client source files
+     * @property {string} [options.frontendStaticPath='public'] - Relative path of front-end static files
      * @property {string} [options.host] - Host of the server
      * @property {bool} [options.verbose=false] - Flag to output trivial information for diagnostics
      * @property {bool} [options.deaf=false] - Start the server without enabling the web engine, specially for cli
      * @property {bool} [options.logWithModuleName=false] - Flag to prepend module name before logging
+     * @property {bool} [options.oneAppMode=false] - Flag to run an app in standalone mode
      */
     constructor(name, options) {
         if (typeof options === 'undefined') {
@@ -52,7 +57,7 @@ class MowaServer extends AppModule {
 
         super(null, name, null, options);
 
-        this.env = MowaServer.env;
+        this.env = process.env.NODE_ENV || "development";
 
         /**
          * Array of HTTP server objects
@@ -77,11 +82,11 @@ class MowaServer extends AppModule {
     start_(extraFeatures) {
         this.emit('starting', this);
 
-        this.log('info', `Starting mowa server v.${pkg.version} ...`);
+        this.log('info', `Starting ${this.name} ...`);
 
-        let cwd = process.cwd();
-        if (this.absolutePath !== cwd) {
-            this._cwdBackup = cwd;
+        let cwd = process.cwd();        
+        if (this.absolutePath !== cwd) {            
+            this._cwdBackup = cwd;            
             process.chdir(this.absolutePath);
         }
         
@@ -100,7 +105,7 @@ class MowaServer extends AppModule {
             return this;
         }).catch(error => {
             if (this.env === 'development' && _.isError(error)) {
-                console.error(error.stack);
+                this.log('error', error.stack);
             }
 
             this.log('error', 'Failed to start server!');
@@ -114,7 +119,7 @@ class MowaServer extends AppModule {
      * @memberof MowaServer
      * @returns {Promise.<*>}
      */
-    stop_() {
+    async stop_() {
         this.emit('stopping', this);
 
         return super.stop_().then(() => {
@@ -157,12 +162,6 @@ class MowaServer extends AppModule {
         });
     }
 }
-
-/**
- * Environment
- * @memberof MowaServer
- */
-MowaServer.env = process.env.NODE_ENV || "development";
 
 /**
  * AppModule class

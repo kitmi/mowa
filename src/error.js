@@ -66,7 +66,7 @@ class ServerError extends Error {
      * @extends Error
      * @param {string} message - Error message
      */
-    constructor(message) {
+    constructor(message, code) {
         super(message);
 
         /**
@@ -80,6 +80,14 @@ class ServerError extends Error {
          * @member {integer}
          */
         this.status = HttpCode.HTTP_INTERNAL_SERVER_ERROR;
+
+        if (code !== undefined) {
+            /**
+             * Error Code
+             * @member {integer|string}
+             */
+            this.code = code;
+        }
     }
 }
 

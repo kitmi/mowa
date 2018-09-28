@@ -25,6 +25,13 @@ const U = RkUtil._.assignIn({}, RkUtil, {
     get timezone() { return require('moment-timezone'); },
 
     /**
+     * Use Express/Connect middleware with Koa.
+     * See {@link https://www.npmjs.com/package/koa-connect}
+     * @member {function}
+     */
+    get c2k() { return require('koa-connect'); },
+
+    /**
      * Create a least recently used cache object.
      * @param {object} options
      * @returns {LRUCache}
@@ -43,6 +50,11 @@ const U = RkUtil._.assignIn({}, RkUtil, {
      */
     Message: require('./message.js'),
 
+    /**
+     * Normalize a name to human readible format
+     * @param {string} name 
+     * @returns {string}
+     */
     normalizeDisplayName(name) {        
         return _.upperFirst(_.trim(_.snakeCase(name), '_').split('_').join(' '));
     }

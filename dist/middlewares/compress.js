@@ -1,1 +1,0 @@
-"use strict";const koaCompress=require("koa-compress");module.exports=koaCompress;

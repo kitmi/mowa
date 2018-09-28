@@ -90,5 +90,10 @@ const Literals = module.exports = {
     /**
      * Locale dictionary files path
      */
-    LOCALE_PATH: 'locale'
+    LOCALE_PATH: 'locale',
+
+    /**
+     * Allowed http methods
+     */
+    ALLOWED_HTTP_METHODS: new Set(['options', 'get', 'head', 'post', 'put', 'delete', 'trace', 'connect'])
 };

@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * @module Feature_devEtcByGit
+ * @module Feature_DevEtcByGit
  * @summary Enable developer specific config identified by git user name
  */
 
@@ -56,10 +56,10 @@ const createDevConfigProvider = (devName) => {
 module.exports = {
 
     /**
-     * This feature is loaded at init stage
+     * This feature is loaded at configuration stage
      * @member {string}
      */
-    type: Mowa.Feature.INIT,
+    type: Mowa.Feature.CONF,
 
     /**
      * Load the feature

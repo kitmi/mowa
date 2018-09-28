@@ -229,6 +229,28 @@ const _preCreateValidateCheck = (stateVarName, fieldName) => ({
     "alternate": null
 });
 
+const _fieldExistenseCheck = (fieldName, content) => ({
+    "type": "IfStatement",
+    "test": {
+        "type": "BinaryExpression",
+        "operator": "in",
+        "left": {
+            "type": "Literal",
+            "value": fieldName,
+            "raw": `'${fieldName}'`
+        },
+        "right": {
+            "type": "Identifier",
+            "name": "latest"
+        }
+    },
+    "consequent": {
+        "type": "BlockStatement",
+        "body": content
+    },
+    "alternate": null
+});
+
 const _preUpdateHeader = [
     {
         "type": "VariableDeclaration",
@@ -530,12 +552,12 @@ const _preUpdateHeader = [
                             "type": "Property",
                             "key": {
                                 "type": "Identifier",
-                                "name": "raw"
+                                "name": "latest"
                             },
                             "computed": false,
                             "value": {
                                 "type": "Identifier",
-                                "name": "raw"
+                                "name": "latest"
                             },
                             "kind": "init",
                             "method": false,
@@ -545,12 +567,12 @@ const _preUpdateHeader = [
                             "type": "Property",
                             "key": {
                                 "type": "Identifier",
-                                "name": "updating"
+                                "name": "raw"
                             },
                             "computed": false,
                             "value": {
                                 "type": "Identifier",
-                                "name": "updating"
+                                "name": "raw"
                             },
                             "kind": "init",
                             "method": false,
@@ -582,39 +604,6 @@ const _preUpdateHeader = [
         "kind": "let"
     }
 ];
-
-const _preUpdateCheckPendingUpdate = (fieldName, content) => (
-    {
-        "type": "IfStatement",
-        "test": {
-            "type": "CallExpression",
-            "callee": {
-                "type": "MemberExpression",
-                "computed": false,
-                "object": {
-                    "type": "Identifier",
-                    "name": "updating"
-                },
-                "property": {
-                    "type": "Identifier",
-                    "name": "has"
-                }
-            },
-            "arguments": [
-                {
-                    "type": "Literal",
-                    "value": fieldName,
-                    "raw": `'${fieldName}'`
-                }
-            ]
-        },
-        "consequent": {
-            "type": "BlockStatement",
-            "body": content
-        },
-        "alternate": null
-    }
-);
 
 const restMethods = (serviceId, entityName, className) => ({
     "type": "Program",
@@ -1862,6 +1851,6 @@ module.exports = {
     _preCreateHeader,
     _preCreateValidateCheck,
     _preUpdateHeader,
-    _preUpdateCheckPendingUpdate,
+    _fieldExistenseCheck,
     restMethods
 };

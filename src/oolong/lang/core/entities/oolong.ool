@@ -44,17 +44,15 @@ type
 
   id : name ~matches(/^[A-Za-z_]\w{2,39}$/)
   password : text(200)
-  email : text(200) ~isEmail
-  alpha : text ~isAlpha
-  digits : text ~isNumeric
-  alphaNumber : text ~isAlphanumeric
+  email : text(200) ~isEmail    
   phone : text(20) ~matches(/^((\+|00)\d+)?\d+(-\d+)?$/)
   money : number exact
 
-  url : text ~isURL
-  path : text ~isURL({allow_protocol_relative_urls: true})
+  url : text(2000) ~isURL
+  path : text(2000) ~isURL({allow_protocol_relative_urls: true})
 
-  uuid : text(36) fixedLength ~isUUID
+  uniqid : text(18) fixedLength auto('uniqid')
+  uuid : text(36) fixedLength auto('uuid') ~isUUID
   ip : text(40) ~isIP
 
   object : json

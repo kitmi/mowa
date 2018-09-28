@@ -1,1 +1,0 @@
-"use strict";const Mowa=require("../server.js"),Util=Mowa.Util,Promise=Util.Promise;module.exports={type:Mowa.Feature.MIDDLEWARE,load_:function(appModule,middlewares){appModule.useMiddlewares(appModule.router,middlewares);return Promise.resolve()}};

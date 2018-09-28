@@ -14,6 +14,8 @@ const Error = require('./error.js');
 
 const { Config, JsonConfigProvider } = require('rk-config');
 
+const ConsoleLogLevel = new Set([ 'error', 'warn' ]);
+
 class AppModule extends EventEmitter {
     /**
      * An app module object.
@@ -27,6 +29,9 @@ class AppModule extends EventEmitter {
      * @property {string} [options.modulePath] - The path of this app module
      * @property {string} [options.childModulesPath='app_modules'] - Relative path of child modules
      * @property {string} [options.etcPath='etc'] - Relative path of configuration files
+     * @property {string} [options.backendPath='server'] - Relative path of back-end server files
+     * @property {string} [options.frontendPath='client'] - Relative path of front-end client source files
+     * @property {string} [options.frontendStaticPath='public'] - Relative path of front-end static files
      * @property {bool} [options.npmModule=false] - Specify whether it's a npmModule
      * @property {bool} [options.verbose=false] - Flag to output trivial information for diagnostics
      * @property {string} [options.host] - Host of this app module
@@ -83,7 +88,7 @@ class AppModule extends EventEmitter {
          * @type {object}
          * @public
          */
-        this.middlewares = {};
+        this.middlewareFactoryRegistry = {};
 
         /**
          * Child modules
@@ -93,7 +98,8 @@ class AppModule extends EventEmitter {
         this.childModules = undefined;
 
         if (!parent) {
-            this._etcPrefix = Literal.SERVER_CFG_NAME;
+            //server app
+            this._etcPrefix = (options && options.etcPrefix) || Literal.SERVER_CFG_NAME;
 
             /**
              * Absolute path of this app module
@@ -151,13 +157,13 @@ class AppModule extends EventEmitter {
          * @type {string}
          * @public
          **/
-        this.backendPath = this.toAbsolutePath(Literal.BACKEND_PATH);
+        this.backendPath = this.toAbsolutePath(this.options.backendPath || Literal.BACKEND_PATH);
         /**
          * Frontend source files path
          * @type {string}
          * @public
          **/
-        this.frontendPath = this.toAbsolutePath(Literal.FRONTEND_PATH);
+        this.frontendPath = this.toAbsolutePath(this.options.frontendPath || Literal.FRONTEND_PATH);
         /**
          * Ooolong files path
          * @type {string}
@@ -169,7 +175,7 @@ class AppModule extends EventEmitter {
          * @type {string}
          * @public
          **/
-        this.frontendStaticPath = this.toAbsolutePath(Literal.FRONTEND_STATIC_PATH);
+        this.frontendStaticPath = this.toAbsolutePath(this.options.frontendStaticPath || Literal.FRONTEND_STATIC_PATH);
 
         /**
          * Base router of the app
@@ -183,8 +189,16 @@ class AppModule extends EventEmitter {
      * Get the hosting http server object of this app module
      * @member {object}
      */
-    get hostingHttpServer() {
+    get hostingHttpServer() {        
         return this.httpServer || this.parent.hostingHttpServer;
+    }
+
+    /**
+     * Get the koa instance of hosting http server of this app module
+     * @member {object}
+     */
+    get hostingKoa() {        
+        return this.httpServer ? this.router : this.parent.hostingKoa;
     }
 
     /**
@@ -227,7 +241,7 @@ class AppModule extends EventEmitter {
 
                 if (this.options.verbose) {
                     let verboseMessage = 'Enabled features:\n' + Object.keys(this.features).join('\n') + '\n\n' +
-                            'Registered services:\n' + Object.keys(this.services).join('\n') + '\n';
+                        'Registered services:\n' + Object.keys(this.services).join('\n') + '\n';
 
                     this.log('verbose', verboseMessage);
                 }
@@ -331,71 +345,99 @@ class AppModule extends EventEmitter {
      * @param mwPath
      */
     loadMiddlewareFiles(mwPath) {
+        if (this.serverModule.options.deaf) return this;
+
         let files = Util.glob.sync(path.join(mwPath, '*.js'), {nodir: true});
-        files.forEach(file => this.registerMiddleware(path.basename(file, '.js'), require(file)));
+        files.forEach(file => this.registerMiddlewareFactory(path.basename(file, '.js'), require(file)));
     }
 
     /**
-     * Register a middleware
+     * Register the factory method of a named middleware
      * @memberof AppModule
-     * @param {string} name
-     * @param {object} middleware
+     * @param {string} name - The name of the middleware 
+     * @param {function} factoryMethod - The factory method of a middleware
      */
-    registerMiddleware(name, middleware) {
-        if (name in this.middlewares) {
+    registerMiddlewareFactory(name, factoryMethod) {
+        pre: typeof factoryMethod === 'function', 'Invalid middleware factory: ' + name;
+
+        if (name in this.middlewareFactoryRegistry) {
             throw new Error.ServerError('Middleware "'+ name +'" already registered!');
         }
 
-        this.middlewares[name] = middleware;
-        this.log('verbose', `Registered middleware [${name}].`);
+        this.middlewareFactoryRegistry[name] = factoryMethod;
+        this.log('verbose', `Registered named middleware [${name}].`);
     }
 
     /**
-     * Get a middlware from module hierarchy
+     * Get the factory method of a middleware from module hierarchy
      * @memberof AppModule
      * @param name
      * @returns {Function}
      */
-    getMiddleware(name) {
-        if (name in this.middlewares) {
-            return this.middlewares[name];
+    getMiddlewareFactory(name) {
+        if (name in this.middlewareFactoryRegistry) {
+            return this.middlewareFactoryRegistry[name];
         }
 
         if (this.parent) {
-            return this.parent.getMiddleware(name);
+            return this.parent.getMiddlewareFactory(name);
         }
 
-        return undefined;
+        throw new Error.ServerError('Unregistered middleware factory: ' + name);
     }
 
     /**
      * Use middlewares, skipped while the server running in deaf mode
      * @memberof AppModule
-     * @param router
-     * @param middlewares
+     * @param {Router} router
+     * @param {*} middlewares - Can be an array of middleware entries or a key-value list of registerred middlewares
      */
     useMiddlewares(router, middlewares) {
-        if (this.serverModule.options.deaf) return;
+        if (this.serverModule.options.deaf) return this;
 
-        _.forOwn(middlewares, (options, name) => {
-            let middleware = this.getMiddleware(name);
+        let middlewareFactory, middleware;
+        let middlewareFunctions = [];
+        
+        if (_.isPlainObject(middlewares)) {
+            _.forOwn(middlewares, (options, name) => {
+                middlewareFactory = this.getMiddlewareFactory(name);   
+                middleware = middlewareFactory(options, this);
+                middlewareFunctions.push({ name, middleware });                
+            });
+        } else {
+            middlewares = _.castArray(middlewares);          
+        
+            _.each(middlewares, middlewareEntry => {
+                let type = typeof middlewareEntry;
 
-            if (typeof middleware !== 'function') {
-                throw new Error.ServerError('Unregistered middleware: ' + name);
-            }
-
-            let middlewareFunctions = _.castArray(middleware(options, this));
-            middlewareFunctions.forEach(m => {
-                //walk around the fix: https://github.com/alexmingoia/koa-router/issues/182
-                if (router.register && middleware.__metaMatchMethods && middleware.__metaMatchMethods.length) {
-                    router.register('(.*)', middleware.__metaMatchMethods, m, {end: false});
+                if (type === 'string') {
+                    // [ 'namedMiddleware' ]
+                    middlewareFactory = this.getMiddlewareFactory(middlewareEntry);
+                    middleware = middlewareFactory(null, this);
+                    middlewareFunctions.push({ name: middlewareEntry , middleware });
+                } else if (type === 'function') {
+                    middlewareFunctions.push({ name: middlewareEntry.name || 'unamed middleware', middleware: middlewareEntry});
                 } else {
-                    router.use(m);
+                    assert: _.isPlainObject(middlewareEntry) && 'name' in middlewareEntry, 'Invalid middleware entry';
+
+                    middlewareFactory = this.getMiddlewareFactory(middlewareEntry.name);
+                    middleware = middlewareFactory(middlewareEntry.options, this);
+                    middlewareFunctions.push({ name: middlewareEntry.name, middleware });
                 }
             });
+        } 
+        
+        middlewareFunctions.forEach(({ name, middleware }) => {            
+            if (Array.isArray(middleware)) {
+                middleware.forEach(m => this._useMiddleware(router, m));
+            } else {
+                this._useMiddleware(router, middleware);
+            }
 
             this.log('verbose', `Attached middleware [${name}].`);
-        });
+        });        
+
+        return this;
     }
 
     /**
@@ -404,28 +446,45 @@ class AppModule extends EventEmitter {
      * @param router
      * @param method
      * @param route
-     * @param middlewares
+     * @param actions
      */
-    addRoute(router, method, route, middlewares) {
-        if (this.serverModule.options.deaf) return;
+    addRoute(router, method, route, actions) {
+        if (this.serverModule.options.deaf) return this;
 
-        let generators = [];
+        let handlers = [], middlewareFactory;
 
-        _.forOwn(middlewares, (options, name) => {
-            let middleware = this.getMiddleware(name);
+        if (_.isPlainObject(actions)) {
+            _.forOwn(actions, (options, name) => {
+                middlewareFactory = this.getMiddlewareFactory(name);
+                handlers.push(middlewareFactory(options, this));
+            });
+        } else {
+            actions = _.castArray(actions);
 
-            if (typeof middleware !== 'function') {
-                throw new Error.ServerError('Unregistered middleware: ' + name);
-            }
+            _.each(actions, action => {
+                let type = typeof action;
+                if (type === 'string') {
+                    // [ 'namedMiddleware' ]
+                    middlewareFactory = this.getMiddlewareFactory(action);                    
+                    handlers.push(middlewareFactory(null, this));
+                } else if (type === 'function') {
+                    handlers.push(action);
+                } else {
+                    assert: _.isPlainObject(action) && 'name' in action, 'Invalid middleware entry';
 
-            generators.push(middleware(options, this));
+                    middlewareFactory = this.getMiddlewareFactory(action.name);                    
+                    handlers.push(middlewareFactory(action.options, this));
+                }
+            })
+        }
 
-            this.log('verbose', `Middleware "${name}" is attached at "${method}:${this.route}${route}".`);
-        });
+        router[method](route, ...handlers);
 
-        router[method](route, ...generators);
+        let endpoint = Util.urlJoin(this.route, route);
 
-        this.log('verbose', `Route "${method}:${this.route}${route}" is added from module [${this.name}].`);
+        this.log('verbose', `Route "${method}:${endpoint}" is added from module [${this.name}].`);
+
+        return this;
     }
 
     /**
@@ -434,9 +493,10 @@ class AppModule extends EventEmitter {
      * @param nestedRouter
      */
     addRouter(nestedRouter) {
-        if (this.serverModule.options.deaf) return;
+        if (this.serverModule.options.deaf) return this;
 
         this.router.use(nestedRouter.routes());
+        return this;
     }
 
     /**
@@ -449,7 +509,7 @@ class AppModule extends EventEmitter {
         this.childModules || (this.childModules = {});
         this.childModules[childModule.name] = childModule;
 
-        if (this.serverModule.options.deaf || childModule.httpServer) return;
+        if (this.serverModule.options.deaf || childModule.httpServer) return this;
 
         if (childModule.options.host) {
             this.log('verbose', `Child module [${childModule.name}] is mounted at "${childModule.route}" with host pattern: "${childModule.options.host}".`);
@@ -462,6 +522,8 @@ class AppModule extends EventEmitter {
             const mount = require('koa-mount');
             this.router.use(mount(baseRoute, childModule.router));
         }
+
+        return this;
     }    
 
     /**
@@ -480,7 +542,7 @@ class AppModule extends EventEmitter {
             } else {
                 this.logger.log(level, message);
             }
-        } else if (this.options.verbose || level <= 3) {
+        } else if (this.options.verbose || ConsoleLogLevel.has(level)) {
             console.log(level + ': ' + message + (meta ? ' Related: ' + JSON.stringify(meta, null, 4) : ''));
         }
     }
@@ -499,25 +561,35 @@ class AppModule extends EventEmitter {
     }
 
     /**
-     * Prepare context for response action
-     * @param {Object} ctx - Request context
+     * Prepare context for koa action
+     * @param {Object} ctx - Koa request context
+     * @param {function} action - Action function
+     * @return {function}
      */
-    prepareActionContext(ctx) {
-        ctx.appModule = this;
+    wrapAction(action) {
+        return async (ctx, next) => {
+            ctx.appModule = this;
 
-        Object.assign(ctx.state, {
-            _ctx: ctx,
-            _module: this,
-            _util: {
+            Object.assign(ctx.state, {
+                _self: ctx.originalUrl || this.toWebPath(ctx.url),
                 __: ctx.__,
-                makePath: (relativePath, query) => this.toWebPath(relativePath, query),
-                makeUrl: (relativePath, query) => (this.origin + this.toWebPath(relativePath, query))
+                _makePath: (relativePath, query) => this.toWebPath(relativePath, query),
+                _makeUrl: (relativePath, query) => (ctx.origin + this.toWebPath(relativePath, query))            
+            });
+
+            if (ctx.csrf) {            
+                ctx.state._csrf = ctx.csrf;
             }
-        });
+
+            await action(ctx);
+
+            return next();
+        };        
     }
 
     _loadFeatures_() {
         let featureGroups = {
+            [Feature.CONF]: [],
             [Feature.INIT]: [],
             [Feature.DBMS]: [],
             [Feature.SERVICE]: [],
@@ -585,7 +657,12 @@ class AppModule extends EventEmitter {
                 extensionJs = path.resolve(__dirname, 'features', feature + '.js');
 
                 if (!Util.fs.existsSync(extensionJs)) {
-                    throw new Error.ServerError(`Feature "${feature}" not exist.`);
+                    if (this.serverModule.options.deaf) {
+                        this.log('warning', `Feature "${feature}" not exist.`);
+                        return undefined;
+                    } else {
+                        throw new Error.ServerError(`Feature "${feature}" not exist.`);
+                    }                    
                 }
             }
         } 
@@ -598,6 +675,18 @@ class AppModule extends EventEmitter {
         } catch (error) {
             this.log('error', error.message);
             return undefined;
+        }
+    }
+
+    _pushMiddleware(coll, name, middleware) {
+        coll.push({ name, middleware });
+    }
+
+    _useMiddleware(router, middleware) {
+        if (router.register && middleware.__metaMatchMethods && middleware.__metaMatchMethods.length) {
+            router.register('(.*)', middleware.__metaMatchMethods, middleware, {end: false});
+        } else {
+            router.use(middleware);
         }
     }
 }

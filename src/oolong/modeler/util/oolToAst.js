@@ -382,6 +382,24 @@ function compileConcreteValueExpression(startTopoId, value, compileContext) {
 
             return compileVariableReference(startTopoId, value, compileContext);
         }
+        
+        value = _.mapValues(value, (valueOfElement, key) => { 
+            let sid = createTopoId(compileContext, startTopoId + '.' + key);
+            let eid = compileConcreteValueExpression(sid, valueOfElement, compileContext);
+            if (sid !== eid) {
+                dependsOn(compileContext, eid, startTopoId);
+            }
+            return compileContext.astMap[eid];
+        });
+    } else if (Array.isArray(value)) {
+        value = _.map(value, (valueOfElement, index) => { 
+            let sid = createTopoId(compileContext, startTopoId + '[' + index + ']');
+            let eid = compileConcreteValueExpression(sid, valueOfElement, compileContext);
+            if (sid !== eid) {
+                dependsOn(compileContext, eid, startTopoId);
+            }
+            return compileContext.astMap[eid];
+        });
     }
 
     compileContext.astMap[startTopoId] = JsLang.astValue(value);
@@ -544,8 +562,14 @@ function translateThenAst(startId, endId, then, compileContext, assignTo) {
 
         if (then.oolType === 'ReturnExpression') {
             return translateReturnValueAst(startId, endId, then.value, compileContext);
-        }
+        }        
     }
+
+    //then expression is an oolong concrete value    
+    if (_.isArray(then) || _.isPlainObject(then)) {
+        let valueEndId = compileConcreteValueExpression(startId, then, compileContext);    
+        then = compileContext.astMap[valueEndId]; 
+    }   
 
     if (!assignTo) {
         return JsLang.astReturn(then);
@@ -822,7 +846,7 @@ function addCodeBlock(compileContext, topoId, blockMeta) {
     compileContext.sourceMap.set(topoId, blockMeta);
 
     compileContext.logger.verbose(`Adding ${blockMeta.type} "${topoId}" into source code.`);
-    compileContext.logger.debug('AST:\n' + JSON.stringify(compileContext.astMap[topoId], null, 2));
+    //compileContext.logger.debug('AST:\n' + JSON.stringify(compileContext.astMap[topoId], null, 2));
 }
 
 function getCodeRepresentationOf(topoId, compileContext) {

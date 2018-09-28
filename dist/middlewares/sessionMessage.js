@@ -1,1 +1,0 @@
-"use strict";const koaFlash=require("koa-flash-simple");module.exports=koaFlash;

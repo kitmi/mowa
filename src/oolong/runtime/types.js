@@ -28,8 +28,10 @@ exports.unescapeCsv = function (s) {
     return s;
 };
 
+//'int', 'float', 'decimal', 'text', 'bool', 'binary', 'datetime', 'json', 'xml', 'enum', 'csv'
 exports.TYPE_INT = 'int';
-exports.TYPE_FLOAT = 'float';
+exports.TYPE_FLOAT = 'float'; 
+exports.TYPE_DECIMAL = 'decimal'; 
 exports.TYPE_BOOL = 'bool';
 exports.TYPE_TEXT = 'text';
 exports.TYPE_BINARY = 'binary';

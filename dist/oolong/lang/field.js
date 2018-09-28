@@ -1,1 +1,0 @@
-"use strict";const Util=require("../../util.js"),_=Util._;let OolongField=class OolongField{constructor(name,rawInfo){Object.assign(this,rawInfo);this.name=name;this.displayName=Util.normalizeDisplayName(this.name)}clone(stack){return new OolongField(this.name,_.toPlainObject(this))}toJSON(){return _.toPlainObject(this)}};module.exports=OolongField;

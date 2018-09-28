@@ -27,6 +27,22 @@ exports.help = function (api) {
     
     switch (api.command) {        
         case 'init':
+            cmdOptions['library'] = {
+                desc: 'Initiate the project as a library project',
+                promptMessage: 'Is it a library project?',
+                promptDefault: false,
+                bool: true,
+                alias: [ 'lib' ],
+                default: false,
+                inquire: true
+            };
+            cmdOptions['name'] = {
+                desc: 'Name of the project',
+                promptMessage: 'Name of the project?',
+                promptDefault: path.basename(api.base),                
+                alias: [ 'n' ],
+                inquire: true
+            };
             cmdOptions['skip-npm-install'] = {
                 desc: 'Skip running npm install after initialization',
                 promptMessage: 'Skip running npm install after initialization?',
@@ -66,61 +82,64 @@ exports.init = async api => {
     api.log('verbose', 'exec => mowa init');
 
     let skipNpmInstall = api.getOption('skip-npm-install') || false;
-    const etcDest = path.join(api.base, 'etc');
-
-    //check whether etc folder exist
-    if (fs.existsSync(etcDest)) {
-        return Promise.reject('Project already exist.');
+    let name = api.getOption('name');
+    
+    //check whether folder is empty
+    if (!_.isEmpty(_.filter(fs.readdirSync(api.base), f => !_.endsWith(f, '.log') && !_.startsWith(f, '.')))) {
+        return Promise.reject('Project folder not empty. Please run "mowa init" in a empty folder.');
     }
 
-    //create etc folder
-    fs.ensureDirSync(etcDest);
-
-    //copy etc folder from template
-    const templateFolder = path.resolve(__dirname, 'template');
+    const templateFolder = api.getTemplatePath('project');
+        
+    const etcDest = path.join(api.base, 'etc');
     const etcSource = path.join(templateFolder, 'etc');
+    fs.ensureDirSync(etcDest);
     fs.copySync(etcSource, etcDest);
-    api.log('info', `Generated server configuration.`);
+    api.log('info', 'Generated server configuration.');
 
     //copy server folder from template
-    const serverDest = path.resolve(api.base, 'server');
+    const serverDest = path.resolve(api.base, 'src', 'server');
     const serverSource = path.join(templateFolder, 'server');
+    fs.ensureDirSync(serverDest);
     fs.copySync(serverSource, serverDest);
-    api.log('info', `Generated the default application.`);
+    api.log('info', 'Generated server application.');
     
     //generate a package.json if not exist
     const packageJson = path.resolve(api.base, 'package.json');
-    if (!fs.existsSync(packageJson)) {
-        let output = await Util.runCmd_('npm init -y');
-
-        if (output.stdout) {
-            api.log('verbose', output.stdout);
-        }
-
-        if (output.stderr) {
-            api.log('error', output.stderr);
-        }
-
-        api.log('info', 'Created a package.json file under ' + api.base);
-    }
+    const pkg = require(path.join(templateFolder, 'package.json'));
+    pkg.name = name;
+    fs.writeJsonSync(packageJson, pkg, { spaces: 4, encoding: 'utf8' });
+    api.log('info', 'Generated package.json');
 
     //generate server entry file
     const serverJsTemplate = path.join(templateFolder, 'server.template.js');
-    const serverJsDst = path.join(api.base, 'server.js');
-    const pkg = require(packageJson);
+    const serverJsDst = path.join(api.base, 'src', 'server.js');
+    
     let serverJsTemplateContent = fs.readFileSync(serverJsTemplate, 'utf8');
-    let serverJsContent = Util.S(serverJsTemplateContent).template({serverName: pkg.name}).s;
-    fs.writeFileSync(serverJsDst, serverJsContent, 'utf8');
+    let serverJsContent = Util.template(serverJsTemplateContent, {serverName: pkg.name});
+    fs.writeFileSync(serverJsDst, serverJsContent, 'utf8');    
+    api.log('info', 'Generated server entry file.');
 
-    pkg.dependencies || (pkg.dependencies = {});
-    pkg.dependencies['mowa'] = '*';
-    fs.writeJsonSync(packageJson, pkg, { spaces: 4, encoding: 'utf8' });
+    //generate README.md
+    const readmeFile = path.join(api.base, 'README.md');
+    fs.writeFileSync(readmeFile, '# ' + name, 'utf8');    
+    
+    //generate json doc
+    const jsonDoc = require(path.join(templateFolder, 'jsdoc.json'));
+    jsonDoc.templates.systemName = name;
+    fs.writeJsonSync(path.join(api.base, 'jsdoc.json'), jsonDoc, { spaces: 4, encoding: 'utf8' });
+
+    //generate all other files
+    fs.copySync(path.join(templateFolder, '.babelrc'), path.join(api.base, '.babelrc'));
+    fs.copySync(path.join(templateFolder, '.gitignore'), path.join(api.base, '.gitignore'));
+    fs.copySync(path.join(templateFolder, '.npmignore'), path.join(api.base, '.npmignore'));  
+    fs.copySync(path.join(templateFolder, 'lerna.json'), path.join(api.base, 'lerna.json'));    
 
     if (skipNpmInstall) {
         return;
     }
 
-    let output = await Util.runCmd_('npm install --no-save --no-package-lock');
+    output = await Util.runCmd_('npm install');
     if (output.stdout) {
         api.log('verbose', output.stdout);
     }
@@ -128,8 +147,6 @@ exports.init = async api => {
     if (output.stderr) {
         api.log('error', output.stderr);
     }
-
-    api.log('info', 'Installed mowa as dependency.');
 };
 
 exports.install = async api => {
@@ -226,7 +243,7 @@ exports.pack = async (api) => {
 
     let releasePath = path.join(api.base, 'release');
     fs.ensureDirSync(releasePath);
-    let targetZip = path.join(releasePath, `${pkg.name}-v${Util.S(pkg.version).replaceAll('.', '_').s}.zip`);
+    let targetZip = path.join(releasePath, `${pkg.name}-v${pkg.version.replace(/\./g, '_')}.zip`);
     let latestZip = path.join(releasePath, `${pkg.name}-latest.zip`);
 
     shell.rm(latestZip);

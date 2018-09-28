@@ -33,7 +33,7 @@ class DbService {
      * @param {Object} [options] - Extra options for the connection, optional
      * @returns {Promise.<object>}
      */
-    async getConnection(options) {
+    async getConnection_(options) {
         throw new Error(Util.Message.DBC_NOT_IMPLEMENTED);
     }
 

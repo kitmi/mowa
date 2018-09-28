@@ -24,5 +24,10 @@ Thumbs.db
 .nyc_output
 coverage
 temp
+examples/*.log
 test/temp/*.log
 examples/*.log
+
+# built files #
+######################
+lib

@@ -1,0 +1,33 @@
+{
+    "settings": {
+        "cli": {
+            "general": {
+                "consoleEnabled": true,
+                "fileLogEnabled": true,
+                "fileLogFilename": "mowa-cli.log",
+                "fileLogOverwrite": true
+            }
+        }
+    },
+    "loggers": {
+        "general": {
+            "transports": [{
+                "type": "console",
+                "options": {
+                    "level": "verbose",
+                    "colorize": true
+                }
+            }]
+        }
+    },
+    "koa": {
+        "httpPort": 3000
+    },
+    "middlewares": {
+        "compress": {},
+        "etag": {}
+    },
+    "routing": {
+        "/": "home.index"
+    }
+}

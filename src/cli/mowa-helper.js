@@ -22,7 +22,23 @@ const MowaHelper = module.exports;
  * @returns {Promise}
  */
 exports.startMowa_ = function (api) {
-    let mowa = new Mowa(api.mowaName, {deaf: true, verbose: api.config['general'].verbose});
+    let libMode = false;
+
+    if (!fs.existsSync(path.join(api.base, 'etc'))) {
+        libMode = fs.existsSync(path.join(api.base, 'mowa.default.json'));
+    }
+
+    const mowaOpts = {
+        deaf: true, 
+        verbose: api.config['general'].verbose
+    };
+
+    if (libMode) {
+        mowaOpts.etcPath = '';
+        mowaOpts.etcPrefix = 'mowa';
+    }
+
+    let mowa = new Mowa(api.mowaName, mowaOpts);
 
     mowa.on('configLoaded', () => {
         let cliSettings = Util.getValueByPath(mowa.config.settings, 'cli');
@@ -61,15 +77,23 @@ exports.writeConfigBlock_ = function (loader, key, value) {
  * @returns {Array}
  */
 exports.getAvailableAppNames = function (api) {
-    let appModulesPath = path.resolve(api.base, Mowa.Literal.APP_MODULES_PATH);
+    return MowaHelper.getRunningAppModules(api).map(app => app.name);
+};
 
-    if (!fs.existsSync(appModulesPath)) {
-        throw new Error('No app modules found. You may run "mowa app create" to create the first app.');
+/**
+ * Get a list of available app names
+ * @returns {Array}
+ */
+exports.getAvailablePassportStrategies = function (appModule) {
+    let strategiesPath = path.join(appModule.backendPath, 'passports');
+
+    if (!fs.existsSync(strategiesPath)) {
+        throw new Error('Passport strategy folder not exists. Please run "mowa passport install" first.');
     }
 
-    let modules = fs.readdirSync(appModulesPath, 'utf8');
+    let modules = fs.readdirSync(strategiesPath, 'utf8');
 
-    return _.filter(modules, f => fs.lstatSync(path.join(appModulesPath, f)).isDirectory());
+    return _.filter(modules, f => fs.lstatSync(path.join(strategiesPath, f)).isFile() && _.endsWith(f, '.js')).map(f => path.basename(f, '.js'));
 };
 
 /**
@@ -109,8 +133,6 @@ exports.getAppModuleDependencies = function (appModule) {
  * @returns {Array}
  */
 exports.getAllDbmsFeatures = function (appModule) {
-    console.log(appModule.features);
-
     return _.filter(appModule.features, { type: Mowa.Feature.DBMS });
 };
 
