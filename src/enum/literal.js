@@ -23,6 +23,11 @@ const Literals = module.exports = {
     BACKEND_PATH: 'server',
 
     /**
+     * Backend sources path
+     */
+    BACKEND_SRC_PATH: 'src',
+
+    /**
      * Frontend source files path, e.g. react source
      */
     FRONTEND_PATH: 'client',

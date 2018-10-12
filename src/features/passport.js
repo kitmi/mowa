@@ -7,6 +7,7 @@
 
 const path = require('path');
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
 
@@ -18,7 +19,7 @@ module.exports = {
      * This feature is loaded at service stage
      * @member {string}
      */
-    type: Mowa.Feature.SERVICE,
+    type: Feature.SERVICE,
 
     /**
      * Load the feature
@@ -33,7 +34,7 @@ module.exports = {
      * @returns {Promise.<*>}
      */
     load_: function (appModule, config) {
-        if (appModule.serverModule.options.deaf) return Promise.resolve();
+        if (appModule.serverModule.options.cliMode) return Promise.resolve();
 
         let passport = new KoaPassport();
         if (Util._.isEmpty(config) || !config.strategies) {

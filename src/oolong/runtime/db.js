@@ -84,6 +84,14 @@ class Db {
     }    
 
     /**
+     * Execute a query towards the database
+     * @returns {*|Promise.<Object>}
+     */
+    async query_() {
+        throw new Error('To be overrided by subclass.');
+    }
+
+    /**
      * Release the database connection
      * @returns {Db}
      */

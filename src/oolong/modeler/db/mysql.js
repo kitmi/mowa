@@ -14,9 +14,9 @@ const OolUtil = require('../../lang/ool-utils.js');
 const OolongDbModeler = require('../db.js');
 const Entity = require('../../lang/entity.js');
 
-const { Generators } = require('../../runtime');
-
 const Rules = require('./mysql/rules-reverse');
+
+const UNSUPPORTED_DEFAULT_VALUE = new Set(['BLOB', 'TEXT', 'JSON', 'GEOMETRY']);
 
 /*
 const MYSQL_KEYWORDS = [
@@ -102,7 +102,7 @@ class MysqlModeler extends OolongDbModeler {
         this._events.emit('afterRelationshipBuilding');        
 
         //build SQL scripts
-        let sqlFilesDir = path.join('mysql', schema.name);
+        let sqlFilesDir = path.join('mysql', dbService.name);
         let dbFilePath = path.join(sqlFilesDir, 'entities.sql');
         let fkFilePath = path.join(sqlFilesDir, 'relations.sql');
         let initIdxFilePath = path.join(sqlFilesDir, 'data', '_init', 'index.list');
@@ -230,7 +230,7 @@ class MysqlModeler extends OolongDbModeler {
 
         fs.ensureDirSync(extractedOolPath);
 
-        let conn = await dbService.getConnection();
+        let conn = await dbService.getConnection_();
 
         let [ tables ] = await conn.query("select * from information_schema.tables where table_schema = ?", [ dbService.physicalDbName ]);
 
@@ -360,11 +360,19 @@ class MysqlModeler extends OolongDbModeler {
             let ref = referencesInfo[i];
             let [ [refTableKey] ] = await conn.query("SHOW INDEXES FROM ?? WHERE `Key_name` = 'PRIMARY'", [ ref.REFERENCED_TABLE_NAME ]);
 
-            if (refTableKey.Column_name !== ref.REFERENCED_COLUMN_NAME) {
+            if (refTableKey.Column_name.toLowerCase() !== ref.REFERENCED_COLUMN_NAME.toLowerCase()) {                
+                console.log('Main table: ', ref);
+                console.log('Reference to:', refTableKey);
                 throw new Error('Not reference to a primary key column. To be implemented.');
             }
 
             let fkColName = OolUtil.fieldNaming(ref.COLUMN_NAME);
+
+            if (!fk[fkColName]) {
+                console.log('Main table: ', ref);
+                console.log(fk);
+                console.log(fkColName);
+            }
 
             if (fk[fkColName].unique) {
                 fields[fkColName] = {
@@ -795,7 +803,7 @@ class MysqlModeler extends OolongDbModeler {
         let doc = _.cloneDeep(view.getDocumentHierarchy(modelingSchema));
         //console.dir(doc, {depth: 8, colors: true});
 
-        let aliasMapping = {};
+        //let aliasMapping = {};
         let [ colList, alias, joins ] = this._buildViewSelect(modelingSchema, doc, 0);
         
         sql += 'SELECT ' + colList.join(', ') + ' FROM ' + MysqlModeler.quoteIdentifier(doc.entity) + ' AS ' + alias;
@@ -953,108 +961,110 @@ class MysqlModeler extends OolongDbModeler {
     }
 
     static columnDefinition(field, isProc) {
-        let sql;
+        let col;
         
         switch (field.type) {
             case 'int':
-                sql = MysqlModeler.intColumnDefinition(field);
+            col = MysqlModeler.intColumnDefinition(field);
                 break;
 
             case 'float':
             case 'decimal':
-                sql =  MysqlModeler.floatColumnDefinition(field);
+            col =  MysqlModeler.floatColumnDefinition(field);
                 break;
 
             case 'text':
-                sql =  MysqlModeler.textColumnDefinition(field);
+            col =  MysqlModeler.textColumnDefinition(field);
                 break;
 
             case 'bool':
-                sql =  MysqlModeler.boolColumnDefinition(field);
+            col =  MysqlModeler.boolColumnDefinition(field);
                 break;
 
             case 'binary':
-                sql =  MysqlModeler.binaryColumnDefinition(field);
+            col =  MysqlModeler.binaryColumnDefinition(field);
                 break;
 
             case 'datetime':
-                sql =  MysqlModeler.datetimeColumnDefinition(field);
+            col =  MysqlModeler.datetimeColumnDefinition(field);
                 break;
 
             case 'json':
-                sql =  MysqlModeler.textColumnDefinition(field);
+            col =  MysqlModeler.textColumnDefinition(field);
                 break;
 
             case 'xml':
-                sql =  MysqlModeler.textColumnDefinition(field);
+            col =  MysqlModeler.textColumnDefinition(field);
                 break;
 
             case 'enum':
-                sql =  MysqlModeler.enumColumnDefinition(field);
+            col =  MysqlModeler.enumColumnDefinition(field);
                 break;
 
             case 'csv':
-                sql =  MysqlModeler.textColumnDefinition(field);
+            col =  MysqlModeler.textColumnDefinition(field);
                 break;
 
             default:
                 throw new Error('Unsupported type "' + field.type + '".');
         }
 
+        let { sql, type } = col;        
+
         if (!isProc) {
             sql += this.columnNullable(field);
-            sql += this.defaultValue(field);
+            sql += this.defaultValue(field, type);
         }
 
         return sql;
     }
 
     static intColumnDefinition(info) {
-        let sql;
+        let sql, type;
 
         if (info.digits) {
             if (info.digits > 10) {
-                sql = 'BIGINT';
+                type = sql = 'BIGINT';
             } else if (info.digits > 7) {
-                sql = 'INT';
+                type = sql = 'INT';
             } else if (info.digits > 4) {
-                sql = 'MEDIUMINT';
+                type = sql = 'MEDIUMINT';
             } else if (info.digits > 2) {
-                sql = 'SMALLINT';
+                type = sql = 'SMALLINT';
             } else {
-                sql = 'TINYINT';
+                type = sql = 'TINYINT';
             }
 
             sql += `(${info.digits})`
         } else {
-            sql = 'INT';
+            type = sql = 'INT';
         }
 
         if (info.unsigned) {
             sql += ' UNSIGNED';
         }
 
-        return sql;
+        return { sql, type };
     }
 
     static floatColumnDefinition(info) {
-        let sql = '';
+        let sql = '', type;
 
         if (info.type == 'decimal') {
-            sql = 'DECIMAL';
+            type = sql = 'DECIMAL';
 
             if (info.totalDigits > 65) {
                 throw new Error('Total digits exceed maximum limit.');
             }
         } else {
             if (info.totalDigits > 23) {
-                sql = 'DOUBLE';
+                type = sql = 'DOUBLE';
 
                 if (info.totalDigits > 53) {
                     throw new Error('Total digits exceed maximum limit.');
                 }
             } else {
-                sql = 'FLOAT';
+                type = sql = 'FLOAT';
             }
         }
 
@@ -1075,23 +1085,24 @@ class MysqlModeler extends OolongDbModeler {
             }
         }
 
-        return sql;
+        return { sql, type };
     }
 
     static textColumnDefinition(info) {
-        let sql = '';
+        let sql = '', type;
 
         if (info.fixedLength && info.fixedLength <= 255) {
             sql = 'CHAR(' + info.fixedLength + ')';
+            type = 'CHAR';
         } else if (info.maxLength) {
             if (info.maxLength > 16777215) {
-                sql = 'LONGTEXT';
+                type = sql = 'LONGTEXT';
             } else if (info.maxLength > 65535) {
-                sql = 'MEDIUMTEXT';
+                type = sql = 'MEDIUMTEXT';
             } else if (info.maxLength > 2000) {
-                sql = 'TEXT';
+                type = sql = 'TEXT';
             } else {
-                sql = 'VARCHAR';
+                type = sql = 'VARCHAR';
                 if (info.fixedLength) {
                     sql += '(' + info.fixedLength + ')';
                 } else {
@@ -1099,24 +1110,25 @@ class MysqlModeler extends OolongDbModeler {
                 }
             }
         } else {
-            sql = 'TEXT';
+            type = sql = 'TEXT';
         }
 
-        return sql;
+        return { sql, type };
     }
 
     static binaryColumnDefinition(info) {
-        let sql = '';
+        let sql = '', type;
 
         if (info.fixedLength <= 255) {
             sql = 'BINARY(' + info.fixedLength + ')';
+            type = 'BINARY';
         } else if (info.maxLength) {
             if (info.maxLength > 16777215) {
-                sql = 'LONGBLOB';
+                type = sql = 'LONGBLOB';
             } else if (info.maxLength > 65535) {
-                sql = 'MEDIUMBLOB';
+                type = sql = 'MEDIUMBLOB';
             } else {
-                sql = 'VARBINARY';
+                type = sql = 'VARBINARY';
                 if (info.fixedLength) {
                     sql += '(' + info.fixedLength + ')';
                 } else {
@@ -1124,14 +1136,14 @@ class MysqlModeler extends OolongDbModeler {
                 }
             }
         } else {
-            sql = 'BLOB';
+            type = sql = 'BLOB';
         }
 
-        return sql;
+        return { sql, type };
     }
 
     static boolColumnDefinition() {
-        return 'TINYINT(1)';
+        return { sql: 'TINYINT(1)', type: 'TINYINT' };
     }
 
     static datetimeColumnDefinition(info) {
@@ -1149,11 +1161,11 @@ class MysqlModeler extends OolongDbModeler {
             sql = 'TIMESTAMP';
         }
 
-        return sql;
+        return { sql, type: sql };
     }
 
     static enumColumnDefinition(info) {
-        return 'ENUM(' + _.map(info.values, (v) => MysqlModeler.quoteString(v)).join(', ') + ')';
+        return { sql: 'ENUM(' + _.map(info.values, (v) => MysqlModeler.quoteString(v)).join(', ') + ')', type: 'ENUM' };
     }
 
     static columnNullable(info) {
@@ -1164,7 +1176,7 @@ class MysqlModeler extends OolongDbModeler {
         return ' NOT NULL';
     }
 
-    static defaultValue(info) {
+    static defaultValue(info, type) {
         if (info.isCreateTimestamp) {
             info.defaultByDb = true;
             return ' DEFAULT CURRENT_TIMESTAMP';
@@ -1173,13 +1185,27 @@ class MysqlModeler extends OolongDbModeler {
         if (info.autoIncrementId) {
             info.defaultByDb = true;
             return ' AUTO_INCREMENT';
+        }        
+
+        if (info.isUpdateTimestamp) {            
+            info.updateByDb = true;
+            return ' ON UPDATE CURRENT_TIMESTAMP';
         }
 
         let sql = '';
 
-        if (info.isUpdateTimestamp) {
-            sql += ' ON UPDATE CURRENT_TIMESTAMP';
-            info.updateByDb = true;
+        if (!info.optional && !info.hasOwnProperty('default') && !info.hasOwnProperty('auto')) {
+            if (UNSUPPORTED_DEFAULT_VALUE.has(type)) {
+                return '';
+            }
+
+            if (info.type === 'bool' || info.type === 'int' || info.type === 'float' || info.type === 'decimal') {
+                sql += ' DEFAULT 0';
+            } else {
+                sql += ' DEFAULT ""';
+            } 
+
+            info.defaultByDb = true;
         }
 
         /*

@@ -6,6 +6,7 @@
  */
 
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
 
@@ -15,7 +16,7 @@ module.exports = {
      * This feature is loaded at routing stage
      * @member {string}
      */
-    type: Mowa.Feature.ROUTING,
+    type: Feature.ROUTING,
 
     /**
      * Load the feature
@@ -32,7 +33,7 @@ module.exports = {
 
             if (Util._.isPlainObject(routersConfig)) {
                 Util._.forOwn(routersConfig, function (options, type) {
-                    if (appModule.serverModule.options.deaf && type !== 'app') {
+                    if (appModule.serverModule.options.cliMode && type !== 'app') {
                         return;
                     }
 
@@ -43,7 +44,7 @@ module.exports = {
                     } catch (error) {
                         if (error.code === 'MODULE_NOT_FOUND') {
                             throw new Mowa.Error.InvalidConfiguration(
-                                'Supported router type: ' + type,
+                                'Unsupported router type: ' + type,
                                 appModule,
                                 `routing[${route}]`
                             );
@@ -57,7 +58,7 @@ module.exports = {
                     });
                 });
             } else {
-                if (appModule.serverModule.options.deaf) {
+                if (appModule.serverModule.options.cliMode) {
                     return;
                 }
 

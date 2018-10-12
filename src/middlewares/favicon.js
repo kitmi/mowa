@@ -5,11 +5,11 @@
  * @summary Middleware to serve favicon request
  */
 
-const Mowa = require('../server.js');
-const Util = Mowa.Util;
+const Util = require('../util');
 const _ = Util._;
 const fs = Util.fs;
 const path = require('path');
+const HttpCode = require('../enum/httpcode');
 
 let favicon = (options, appModule) => {
     pre: options, Util.Message.DBC_ARG_REQUIRED;
@@ -42,7 +42,7 @@ let favicon = (options, appModule) => {
             //maximum 1M
             if (stats.size > 1048576) {
                 appModule.log('warn', 'favicon.ico too large.', stats);
-                ctx.throw(Mowa.HttpCode.HTTP_NOT_FOUND);                
+                ctx.throw(HttpCode.HTTP_NOT_FOUND);                
             }
             
             icon = await fs.readFile(faviconPath);

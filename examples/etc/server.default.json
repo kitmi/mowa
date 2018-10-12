@@ -6,14 +6,14 @@
                     "type": "console",
                     "options": {
                         "level": "verbose",
-                        "colorize": true
+                        "format": "#!jsv:winston.format.combine(winston.format.colorize(), winston.format.simple())"
                     }
                 },
                 {
                     "type": "file",
                     "options": {
                         "level": "info",
-                        "filename": "#!es6:file-${now.format('YYYYMMDD')}.log"
+                        "filename": "#!jst:file-${now.format('YYYYMMDD')}.log"
                     }
                 }
             ]
@@ -24,10 +24,8 @@
                     "type": "daily-rotate-file",
                     "options": {
                         "level": "info",
-                        "json": false,
-                        "formatter": "#!es6:${options => options.message}",
-                        "filename": "access-",
-                        "datePattern": "yyyyMMdd.log"
+                        "filename": "access-%DATE%.log",
+                        "datePattern": "YYYYMMDD"
                     }
                 }
             ]

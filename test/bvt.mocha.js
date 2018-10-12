@@ -240,7 +240,7 @@ describe('mowa-bvt', function () {
 
             mowa.start_().then(() => {
                 request(mowa.httpServer)
-                    .get('/action1')
+                    .get('/module-test/action1')
                     .expect('content-type', 'text/plain; charset=utf-8')
                     .expect('action1')
                     .expect(200)
@@ -255,7 +255,7 @@ describe('mowa-bvt', function () {
 
             mowa.start_().then(() => {
                 request(mowa.httpServer)
-                    .post('/action1/post')
+                    .post('/module-test/action1')
                     .send({name: 'Hello World!'})
                     .expect('content-type', 'text/plain; charset=utf-8')
                     .expect('you post: Hello World!')
@@ -271,7 +271,7 @@ describe('mowa-bvt', function () {
 
             mowa.start_().then(() => {
                 request(mowa.httpServer)
-                    .get('/action2')
+                    .get('/module-test/action2')
                     .expect('content-type', 'text/plain; charset=utf-8')
                     .expect('Hello')
                     .expect(200)

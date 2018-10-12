@@ -40,9 +40,7 @@ const Router = require('koa-router');
  }
  */
 
-module.exports = function (appModule, baseRoute, options) {
-    let controllerPath = path.join(appModule.backendPath, Mowa.Literal.CONTROLLERS_PATH);
-    
+module.exports = function (appModule, baseRoute, options) {    
     let router = baseRoute === '/' ? new Router() : new Router({prefix: baseRoute});
 
     if (options.middlewares) {

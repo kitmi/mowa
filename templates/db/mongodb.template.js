@@ -8,6 +8,7 @@
 const Mowa = require('mowa');
 const Util = Mowa.Util;
 const MongoClient = require('mongodb').MongoClient;
+const Feature = require('mowa/lib/enum/feature');
 const DbService = require('mowa/lib/oolong/runtime/dbservice');
 
 class MongodbService extends DbService {
@@ -41,7 +42,7 @@ module.exports = {
      * This feature is loaded at dbms stage
      * @member {string}
      */
-    type: Mowa.Feature.DBMS,
+    type: Feature.DBMS,
 
     /**
      * Load the feature

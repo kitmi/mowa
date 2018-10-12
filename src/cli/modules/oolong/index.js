@@ -9,6 +9,7 @@ const fs = Util.fs;
 const _ = Util._;
 const glob = Util.glob;
 const Promise = Util.Promise;
+const Convertors = require('../../../oolong/runtime/convertors');
 
 const MowaHelper = require('../../mowa-helper.js');
 
@@ -22,7 +23,7 @@ function listAvailableDataSet(api, db) {
 
     let [ dbType, dbName ] = db.split(':');
 
-    let dataSetPath = path.join(appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, dbType, dbName, 'data');
+    let dataSetPath = appModule.toAbsolutePath(Mowa.Literal.DB_SCRIPTS_PATH, dbType, dbName, 'data');
 
     if (!fs.existsSync(dataSetPath)) {
         return [];
@@ -99,10 +100,10 @@ exports.help = function (api) {
                 promptType: 'list',
                 choicesProvider: () => Promise.resolve(MowaHelper.getAppSchemas(api))
             };
-            cmdOptions['db'] = {
-                desc: 'The name of the db to be deployed',
-                promptMessage: 'Please select the target db:',
-                alias: [ 'database' ],
+            cmdOptions['conn'] = {
+                desc: 'The connection of the target db to be deployed',
+                promptMessage: 'Please select the target db connection:',
+                alias: [ 'db', 'db-connection', 'connection' ],
                 required: true,
                 inquire: true,
                 promptType: 'list',
@@ -148,10 +149,11 @@ exports.help = function (api) {
                 bool: true,
                 promptDefault: false
             };
-            cmdOptions['db'] = {
-                desc: 'The name of the db to be restified',
-                promptMessage: 'Please select the db to be restified:',
-                inquire: () => api.getOption('restify'),
+            cmdOptions['conn'] = {
+                desc: 'The connection of the target db to be restify',
+                promptMessage: 'Please select the target db connection:',
+                alias: [ 'db', 'db-connection', 'connection' ],
+                inquire: () => Convertors.toBoolean(api.getOption('restify')),
                 promptType: 'list',
                 choicesProvider: () => MowaHelper.getAppDbConnections(api)
             };
@@ -165,9 +167,10 @@ exports.help = function (api) {
                 promptType: 'list',
                 choicesProvider: () => MowaHelper.getAvailableAppNames(api)
             };
-            cmdOptions['db'] = {
-                desc: 'The name of the db to operate',
-                promptMessage: 'Please select the target db:',
+            cmdOptions['conn'] = {
+                desc: 'The connection of the target db to be listed',
+                promptMessage: 'Please select the target db connection:',
+                alias: [ 'db', 'db-connection', 'connection' ],
                 inquire: true,
                 promptType: 'list',
                 choicesProvider: () => MowaHelper.getAppDbConnections(api)
@@ -182,9 +185,10 @@ exports.help = function (api) {
                 promptType: 'list',
                 choicesProvider: () => MowaHelper.getAvailableAppNames(api)
             };
-            cmdOptions['db'] = {
-                desc: 'The name of the db to operate',
-                promptMessage: 'Please select the target db:',
+            cmdOptions['conn'] = {
+                desc: 'The connection of the target db to be deployed',
+                promptMessage: 'Please select the target db connection:',
+                alias: [ 'db', 'db-connection', 'connection' ],
                 inquire: true,
                 promptType: 'list',
                 choicesProvider: () => MowaHelper.getAppDbConnections(api)
@@ -287,12 +291,12 @@ exports.config = async (api) => {
     let appModule = MowaHelper.getAppModuleToOperate(api);
 
     let schemaName = api.getOption('schema');
-    let db = api.getOption('db');
+    let conn = api.getOption('conn');
 
     assert: {
         schemaName, Util.Message.DBC_VAR_NOT_NULL;
-        db, Util.Message.DBC_VAR_NOT_NULL;
-        db.indexOf(':') > 0, Util.Message.DBC_INVALID_ARG;
+        conn, Util.Message.DBC_VAR_NOT_NULL;
+        conn.indexOf(':') > 0, Util.Message.DBC_INVALID_ARG;
     }
 
     /*
@@ -309,8 +313,8 @@ exports.config = async (api) => {
 
     let deployTo = Util.getValueByPath(appModule.config, configPath, []);
 
-    if (deployTo.indexOf(db) == -1) {
-        deployTo.push(db);
+    if (deployTo.indexOf(conn) == -1) {
+        deployTo.push(conn);
     }
 
     await MowaHelper.writeConfigBlock_(appModule.configLoader, configPath, deployTo);
@@ -400,7 +404,7 @@ exports.importData = async api => {
     let appModule = MowaHelper.getAppModuleToOperate(api);
 
     let [ dbType, dbName ] = db.split(':');
-    let dataSetPath = path.join(appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, dbType, dbName, 'data', dataSet);
+    let dataSetPath = appModule.toAbsolutePath(Mowa.Literal.DB_SCRIPTS_PATH, dbType, dbName, 'data', dataSet);
 
     if (!fs.existsSync(dataSetPath)) {
         return Promise.reject(`Data set "${dataSet}" not found in database "${db}".`);

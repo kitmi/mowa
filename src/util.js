@@ -48,7 +48,7 @@ const U = RkUtil._.assignIn({}, RkUtil, {
      * Error messages.
      * @member {string}
      */
-    Message: require('./message.js'),
+    Message: require('./enum/message.js'),
 
     /**
      * Normalize a name to human readible format
@@ -56,7 +56,7 @@ const U = RkUtil._.assignIn({}, RkUtil, {
      * @returns {string}
      */
     normalizeDisplayName(name) {        
-        return _.upperFirst(_.trim(_.snakeCase(name), '_').split('_').join(' '));
+        return _.startCase(name);
     }
 });
 

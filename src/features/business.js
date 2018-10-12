@@ -1,8 +1,8 @@
 "use strict";
 
 /**
- * @module Feature_Oolong
- * @summary Enable oolong DSL
+ * @module Feature_Business
+ * @summary Enable separate business logic layer
  */
 
 const path = require('path');

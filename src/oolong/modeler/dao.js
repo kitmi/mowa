@@ -33,6 +33,7 @@ const chainCall = (lastBlock, lastType, currentBlock, currentType) => {
 
     return currentBlock;
 };
+const asyncMethodNaming = (name) => name + '_';
 
 class DaoModeler {
     /**
@@ -69,11 +70,11 @@ class DaoModeler {
             JsLang.astPushInBody(ast, JsLang.astRequire('Mowa', 'mowa'));
             JsLang.astPushInBody(ast, JsLang.astVarDeclare('Util', JsLang.astVarRef('Mowa.Util'), true));
             JsLang.astPushInBody(ast, JsLang.astVarDeclare('_', JsLang.astVarRef('Util._'), true));
-            //JsLang.astPushInBody(ast, JsLang.astVarDeclare(['InvalidRequest', 'ServerError'], JsLang.astVarRef('Mowa.Error'), true, true));
+            
             JsLang.astPushInBody(ast, JsLang.astRequire('Model', `mowa/lib/oolong/runtime/models/${dbService.dbType}`));
             JsLang.astPushInBody(ast, JsLang.astRequire('validators', 'mowa/lib/oolong/runtime/validators'));
             JsLang.astPushInBody(ast, JsLang.astRequire('modifiers', 'mowa/lib/oolong/runtime/modifiers'));
-            //JsLang.astPushInBody(ast, JsLang.astRequire(['ModelValidationError', 'ModelOperationError', 'ModelResultError'], 'mowa/lib/oolong/runtime/errors', true));
+            JsLang.astPushInBody(ast, JsLang.astRequire(['ModelValidationError', 'ModelOperationError', 'ModelUsageError'], 'mowa/lib/oolong/runtime/errors', true));
 
             //shared information with model CRUD and customized interfaces
             let sharedContext = {
@@ -128,6 +129,9 @@ class DaoModeler {
 
             //assemble the source code file
             JsLang.astPushInBody(ast, astClassMain);
+
+            //JsLang.astPushInBody(ast, entity.fields.map((v, k) => JsLang.astAssign(capitalized + '.F_' + _.snakeCase(k).toUpperCase(), k)));   
+
             JsLang.astPushInBody(ast, JsLang.astAssign(capitalized + '.meta', modelMeta));
             JsLang.astPushInBody(ast, JsLang.astAssign('module.exports', JsLang.astVarRef(capitalized)));
 
@@ -248,7 +252,6 @@ class DaoModeler {
         let compileContext = OolToAst.createCompileContext(entity.name, dbService.serviceId, this.logger, sharedContext);
 
         const allFinished = OolToAst.createTopoId(compileContext, 'done.');
-        const validStateName = '$validState';
 
         _.forOwn(entity.fields, (field, fieldName) => {
             assert: {
@@ -263,26 +266,28 @@ class DaoModeler {
         let deps = compileContext.topoSort.sort();
         deps = deps.filter(dep => compileContext.sourceMap.has(dep));
 
-        let methodBodyCreate = [], methodBodyUpdate = [], lastFieldName, 
-            methodBodyUpdateCache = [], methodBodyCreateCache = [],
-            lastBlock, lastAstType, hasValidator = false;
+        let methodBodyValidateAndFill = [], lastFieldsGroup, 
+            methodBodyCache = [], 
+            lastBlock, lastAstType;//, hasValidator = false;
 
-        const _mergePreUpdateCode = function (fieldName, astCache) {
-            if (lastFieldName && lastFieldName !== fieldName) {
-                methodBodyUpdate = methodBodyUpdate.concat(Snippets._fieldExistenseCheck(lastFieldName, methodBodyUpdateCache));
-                methodBodyUpdateCache = [];
+        const _mergeDoValidateAndFillCode = function (fieldName, references, astCache, requireTargetField) { 
+            let fields = (requireTargetField ? [ fieldName ] : []).concat(references);
+            let checker = fields.join(',');
+
+            if (lastFieldsGroup && lastFieldsGroup.checker !== checker) {
+                methodBodyValidateAndFill = methodBodyValidateAndFill.concat(
+                    Snippets._fieldRequirementCheck(lastFieldsGroup.fieldName, lastFieldsGroup.references, methodBodyCache, lastFieldsGroup.requireTargetField)
+                );
+                methodBodyCache = [];
             }
 
-            methodBodyUpdateCache = methodBodyUpdateCache.concat(astCache);
-        };
-
-        const _mergePreCreateCode = function (fieldName, astCache) {
-            if (lastFieldName && lastFieldName !== fieldName) {
-                methodBodyCreate = methodBodyCreate.concat(Snippets._fieldExistenseCheck(lastFieldName, methodBodyCreateCache));
-                methodBodyCreateCache = [];
+            methodBodyCache = methodBodyCache.concat(astCache);
+            lastFieldsGroup = {
+                fieldName,
+                references,
+                requireTargetField,                
+                checker,
             }
-            
-            methodBodyCreateCache = methodBodyCreateCache.concat(astCache);
         };
 
         _.each(deps, (dep, i) => {
@@ -304,56 +309,51 @@ class DaoModeler {
                 }
             }
 
-            let fieldName = getFieldName(sourceMap.target);
+            let targetFieldName = getFieldName(sourceMap.target);
 
             if (sourceMap.type === OolToAst.AST_BLK_VALIDATOR_CALL) {
-                hasValidator = true;
-                let astCache = [
-                    JsLang.astAssign(validStateName, astBlock, `Validating ${fieldName}`),
-                    Snippets._preCreateValidateCheck(validStateName, fieldName)
-                ];
-
-                _mergePreCreateCode(fieldName, astCache);
-                _mergePreUpdateCode(fieldName, astCache);                                
+                //hasValidator = true;
+                let astCache = Snippets._validateCheck(targetFieldName, astBlock);
+                
+                _mergeDoValidateAndFillCode(targetFieldName, sourceMap.references, astCache, true);                                
             } else if (sourceMap.type === OolToAst.AST_BLK_MODIFIER_CALL) {
-                let astCache = JsLang.astAssign(JsLang.astVarRef(sourceMap.target), astBlock, `Modifying ${fieldName}`);
-
-                _mergePreCreateCode(fieldName, astCache);
-                _mergePreUpdateCode(fieldName, astCache);
+                let astCache = JsLang.astAssign(JsLang.astVarRef(sourceMap.target), astBlock, `Modifying "${targetFieldName}"`);
+                
+                _mergeDoValidateAndFillCode(targetFieldName, sourceMap.references, astCache, true);
+            } else if (sourceMap.type === OolToAst.AST_BLK_COMPOSOR_CALL) {
+                let astCache = JsLang.astAssign(JsLang.astVarRef(sourceMap.target), astBlock, `Composing "${targetFieldName}"`);
+                
+                _mergeDoValidateAndFillCode(targetFieldName, sourceMap.references, astCache, false);
             } else {
-                astBlock = _.castArray(astBlock);
-
-                _mergePreCreateCode(fieldName, astCache);
-                _mergePreUpdateCode(fieldName, astBlock);                
+                throw new Error('To be implemented.');
+                //astBlock = _.castArray(astBlock);                
+                //_mergeDoValidateAndFillCode(targetFieldName, [], astBlock);                                
             }
-
-            lastFieldName = fieldName;
         });
 
+        /* Changed to throw error instead of returning a error object
         if (hasValidator) {
             let declare = JsLang.astVarDeclare(validStateName, false);
             methodBodyCreate.unshift(declare);
             methodBodyUpdate.unshift(declare);
         }
+        */
 
-        if (!_.isEmpty(methodBodyUpdateCache)) {
-            methodBodyUpdate = methodBodyUpdate.concat(Snippets._preUpdateCheckPendingUpdate(lastFieldName, methodBodyUpdateCache));
-        }
-
-        if (!_.isEmpty(methodBodyCreateCache)) {
-            methodBodyCreate = methodBodyCreate.concat(Snippets._preCreateValidateWrapper(lastFieldName, methodBodyCreateCache));
+        if (!_.isEmpty(methodBodyCache)) {
+            methodBodyValidateAndFill = methodBodyValidateAndFill.concat(
+                Snippets._fieldRequirementCheck(lastFieldsGroup.fieldName, 
+                    lastFieldsGroup.references, 
+                    methodBodyCache, 
+                    lastFieldsGroup.requireTargetField
+                    ));
         }
 
         //generate _preCreate and _preUpdate functions
         ast.push(JsLang.astClassDeclare(capitalized, 'Model', [
-            JsLang.astMemberMethod('_preCreate', [],
-                Snippets._preCreateHeader.concat(methodBodyCreate).concat([ JsLang.astReturn(JsLang.astId('context')) ]),
+            JsLang.astMemberMethod(asyncMethodNaming('_doValidateAndFill'), [ 'context' ],
+                Snippets._doValidateAndFillHeader.concat(methodBodyValidateAndFill).concat([ JsLang.astReturn(JsLang.astId('context')) ]),
                 false, true, true
             ),
-            JsLang.astMemberMethod('_preUpdate', [],
-                Snippets._preUpdateHeader.concat(methodBodyUpdate).concat([ JsLang.astReturn(JsLang.astId('context')) ]),
-                false, true, true
-            )
         ], `${capitalized} model`));
 
         return ast;
@@ -382,7 +382,7 @@ class DaoModeler {
     }
 
     _generateFunctionTemplateFile(dbService, { functionName, functorType, fileName, args }) {
-        assert: functorType === 'validator' || functorType === 'modifier', 'Invalid function type.';
+        assert: functorType in OolToAst.OOL_FUNCTOR_MAP, 'Invalid function type.';
 
         let filePath = path.resolve(
             this.buildPath,
@@ -392,7 +392,7 @@ class DaoModeler {
         );
 
         if (fs.existsSync(filePath)) {
-            //todo: analyse code
+            //todo: analyse code, compare arguments
             this.logger.log('info', `${ _.upperFirst(functorType) } "${fileName}" exists. File generating skipped.`);
 
             return;
@@ -400,7 +400,7 @@ class DaoModeler {
 
         let ast = JsLang.astProgram();
         JsLang.astPushInBody(ast, JsLang.astRequire('Mowa', 'mowa'));
-        JsLang.astPushInBody(ast, JsLang.astFunction(functionName, args, functorType === 'validator' ? [ JsLang.astReturn(true) ] : [ JsLang.astReturn(JsLang.astId(args[0])) ]));
+        JsLang.astPushInBody(ast, JsLang.astFunction(functionName, args, OolToAst.OOL_FUNCTOR_RETURN[functorType](args)));
         JsLang.astPushInBody(ast, JsLang.astAssign('module.exports', JsLang.astVarRef(functionName)));
 
         DaoModeler._exportSourceCode(ast, filePath);
@@ -465,7 +465,7 @@ class DaoModeler {
                 astBody = astBody.concat(_.castArray(astBlock));
             });
             
-            ast.push(JsLang.astMemberMethod(name, Object.keys(paramMeta), astBody, false, true, true, Util.replaceAll(_.kebabCase(name), '-', ' ')));
+            ast.push(JsLang.astMemberMethod(asyncMethodNaming(name), Object.keys(paramMeta), astBody, false, true, true, Util.replaceAll(_.kebabCase(name), '-', ' ')));
         });
 
         return ast;

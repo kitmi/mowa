@@ -7,6 +7,7 @@
 
 const path = require('path');
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
 
@@ -16,7 +17,7 @@ module.exports = {
      * This feature is loaded at init stage
      * @member {string}
      */
-    type: Mowa.Feature.INIT,
+    type: Feature.INIT,
 
     /**
      * Load the feature

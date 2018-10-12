@@ -2,12 +2,34 @@
 
 const HttpCode = require('./enum/httpcode.js');
 
+const withName = (Base) => class extends Base {
+    constructor(message) {
+        super(message);
+        this.name = this.constructor.name;
+    }    
+};
+
+const withHttpStatus = (Base, STATUS) => class extends Base {
+    /**
+     * Http Status
+     * @member {number}
+     */
+    status = STATUS;
+};
+
+const withExtraInfo = (Base) => class extends Base {
+    constructor(message, extraInfo) {
+        super(message);
+        this.extraInfo = extraInfo;
+    }
+};
+
 /**
  * @module Errors
  * @summary Error definitions.
  */
 
-class InvalidConfiguration extends Error {
+class InvalidConfiguration extends withExtraInfo(withName(withHttpStatus(Error, HttpCode.HTTP_INTERNAL_SERVER_ERROR))) {
     /**
     * Error caused by invalid configuration
     * @constructs Errors:InvalidConfiguration
@@ -16,70 +38,35 @@ class InvalidConfiguration extends Error {
     * @param {AppModule} [appModule] - The related app module
     * @param {string} [item] - The related config item
     */
-    constructor(message, appModule, item) {
-        message || (message = 'Invalid configuration.');
-        if (appModule) message += ' ' + 'Module: ' + appModule.displayName;
-        if (item) message += ' ' + 'Item: ' + item;
-
-        super(message);
-
-        /**
-         * Name of the error class
-         * @member {string}
-         **/
-        this.name = 'InvalidConfiguration';
-        /**
-         * Http status code
-         * @member {integer}
-         */
-        this.status = HttpCode.HTTP_INTERNAL_SERVER_ERROR;
+    constructor(message, appModule, item) {        
+        super(message, { app: appModule.displayName, configNode: item });
     }
 }
 
-class InvalidRequest extends Error {
-    /**
-     * Error caused by incoming http request
-     * @constructs Errors:InvalidRequest
-     * @extends Error
-     * @param {string} message - Error message
-     */
-    constructor(message) {
-        super(message);
+/**
+ * Http BadRequest, 400
+ * @class Errors:BadRequest
+ */
+class BadRequest extends withExtraInfo(withName(withHttpStatus(Error, HttpCode.HTTP_BAD_REQUEST))) {
 
-        /**
-         * Name of the error class
-         * @member {string}
-         **/
-        this.name = 'InvalidRequest';
-        /**
-         * Http status code
-         * @member {integer}
-         */
-        this.status = HttpCode.HTTP_BAD_REQUEST;
-    }
-}
+};
 
-class ServerError extends Error {
+class ServerError extends withExtraInfo(withName(withHttpStatus(Error, HttpCode.HTTP_INTERNAL_SERVER_ERROR))) {
     /**
      * Error caused by all kinds of runtime errors
      * @constructs Errors:ServerError
      * @extends Error
      * @param {string} message - Error message
      */
-    constructor(message, code) {
-        super(message);
+    constructor(message, code, otherExtra) {
+        if (arguments.length === 2 && typeof code === 'object') {
+            otherExtra = code;
+            code = undefined;            
+        } else if (code !== undefined && otherExtra && !('code' in otherExtra)) {
+            otherExtra = Object.assign({}, otherExtra, { code });
+        }
 
-        /**
-         * Name of the error class
-         * @member {string}
-         */
-        this.name = 'ServerError';
-
-        /**
-         * Http status code
-         * @member {integer}
-         */
-        this.status = HttpCode.HTTP_INTERNAL_SERVER_ERROR;
+        super(message, otherExtra);
 
         if (code !== undefined) {
             /**
@@ -91,25 +78,9 @@ class ServerError extends Error {
     }
 }
 
-class InvalidArgument extends ServerError {
-    /**
-     * Error caused by argument of internal call
-     * @constructs Errors:ServerError
-     * @extends Error
-     * @param {string} message - Error message
-     */
-    constructor(message) {
-        super(message);
-
-        /**
-         * Name of the error class
-         * @member {string}
-         */
-        this.name = 'InvalidArgument';
-    }
-}
-
-exports.InvalidArgument = InvalidArgument;
-exports.InvalidRequest = InvalidRequest;
+exports.withName = withName;
+exports.withHttpStatus = withHttpStatus;
+exports.withExtraInfo = withExtraInfo;
+exports.BadRequest = BadRequest;
 exports.InvalidConfiguration = InvalidConfiguration;
 exports.ServerError = ServerError;

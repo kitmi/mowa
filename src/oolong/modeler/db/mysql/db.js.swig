@@ -16,7 +16,7 @@ class {{ className }}Db extends Db {
         return Model;
     }
 
-    async query(sql) {
+    async query_(sql) {
         let conn = await this.conn_();
         return conn.query(sql);
     }

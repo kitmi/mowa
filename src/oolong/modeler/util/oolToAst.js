@@ -12,6 +12,7 @@ const JsLang = require('./ast.js');
 const OolUtil = require('../../lang/ool-utils.js');
 const OolongModifiers = require('../../runtime/modifiers.js');
 const OolongValidators = require('../../runtime/validators.js');
+const OolongComposers = require('../../runtime/composers.js');
 const Types = require('../../runtime/types.js');
 
 const defaultError = 'InvalidRequest';
@@ -20,11 +21,25 @@ const AST_BLK_FIELD_PRE_PROCESS = 'FieldPreProcess';
 const AST_BLK_PARAM_SANITIZE = 'ParameterSanitize';
 const AST_BLK_MODIFIER_CALL = 'ModifierCall';
 const AST_BLK_VALIDATOR_CALL = 'ValidatorCall';
+const AST_BLK_COMPOSOR_CALL = 'ComposerCall';
 const AST_BLK_VIEW_OPERATION = 'ViewOperation';
 const AST_BLK_VIEW_RETURN = 'ViewReturn';
 const AST_BLK_INTERFACE_OPERATION = 'InterfaceOperation';
 const AST_BLK_INTERFACE_RETURN = 'InterfaceReturn';
 const AST_BLK_EXCEPTION_ITEM = 'ExceptionItem';
+
+const OOL_FUNCTOR_MAP = {
+    [OolUtil.FUNCTOR_VALIDATOR]: AST_BLK_VALIDATOR_CALL,
+    [OolUtil.FUNCTOR_MODIFIER]: AST_BLK_MODIFIER_CALL,
+    [OolUtil.FUNCTOR_COMPOSER]: AST_BLK_COMPOSOR_CALL
+};
+
+//[ JsLang.astReturn(true) ] : 
+const OOL_FUNCTOR_RETURN = {
+    [OolUtil.FUNCTOR_VALIDATOR]: () => [ JsLang.astReturn(true) ],
+    [OolUtil.FUNCTOR_MODIFIER]: args => [ JsLang.astReturn(JsLang.astId(args[0])) ],
+    [OolUtil.FUNCTOR_COMPOSER]: () => [ JsLang.astReturn(JsLang.astId("undefined")) ]
+};
 
 /**
  * Compile a conditional expression
@@ -158,13 +173,36 @@ function compileFunctor(value, functors, compileContext, topoInfo, functorType) 
 
     for (let i = 0; i < l; i++) {
         let functor = functors[i];
-        let declareParams = translateFunctionParams([value].concat(functor.args));
+        let declareParams;
+
+        if (functorType === OolUtil.FUNCTOR_COMPOSER) { 
+            declareParams = translateFunctionParams(functor.args);        
+        } else {
+            declareParams = translateFunctionParams([value].concat(functor.args));        
+        }        
 
         let functorId = translateFunctor(functor, functorType, compileContext, declareParams);
         let topoId = createTopoId(compileContext, topoInfo.topoIdPrefix + '[' + i.toString() + ']' + functorId);
 
-        let callArgs = functor.args ? translateArgs(topoId, functor.args, compileContext) : [];
-        compileContext.astMap[topoId] = JsLang.astCall(functorId, [ value ].concat(callArgs));
+        let callArgs, references;
+        
+        if (functor.args) {
+            callArgs = translateArgs(topoId, functor.args, compileContext);
+            references = extractReferencedLatestFields(functor.args);
+
+            if (_.find(references, ref => ref === value.name)) {
+                throw new Error('Cannot use the target field itself as an argument of a validator or modifier.');
+            }
+        } else {
+            callArgs = [];
+        }        
+        
+        if (functorType === OolUtil.FUNCTOR_COMPOSER) {            
+            compileContext.astMap[topoId] = JsLang.astCall(functorId, callArgs);
+        } else {
+            compileContext.astMap[topoId] = JsLang.astCall(functorId, [ value ].concat(callArgs));
+        }
+        
 
         if (lastTopoId) {
             dependsOn(compileContext, lastTopoId, topoId);
@@ -174,13 +212,43 @@ function compileFunctor(value, functors, compileContext, topoInfo, functorType) 
 
         if (topoId.indexOf(':arg[') === -1 && topoId.indexOf('$cases[') === -1 && topoId.indexOf('$exceptions[') === -1) {
             addCodeBlock(compileContext, topoId, {
-                type: functorType === OolUtil.FUNCTOR_VALIDATOR ? AST_BLK_VALIDATOR_CALL : AST_BLK_MODIFIER_CALL,
-                target: value.name
+                type: OOL_FUNCTOR_MAP[functorType],
+                target: value.name,
+                references: references
             });
         }
     }
 
     return lastTopoId;
+}
+
+function extractReferencedLatestFields(oolArgs) {    
+    if (!Array.isArray(oolArgs)) {
+        return [ checkReferenceToLatestField(oolArgs) ];
+    }
+
+    let refs = [];
+
+    oolArgs.forEach(a => {
+        let result = checkReferenceToLatestField(a);
+        if (result) {
+            refs.push(result);
+        }
+    });
+
+    return refs;
+}
+
+function checkReferenceToLatestField(obj) {
+    if (_.isPlainObject(obj) && obj.oolType) {
+        if (obj.oolType === 'PipedValue') return checkReferenceToLatestField(obj.value);
+        if (obj.oolType === 'ObjectReference') {
+            let ns = obj.name.split('.');
+            if (ns.length === 2 && ns[0].trim() === 'latest') return ns[1].trim();
+        }
+    }
+
+    return undefined;
 }
 
 function addFunctorToMap(functorId, functorType, functorJsFile, mapOfFunctorToFile) {
@@ -229,6 +297,10 @@ function translateFunctor(functor, functorType, compileContext, args) {
                 builtins = OolongModifiers;
                 break;
 
+            case OolUtil.FUNCTOR_COMPOSER:
+                builtins = OolongComposers;
+                break;    
+
             default:
                 throw new Error('Not supported!');
         }
@@ -274,6 +346,17 @@ function compileVariableReference(startTopoId, varOol, compileContext) {
 
     let simpleValue = true;
 
+    if (varOol.computedBy) {
+        lastTopoId = compileFunctor(
+            varOol,
+            [ varOol.computedBy ],
+            compileContext,
+            { topoIdPrefix: startTopoId + ':by=', lastTopoId },
+            OolUtil.FUNCTOR_COMPOSER
+        );
+        simpleValue = false;
+    }
+
     if (!_.isEmpty(varOol.validators0)) {
         lastTopoId = compileFunctor(
             varOol,
@@ -290,7 +373,7 @@ function compileVariableReference(startTopoId, varOol, compileContext) {
             varOol,
             varOol.modifiers0,
             compileContext,
-            { topoIdPrefix: startTopoId + ':stage0~', lastTopoId },
+            { topoIdPrefix: startTopoId + ':stage0|', lastTopoId },
             OolUtil.FUNCTOR_MODIFIER
         );
         simpleValue = false;
@@ -301,7 +384,7 @@ function compileVariableReference(startTopoId, varOol, compileContext) {
             varOol,
             varOol.validators1,
             compileContext,
-            { topoIdPrefix: startTopoId + ':stage1|', lastTopoId },
+            { topoIdPrefix: startTopoId + ':stage1~', lastTopoId },
             OolUtil.FUNCTOR_VALIDATOR
         );
         simpleValue = false;
@@ -357,7 +440,7 @@ function translateFunctionParams(args) {
  */
 function compileConcreteValueExpression(startTopoId, value, compileContext) {
     if (_.isPlainObject(value)) {
-        if (value.oolType === 'ComputedValue') {
+        if (value.oolType === 'PipedValue') {
             value = { ..._.omit(value, ['value']), ...value.value };
         }
 
@@ -495,9 +578,7 @@ function compileParam(index, param, compileContext) {
     }
 
     compileContext.astMap[prepareTopoId] = [
-        sanitizeStarting,
-        JsLang.astIf(JsLang.astVarRef('$sanitizeState.error'),
-            JsLang.astReturn(JsLang.astVarRef('$sanitizeState'))),
+        sanitizeStarting,        
         JsLang.astAssign(JsLang.astVarRef(param.name),
             JsLang.astVarRef('$sanitizeState.sanitized'))
     ];
@@ -692,7 +773,7 @@ function compileFindOne(index, operation, compileContext, dependency) {
     }
 
     ast.push(
-        JsLang.astVarDeclare(operation.model, JsLang.astAwait(`this.findOne`, JsLang.astVarRef(conditionVarName)))
+        JsLang.astVarDeclare(operation.model, JsLang.astAwait(`this.findOne_`, JsLang.astVarRef(conditionVarName)))
     );
 
     let modelTopoId = createTopoId(compileContext, operation.model);
@@ -891,12 +972,17 @@ module.exports = {
     createCompileContext,
     dependsOn,
     addCodeBlock,
+
     AST_BLK_FIELD_PRE_PROCESS,
     AST_BLK_MODIFIER_CALL,
     AST_BLK_VALIDATOR_CALL,
+    AST_BLK_COMPOSOR_CALL,
     AST_BLK_VIEW_OPERATION,
     AST_BLK_VIEW_RETURN,
     AST_BLK_INTERFACE_OPERATION,
-    AST_BLK_INTERFACE_RETURN,
-    AST_BLK_EXCEPTION_ITEM
+    AST_BLK_INTERFACE_RETURN, 
+    AST_BLK_EXCEPTION_ITEM,
+
+    OOL_FUNCTOR_MAP,
+    OOL_FUNCTOR_RETURN
 };

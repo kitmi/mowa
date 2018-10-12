@@ -6,6 +6,7 @@
  */
 
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
 
@@ -15,7 +16,7 @@ module.exports = {
      * This feature is loaded at middlwares-attaching stage
      * @member {string}
      */
-    type: Mowa.Feature.MIDDLEWARE,
+    type: Feature.MIDDLEWARE,
 
     /**
      * Load the feature

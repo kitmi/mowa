@@ -36,28 +36,26 @@ function feature(entity, fields) {
     });
 }
 
+const throwWhenDetected = (meta, featureSetting, context, db) => {
+    throw new ModelValidationError(`At least one of these fields ${ featureSetting.map(f => Util.quote(f)).join(', ') } should not be null.`, {
+        entity: meta.name,
+        fields: featureSetting,
+        detail: 'At least one of these fields should not be null.'
+    });
+};
+
 feature.__metaRules = {
     [OolUtil.RULE_POST_CREATE_CHECK]: [{
         test: (meta, featureSetting, context, db) => {
             return _.every(featureSetting, fieldName => _.isNil(context.latest[fieldName]));
         },
-        apply: (meta, featureSetting, context, db) => {
-            throw new ModelValidationError({
-                fields: featureSetting.map(f => meta.fields[f]),
-                message: 'At least one of these fields should not be null.'
-            });
-        }
+        apply: throwWhenDetected
     }],
     [OolUtil.RULE_POST_UPDATE_CHECK]: [{
         test: (meta, featureSetting, context, db) => {
             return _.every(featureSetting, fieldName => ((fieldName in context.latest) && _.isNil(context.latest[fieldName])) || (!(fieldName in context.latest) && _.isNil(context.existing[fieldName])));
         },
-        apply: (meta, featureSetting, context, db) => {
-            throw new ModelValidationError({
-                fields: featureSetting.map(f => meta.fields[f]),
-                message: 'At least one of these fields should not be null.'
-            });
-        }
+        apply: throwWhenDetected
     }]
 };
 

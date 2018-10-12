@@ -1,0 +1,21 @@
+const 
+  locales = {
+    'en_US': 'default',
+    'en_UK': 'default',
+    'en_AU': 'default',
+    'zh_CN': 'cn_sc'
+  }
+
+entity dictionary
+  -- 'Dictionary entity'
+
+  with
+    i18n({ field: "name", locales: locales})
+    i18n({ field: "description", locales: locales})
+
+  has
+    code : text(10) -- 'Code'
+    name : text(50) -- 'Name'
+    description : text optional -- 'Description'
+
+  key code

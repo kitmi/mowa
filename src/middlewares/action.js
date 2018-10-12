@@ -38,7 +38,7 @@ module.exports = (controllerAction, appModule) => {
     } catch (error) {
         if (error.code === 'MODULE_NOT_FOUND') {
             throw new Mowa.Error.InvalidConfiguration(
-                `Controller "${controller}" not found.`,
+                `Controller "${controllerPath}" not found.`,
                 appModule
             );
         }

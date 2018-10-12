@@ -1,0 +1,41 @@
+import 'base'
+import 'user'
+
+entity personalProfile
+  -- 'Personal Profile'
+
+  with
+    autoId({ type: 'uuid', generator: 'uuid' })
+    createTimestamp
+    updateTimestamp    
+
+  has
+    owner <-> user
+    firstName : name optional
+    middleName : name optional
+    surName : name optional
+    gender -> gender optional
+    title -> personTitle optional
+    dateOfBirth : datetime optional
+    avatar : url optional
+    displayName : text =personNaming(@latest.firstName, @latest.middleName, @latest.surName)
+
+entity gender is dictionary
+  data {
+    'M' : { name: 'male' },
+    'F' : { name: 'female' },
+    'U' : { name: 'unknown' }
+  }
+
+entity personTitle is dictionary
+  has
+    maleCapable : bool default(true)
+    femaleCapable : bool default(true)
+
+  data {
+    'MR' : { name: 'Mr', femaleCapable: false },
+    'MRS' : { name: 'Mrs', maleCapable: false },
+    'MS' : { name: 'Ms', maleCapable: false },
+    'MISS' : { name: 'Miss', maleCapable: false },
+    'DR': { name: 'Dr' }
+  }

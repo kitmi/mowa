@@ -98,8 +98,8 @@ exports.init = async api => {
     api.log('info', 'Generated server configuration.');
 
     //copy server folder from template
-    const serverDest = path.resolve(api.base, 'src', 'server');
-    const serverSource = path.join(templateFolder, 'server');
+    const serverDest = path.resolve(api.base, 'src');
+    const serverSource = path.join(templateFolder, 'src');
     fs.ensureDirSync(serverDest);
     fs.copySync(serverSource, serverDest);
     api.log('info', 'Generated server application.');
@@ -112,8 +112,8 @@ exports.init = async api => {
     api.log('info', 'Generated package.json');
 
     //generate server entry file
-    const serverJsTemplate = path.join(templateFolder, 'server.template.js');
-    const serverJsDst = path.join(api.base, 'src', 'server.js');
+    const serverJsTemplate = path.join(templateFolder, 'start.template.js');
+    const serverJsDst = path.join(api.base, 'src', 'start.js');
     
     let serverJsTemplateContent = fs.readFileSync(serverJsTemplate, 'utf8');
     let serverJsContent = Util.template(serverJsTemplateContent, {serverName: pkg.name});
@@ -139,7 +139,7 @@ exports.init = async api => {
         return;
     }
 
-    output = await Util.runCmd_('npm install');
+    let output = await Util.runCmd_('npm install');
     if (output.stdout) {
         api.log('verbose', output.stdout);
     }

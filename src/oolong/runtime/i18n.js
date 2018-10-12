@@ -2,9 +2,9 @@
 
 const path = require('path');
 const util = require('util');
-const Util = require('./util.js');
+const Util = require('../../util.js');
 const Promise = Util.Promise;
-const { Convertors } = require('./oolong/runtime');
+const Convertors = require('./convertors');
 
 class I18n {
     /**

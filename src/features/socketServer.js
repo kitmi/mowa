@@ -7,6 +7,7 @@
 
 const path = require('path');
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const _ = Util._;
 const Promise = Util.Promise;
@@ -61,7 +62,7 @@ module.exports = {
      * This feature is loaded at engine stage
      * @member {string}
      */
-    type: Mowa.Feature.ENGINE,
+    type: Feature.ENGINE,
 
     /**
      * Load the rpc Server
@@ -72,11 +73,11 @@ module.exports = {
      * @property {Object.<string, Object>} [config.channels] - Channels
      */
     load_: (appModule, config) => {
-        if (appModule.serverModule.options.deaf) {
+        if (appModule.serverModule.options.cliMode) {
             return;
         }
 
-        appModule.on('after:' + Mowa.Feature.ENGINE, () => {
+        appModule.on('after:' + Feature.ENGINE, () => {
             let io, standalone = false;
 
             let listeningPath = Util.urlJoin(appModule.route, config.path);

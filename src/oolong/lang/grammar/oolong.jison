@@ -804,6 +804,7 @@ default_value
     | "auto" -> { auto: true } /** generator by base type **/
     | "auto" "(" identifier_or_string ")" -> { auto: true, generator: $3 }    
     | "auto" "(" identifier_or_string literal ")" -> { auto: true, generator: { name: $3, options: $4 } }    
+    | "=" function_call -> { 'computedBy': $2 }
     ;
 
 field_qualifiers_or_not
@@ -1564,25 +1565,25 @@ simple_expression
 
 concrete_value_expression
     : concrete_value type_validators0
-        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2); }
+        { $$ = Object.assign({ oolType: 'PipedValue', value: $1 }, $2); }
 
     | concrete_value field_modifiers0
-        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2 ); }
+        { $$ = Object.assign({ oolType: 'PipedValue', value: $1 }, $2 ); }
 
     | concrete_value type_validators0 field_modifiers0
-        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3); }
+        { $$ = Object.assign({ oolType: 'PipedValue', value: $1 }, $2, $3); }
 
     | concrete_value field_modifiers0 field_validators1
-        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3); }
+        { $$ = Object.assign({ oolType: 'PipedValue', value: $1 }, $2, $3); }
 
     | concrete_value type_validators0 field_modifiers0 field_validators1
-        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3, $4); }
+        { $$ = Object.assign({ oolType: 'PipedValue', value: $1 }, $2, $3, $4); }
 
     | concrete_value field_modifiers0 field_validators1 field_modifiers1
-        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3, $4); }
+        { $$ = Object.assign({ oolType: 'PipedValue', value: $1 }, $2, $3, $4); }
 
     | concrete_value type_validators0 field_modifiers0 field_validators1 field_modifiers1
-        { $$ = Object.assign({ oolType: 'ComputedValue', value: $1 }, $2, $3, $4, $5); }
+        { $$ = Object.assign({ oolType: 'PipedValue', value: $1 }, $2, $3, $4, $5); }
     ;
 
 throw_error_expression

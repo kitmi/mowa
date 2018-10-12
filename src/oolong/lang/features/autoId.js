@@ -2,6 +2,7 @@
 
 const Util = require('../../../util.js');
 const _ = Util._;
+const OolUtil = require('../ool-utils.js');
 const FEATURE_NAME = 'autoId';
 
 /**

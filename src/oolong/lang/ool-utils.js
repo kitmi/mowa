@@ -150,6 +150,8 @@ exports.getReferenceNameIfItIs = getReferenceNameIfItIs;
 exports.entityNaming = name => _.camelCase(name);
 exports.fieldNaming = name => _.camelCase(name);
 
+const Features = require('../runtime/features');
+
 exports.applyFeature = (ruleName, meta, context, db) => {
     _.forOwn(meta.features, (featureSettings, name) => {
         _.castArray(featureSettings).forEach(featureSetting => {
@@ -163,8 +165,10 @@ exports.applyFeature = (ruleName, meta, context, db) => {
 
 exports.FUNCTOR_VALIDATOR = 'validator';
 exports.FUNCTOR_MODIFIER = 'modifier';
-exports.FUNCTORS_LIST = [ 'validators0', 'modifiers0', 'validators1', 'modifiers1' ];
+exports.FUNCTOR_COMPOSER = 'composer';
+exports.FUNCTORS_LIST = [ 'computedBy', 'validators0', 'modifiers0', 'validators1', 'modifiers1' ];
 
 exports.RULE_POST_RAW_DATA_PRE_PROCESS = 'postRawDataPreProcess';
 exports.RULE_POST_CREATE_CHECK = 'postCreateCheck';
 exports.RULE_POST_UPDATE_CHECK = 'postUpdateCheck';
+exports.RULE_BEFORE_CREATED_RETRIEVE = 'beforeCreatedRetrieve';

@@ -25,7 +25,7 @@ class Nvm extends ComponentBase {
     }
 
     async doInstall_() {
-        await this._ssh_('curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.8/install.sh | bash');
+        await this._ssh_('curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash');
         return this._sshReconnect_();
     }
 

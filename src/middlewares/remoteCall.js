@@ -5,7 +5,7 @@
  * @summary Remote call middleware
  */
 
-const Mowa = require('../server.js');
+const HttpCode = require('../enum/httpcode');
 
 module.exports = (options, appModule) => {
     return async (ctx, next) => {
@@ -21,7 +21,7 @@ module.exports = (options, appModule) => {
         let method = ctx.body.method;
 
         if (!method || typeof ctrl[method] !== 'function') {
-            ctx.throw(Mowa.HttpCode.HTTP_BAD_REQUEST);
+            ctx.throw(HttpCode.HTTP_BAD_REQUEST);
         }
 
         let actioner = ctrl[method];

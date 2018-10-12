@@ -3,10 +3,12 @@
 const Util = require('../../util.js');
 const _ = Util._;
 
+
 const validator = require('validator');
 const Convertors = require('./convertors.js');
 const Types = require('./types.js');
-const xml = require("tiny-xml");
+const Errors = require('../../error');
+const { ModelValidationError } = require('./errors');
 
 function processInt(meta, raw) {
     let sanitized = raw;
@@ -24,7 +26,7 @@ function processFloat(meta, raw) {
     if (!_.isNumber(sanitized)) {
         sanitized = validator.toFloat(sanitized);
         if (isNaN(sanitized)) {
-            return { raw, error: { field: meta, message: 'Invalid float number value.' } };
+            throw new ModelValidationError(`Invalid "${meta.name}" which should be a float number.`, { fieldInfo: meta });
         }
     }
 
@@ -56,7 +58,7 @@ function processDatetime(meta, raw) {
         sanitized = validator.toDate(sanitized);
 
         if (!sanitized) {
-            return { raw, error: { field: meta, message: 'Invalid datetime format.' } };
+            throw new ModelValidationError(`Invalid "${meta.name}" which should be a datetime value.`, { fieldInfo: meta });
         }
     }
 
@@ -76,13 +78,15 @@ function processJson(meta, raw) {
 }
 
 function processXml(meta, raw) {
+    const xml = require("tiny-xml");
+
     let sanitized = raw;
 
     let type = typeof sanitized;
     if (type !== 'string') {
         sanitized = xml.serialize(sanitized);
     } else if (!xml.valid(sanitized)) {
-        return { raw, error: { field: meta, message: 'Invalid XML document.' } };
+        throw new ModelValidationError(`Invalid "${meta.name}" which should be a XML document.`, { fieldInfo: meta });
     }
 
     return { raw, sanitized };
@@ -93,14 +97,12 @@ function processEnum(meta, raw) {
 
     if (typeof sanitized === 'string') {
         sanitized = sanitized.trim();
-        if (meta.values.indexOf(sanitized) === -1) {
-            return { raw, error: { field: meta, message: 'Invalid enum value.' } };
+        if (meta.values.indexOf(sanitized) > -1) {
+            return { raw, sanitized };
         }
-    } else {
-        return { raw, error: { field: meta, message: 'Invalid enum value.' } };
-    }
+    } 
 
-    return { raw, sanitized };
+    throw new ModelValidationError(`Invalid "${meta.name}" which should be one of [${ meta.values.join(', ') }].`, { fieldInfo: meta });    
 }
 
 function processCsv(meta, raw) {
@@ -111,7 +113,7 @@ function processCsv(meta, raw) {
     } else if (_.isPlainObject(sanitized)) {
         sanitized = Object.values(sanitized).map(a => Types.escapeCsv(a)).join(',');
     } else {
-        return { raw, error: { field: meta, message: 'Invalid csv value.' } };
+        throw new ModelValidationError(`Invalid "${meta.name}" which should be a comma-separated value.`, { fieldInfo: meta });
     }
 
     return { raw, sanitized };
@@ -238,7 +240,7 @@ module.exports.$sanitize = function (meta, value) {
             result = processCsv(meta, value);
             break;
         default:
-            throw new Error('Unknown field type: ' + meta.type);
+            throw new Errors.ServerError('Unknown field type: ' + meta.type);
     }
 
     return result;

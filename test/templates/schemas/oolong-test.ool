@@ -3,3 +3,4 @@ import 'entities/**'
 schema 'oolong-test'
   entities
     user
+    personalProfile

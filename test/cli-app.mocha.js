@@ -20,7 +20,7 @@ describe('mowa app create function verify', function () {
     });
 
     it('should start successfully', async function () {                         
-        let server = new Mowa('cli-test', {  backendPath: 'build/server' });
+        let server = new Mowa('cli-app');
         await server.start_();
 
         await request(server.httpServer)

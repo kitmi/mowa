@@ -2,7 +2,7 @@
 
 const Mowa = require('mowa');
 
-let mowa = new Mowa('cli-test', { logger: 'general', backendPath: 'build/server' });
+let mowa = new Mowa('cli-test', { logger: 'general' });
 
 mowa.start_().then(() => {
     //started

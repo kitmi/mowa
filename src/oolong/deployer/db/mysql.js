@@ -22,7 +22,7 @@ class MysqlDeployer extends OolongDbDeployer {
     }
 
     async deploy(reset) {
-        let dbScriptDir = path.join(this.appModule.backendPath, Mowa.Literal.DB_SCRIPTS_PATH, this.dbService.dbType, this.dbService.name);        
+        let dbScriptDir = this.appModule.toAbsolutePath(Mowa.Literal.DB_SCRIPTS_PATH, this.dbService.dbType, this.dbService.name);        
 
         //remove db
         let realDbName = this.dbService.physicalDbName;        
@@ -33,7 +33,7 @@ class MysqlDeployer extends OolongDbDeployer {
         this.dbService.connectionString = this.dbService.connectionComponents.href;
         
         let sqlFiles = [ 'entities.sql', 'relations.sql', 'procedures.sql' ];
-        let dbConnection = await this.dbService.getConnection();
+        let dbConnection = await this.dbService.getConnection_();
         let results;
 
         try {
@@ -67,7 +67,7 @@ class MysqlDeployer extends OolongDbDeployer {
 
                 let sqlFile = path.join(dbScriptDir, file);
                 if (!fs.existsSync(sqlFile)) {
-                    return Promise.reject(`Database script "${file}" found. Try run "mowa oolong build" first`);
+                    return Promise.reject(`Database script "${file}" not found. Try run "mowa oolong build" first`);
                 }
 
                 let sql = _.trim(fs.readFileSync(sqlFile, { encoding: 'utf8' }));
@@ -108,13 +108,13 @@ class MysqlDeployer extends OolongDbDeployer {
 
             try {
                 await Util.eachAsync_(data, async (records, entityName) => {
-                    let Model = db.model(entityName);    
+                    let Model = db.model(entityName);                        
                     let items = Array.isArray(records) ? records : [ records ];
     
                     return Util.eachAsync_(items, async item => {
                         try {
                             let model = new Model(item);
-                            let result = await model.save();
+                            let result = await model.save_();
                             if (!result || !result.data) {
                                 throw new Error(`Unknown error occurred during saving a new "${entityName}" entity.`);
                             }
@@ -133,9 +133,8 @@ class MysqlDeployer extends OolongDbDeployer {
                 db.release();
             }
         } else if (ext === '.sql') {
-            try {
-                let conn = await db.conn_();
-                let [ result ] = await conn.query(content);
+            try {                
+                let [ result ] = await db.query_(content);
                 this.logger.log('verbose', `Executed a new SQL file.`, result);
             } finally {
                 db.release();

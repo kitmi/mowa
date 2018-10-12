@@ -11,29 +11,23 @@
     },
     "loggers": {
         "general": {
-            "transports": [
-                {
-                    "type": "console",
-                    "options": {
-                        "level": "verbose",
-                        "colorize": true
-                    }
+            "transports": [{
+                "type": "console",
+                "options": {
+                    "level": "verbose",
+                    "format": "#!jsv:winston.format.combine(winston.format.colorize(), winston.format.simple())"
                 }
-            ]
+            }]
         }
     },
     "koa": {
         "httpPort": 3000
     },
-    "middlewares": {        
+    "middlewares": {
         "compress": {},
         "etag": {}
     },
     "routing": {
-        "/": {
-            "app": {
-                "name": "test"
-            }
-        }
+        "/": "home.index"
     }
 }

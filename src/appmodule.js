@@ -14,6 +14,8 @@ const Error = require('./error.js');
 
 const { Config, JsonConfigProvider } = require('rk-config');
 
+const winston = require('winston');
+
 const ConsoleLogLevel = new Set([ 'error', 'warn' ]);
 
 class AppModule extends EventEmitter {
@@ -28,8 +30,7 @@ class AppModule extends EventEmitter {
      * @property {string} [options.logger] - The logger channel to be used as the default logger of this app module
      * @property {string} [options.modulePath] - The path of this app module
      * @property {string} [options.childModulesPath='app_modules'] - Relative path of child modules
-     * @property {string} [options.etcPath='etc'] - Relative path of configuration files
-     * @property {string} [options.backendPath='server'] - Relative path of back-end server files
+     * @property {string} [options.etcPath='etc'] - Relative path of configuration files     
      * @property {string} [options.frontendPath='client'] - Relative path of front-end client source files
      * @property {string} [options.frontendStaticPath='public'] - Relative path of front-end static files
      * @property {bool} [options.npmModule=false] - Specify whether it's a npmModule
@@ -157,7 +158,7 @@ class AppModule extends EventEmitter {
          * @type {string}
          * @public
          **/
-        this.backendPath = this.toAbsolutePath(this.options.backendPath || Literal.BACKEND_PATH);
+        this.backendPath = this.toAbsolutePath(Literal.BACKEND_PATH);
         /**
          * Frontend source files path
          * @type {string}
@@ -209,7 +210,7 @@ class AppModule extends EventEmitter {
      */
     start_(extraFeatures) {
         //load middlewares of the web module
-        this.loadMiddlewareFiles(this.toAbsolutePath(Literal.MIDDLEWARES_PATH));
+        this.loadMiddlewareFiles(path.join(this.backendPath, Literal.MIDDLEWARES_PATH));
 
         let configVariables = {
             'name': this.name,
@@ -219,6 +220,7 @@ class AppModule extends EventEmitter {
             'option': (node) => Util.getValueByPath(this.options, node),
             'app': (node) => Util.getValueByPath(this.settings, node),
             'server': (node) => Util.getValueByPath(this.serverModule.settings, node),
+            'winston': winston,
             'now': Util.moment()
         };
 
@@ -345,7 +347,7 @@ class AppModule extends EventEmitter {
      * @param mwPath
      */
     loadMiddlewareFiles(mwPath) {
-        if (this.serverModule.options.deaf) return this;
+        if (this.serverModule.options.cliMode) return this;
 
         let files = Util.glob.sync(path.join(mwPath, '*.js'), {nodir: true});
         files.forEach(file => this.registerMiddlewareFactory(path.basename(file, '.js'), require(file)));
@@ -393,7 +395,7 @@ class AppModule extends EventEmitter {
      * @param {*} middlewares - Can be an array of middleware entries or a key-value list of registerred middlewares
      */
     useMiddlewares(router, middlewares) {
-        if (this.serverModule.options.deaf) return this;
+        if (this.serverModule.options.cliMode) return this;
 
         let middlewareFactory, middleware;
         let middlewareFunctions = [];
@@ -449,7 +451,7 @@ class AppModule extends EventEmitter {
      * @param actions
      */
     addRoute(router, method, route, actions) {
-        if (this.serverModule.options.deaf) return this;
+        if (this.serverModule.options.cliMode) return this;
 
         let handlers = [], middlewareFactory;
 
@@ -493,7 +495,7 @@ class AppModule extends EventEmitter {
      * @param nestedRouter
      */
     addRouter(nestedRouter) {
-        if (this.serverModule.options.deaf) return this;
+        if (this.serverModule.options.cliMode) return this;        
 
         this.router.use(nestedRouter.routes());
         return this;
@@ -509,7 +511,7 @@ class AppModule extends EventEmitter {
         this.childModules || (this.childModules = {});
         this.childModules[childModule.name] = childModule;
 
-        if (this.serverModule.options.deaf || childModule.httpServer) return this;
+        if (this.serverModule.options.cliMode || childModule.httpServer) return this;
 
         if (childModule.options.host) {
             this.log('verbose', `Child module [${childModule.name}] is mounted at "${childModule.route}" with host pattern: "${childModule.options.host}".`);
@@ -567,7 +569,7 @@ class AppModule extends EventEmitter {
      * @return {function}
      */
     wrapAction(action) {
-        return async (ctx, next) => {
+        return async (ctx) => {
             ctx.appModule = this;
 
             Object.assign(ctx.state, {
@@ -581,9 +583,7 @@ class AppModule extends EventEmitter {
                 ctx.state._csrf = ctx.csrf;
             }
 
-            await action(ctx);
-
-            return next();
+            return action(ctx);
         };        
     }
 
@@ -595,7 +595,8 @@ class AppModule extends EventEmitter {
             [Feature.SERVICE]: [],
             [Feature.ENGINE]: [],
             [Feature.MIDDLEWARE]: [],
-            [Feature.ROUTING]: []
+            [Feature.ROUTING]: [],
+            [Feature.PLUGIN]: []
         };
 
         // load features
@@ -647,7 +648,7 @@ class AppModule extends EventEmitter {
     }
 
     _loadFeature(feature) {
-        let extensionJs = this.toAbsolutePath(Literal.FEATURES_PATH, feature + '.js');
+        let extensionJs = path.join(this.backendPath, Literal.FEATURES_PATH, feature + '.js');
 
         if (!Util.fs.existsSync(extensionJs)) {
             if (this.parent) {
@@ -657,7 +658,7 @@ class AppModule extends EventEmitter {
                 extensionJs = path.resolve(__dirname, 'features', feature + '.js');
 
                 if (!Util.fs.existsSync(extensionJs)) {
-                    if (this.serverModule.options.deaf) {
+                    if (this.serverModule.options.cliMode) {
                         this.log('warning', `Feature "${feature}" not exist.`);
                         return undefined;
                     } else {
@@ -685,6 +686,7 @@ class AppModule extends EventEmitter {
     _useMiddleware(router, middleware) {
         if (router.register && middleware.__metaMatchMethods && middleware.__metaMatchMethods.length) {
             router.register('(.*)', middleware.__metaMatchMethods, middleware, {end: false});
+            console.log('__metaMatchMethods', middleware.__metaMatchMethods);
         } else {
             router.use(middleware);
         }

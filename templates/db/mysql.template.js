@@ -8,6 +8,7 @@
 const mysql = require('mysql2/promise');
 const Mowa = require('mowa');
 const Util = Mowa.Util;
+const Feature = require('mowa/lib/enum/feature');
 const DbService = require('mowa/lib/oolong/runtime/dbservice');
 
 const poolByConn = {};
@@ -60,7 +61,7 @@ module.exports = {
      * This feature is loaded at dbms stage
      * @member {string}
      */
-    type: Mowa.Feature.DBMS,
+    type: Feature.DBMS,
 
     /**
      * Load the feature

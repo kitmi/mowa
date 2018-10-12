@@ -15,7 +15,7 @@
                 "type": "console",
                 "options": {
                     "level": "verbose",
-                    "colorize": true
+                    "format": "#!jsv:winston.format.combine(winston.format.colorize(), winston.format.simple())"
                 }
             }]
         }

@@ -1,6 +1,7 @@
 "use strict";
 
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const _ = Util._;
 const Promise = Util.Promise;
@@ -17,7 +18,7 @@ module.exports = {
      * This feature is loaded at engine stage
      * @member {string}
      */
-    type: Mowa.Feature.ENGINE,
+    type: Feature.ENGINE,
 
     /**
      * Load the feature
@@ -30,7 +31,7 @@ module.exports = {
      * @returns {Promise.<*>}
      */
     load_: function (appModule, options) {
-        if (appModule.serverModule.options.deaf) return Promise.resolve();
+        if (appModule.serverModule.options.cliMode) return Promise.resolve();
 
         let app = appModule.router;
         
@@ -70,7 +71,7 @@ module.exports = {
         appModule.httpServer = require('http').createServer(app.callback());
         appModule.serverModule.addHttpServer(appModule, appModule.httpServer);
 
-        appModule.on('after:' + Mowa.Feature.ROUTING, () => {
+        appModule.on('after:' + Feature.ROUTING, () => {
             appModule.httpServer.listen(port, function (err) {
                 if (err) throw err;
 

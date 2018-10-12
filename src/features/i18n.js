@@ -6,11 +6,12 @@
  */
 
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
 const _ = Util._;
 
-const I18n = require('../i18n.js');
+const I18n = require('../oolong/runtime/i18n');
 
 const DEFAULT_LOCALE = 'en_AU';
 const DEFAULT_PRECEDENCE = ['query', 'cookie', 'header'];
@@ -64,7 +65,7 @@ module.exports = {
      * This feature is loaded at service stage
      * @member {string}
      */
-    type: Mowa.Feature.SERVICE,
+    type: Feature.SERVICE,
 
     /**
      * Load the feature

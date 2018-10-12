@@ -7,6 +7,7 @@
 
 const path = require('path');
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const _ = Util._;
 const fs = Util.fs;
@@ -26,8 +27,8 @@ const createDevConfigProvider = (devName) => {
          * Start loading the config files
          * @returns {Promise}
          */
-        async load() {
-            let cfg = await super.load();
+        async load_() {
+            let cfg = await super.load_();
             let devCfgPath = path.join(this._configDir, this._baseName + '.' + this._devName + '.json');
 
             this.devConfig = await fs.pathExists(devCfgPath) ? await fs.readJson(devCfgPath) : {};
@@ -39,8 +40,8 @@ const createDevConfigProvider = (devName) => {
          * Start saving the config to files
          * @returns {Promise}
          */
-        async save() {
-            await super.save();
+        async save_() {
+            await super.save_();
 
             if (!_.isEmpty(this.devConfig)) {
                 let devCfgPath = path.join(this._configDir, this._baseName + '.' + this._devName + '.json');
@@ -59,7 +60,7 @@ module.exports = {
      * This feature is loaded at configuration stage
      * @member {string}
      */
-    type: Mowa.Feature.CONF,
+    type: Feature.CONF,
 
     /**
      * Load the feature

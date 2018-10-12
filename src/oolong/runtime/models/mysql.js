@@ -5,108 +5,128 @@ const Model = require('../model.js');
 const Mowa = require('../../../server.js');
 const Util = Mowa.Util;
 const _ = Util._;
+const OolUtil = require('../../lang/ool-utils.js');
 
 const Errors = require('../errors.js');
 
 class MysqlModel extends Model {
-    async _doCreate(context, ignoreDuplicate, retrieveSaved) {
-        let conn = await this.db.conn_();
-
+    /**
+     * Create a new entity with given data
+     * @param {object} context - Operation context
+     * @property {object} context.raw - Raw inputs
+     * @property {object} context.latest - Latest data entry, pass basic validation and sanitization, auto pre-filled     
+     * @property {bool} context.$ignoreDuplicate - Ignore duplicate error
+     * @property {bool} context.$retrieveFromDb - Retrieve the created entity from database
+     * @returns {object}
+     */
+   static async _doCreate_(context) {
         let sql = 'INSERT INTO ?? SET ?';
         let values = [ this.meta.name ];
         values.push(context.latest);
 
+        let conn = await this.db.conn_();
         sql = conn.format(sql, values);
                 
-        if (this.appModule.oolong.logSqlStatement) {
-            this.appModule.log('verbose', sql);
+        if (this.db.appModule.oolong.logSqlStatement) {
+            this.db.appModule.log('verbose', sql);
         }
 
-        let result, hasDuplicate;
+        let result;
 
         try {
-            [ result ] = await conn.query(sql);
+            [ result ] = await this.db.query_(sql);
         } catch (error) {
             if (error.code && error.code === 'ER_DUP_ENTRY') {
-                if (!ignoreDuplicate) {
+                if (!context.$ignoreDuplicate) {
                     let field = error.message.split("' for key '").pop();
                     field = field.substr(0, field.length-1);
 
-                    throw new Errors.ModelValidationError({ code: error.code, message: error.message, field: this.meta.fields[field] });
+                    throw new Errors.ModelValidationError(error.message, { 
+                        code: error.code, 
+                        sqlMessage: error.sqlMessage,
+                        entity: this.meta.name,
+                        fieldInfo: this.meta.fields[field] 
+                    });
                 } else {
-                    hasDuplicate = true;
+                    context.$hasDuplicate = true;
                 }
             } else {
                 throw error;
             }
         }
         
-        if (result.affectedRows !== 1 && !hasDuplicate) {
-            throw new Errors.ModelResultError('Insert operation may fail. "affectedRows" is 0.');
-        }
+        if (result.affectedRows !== 1 && !context.$hasDuplicate) {
+            throw new Errors.ModelOperationError('Insert operation may fail. "affectedRows" is 0.', result);
+        }        
 
         let autoIdFeature = this.meta.features.autoId;
         if (autoIdFeature && this.meta.fields[autoIdFeature.field].autoIncrementId) {              
-            if (!hasDuplicate) {
+            if (!context.$hasDuplicate) {
                 if ('insertId' in result) {
-                    if (retrieveSaved) {
-                        return this.constructor.findOne({[autoIdFeature.field]: result.insertId });
+                    if (context.$retrieveFromDb) {
+                        return this._doFindOne_({[autoIdFeature.field]: result.insertId });
                     }
                     context.latest[autoIdFeature.field] = result.insertId;            
                 } else {
-                    throw new Errors.ModelResultError('Last insert id does not exist in result record.');
+                    throw new Errors.ModelOperationError('Last insert id does not exist in result record.', result);
                 }
             } // if hasDuplicate, the latest record will not 
         } 
 
-        if (!retrieveSaved) {
-            return this.fromDb(context.latest);
+        if (!context.$retrieveFromDb) {
+            return context.latest;
         }
         
-        return this.constructor.findOne(context.latest);
+        return this._doFindOne_(_.pick(context.latest, this._getUniqueKeyPairFrom(context.latest)));
     }
     
-    async _doUpdate(context, retrieveSaved) {
-        let keyField = this.meta.keyField;
-        let keyValue = (keyField in context.latest) ? context.latest[keyField] : context.existing[keyField];
-
-        if (_.isNil(keyValue)) {
-            throw new Errors.ModelOperationError('Missing key field on updating.', this.meta.name);
-        }
-
-        if (_.isEmpty(context.latest)) {
-            throw new Errors.ModelOperationError('Nothing to update.', this.meta.name);
-        }
-
+    /**
+     * Update an entity with given data
+     * @param {object} condition - Query conditions
+     * @param {object} context - Operation context
+     * @property {object} context.raw - Raw inputs
+     * @property {object} context.latest - Latest data entry, pass basic validation and sanitization, auto pre-filled     
+     * @property {bool} context.$throwZeroUpdate - Throw error when no rows being updated
+     * @property {bool} context.$retrieveFromDb - Retrieve the created entity from database
+     * @returns {object}
+     */
+    static async _doUpdate_(condition, context) {
         let conn = await this.db.conn_();
+        
+        let values = [ this.meta.name, context.latest ]; 
+        
+        let ld = this.meta.features.logicalDeletion;
+        if (ld) {
+            condition = { $and: [ { $not: { [ld.field]: ld.value } }, condition ] };
+        }
 
-        let sql = 'UPDATE ?? SET ? WHERE ' + conn.escapeId(keyField) + ' = ?';
-        let values = [ this.meta.name ];
-        values.push(context.latest);
-        values.push(keyValue);
+        let whereClause = this._joinCondition(conn, condition, values);        
 
+        let sql = 'UPDATE ?? SET ? WHERE ' + whereClause;
         sql = conn.format(sql, values);
 
-        if (this.appModule.oolong.logSqlStatement) {
-            this.appModule.log('verbose', sql);
+        if (this.db.appModule.oolong.logSqlStatement) {
+            this.db.appModule.log('verbose', sql);
         }
 
-        let [ result ] = await conn.query(sql);
+        let [ result ] = await this.db.query_(sql);
 
-        console.log(result);
-
-        if (result.affectedRows !== 1) {
-            throw new Errors.ModelResultError('Update operation may fail. "affectedRows" is 0.');
+        if (result.affectedRows === 0 && context.$throwZeroUpdate) {
+            throw new Errors.ModelOperationError('Update operation may fail. "affectedRows" is 0.', result);
         }
 
-        if (retrieveSaved) {
-            
+        if (context.$retrieveFromDb) {
+            return this._doFindOne_(_.pick(context.latest, this._getUniqueKeyPairFrom(context.latest)));
         }
 
-        return this.fromDb(context.latest);
+        return Object.assign({}, context.raw, context.latest);
     }
 
-    static async _doFindOne(condition) {
+    /**
+     * 
+     * @param {object} condition - Query conditions
+     */
+    static async _doFindOne_(condition) {
         let conn = await this.db.conn_();
         
         let values = [ this.meta.name ];       
@@ -116,8 +136,7 @@ class MysqlModel extends Model {
             condition = { $and: [ { $not: { [ld.field]: ld.value } }, condition ] };
         }
 
-        let whereClause = this._joinCondition(conn, condition, values);
-        
+        let whereClause = this._joinCondition(conn, condition, values);        
         assert: whereClause, 'Invalid condition';
 
         let sql = 'SELECT * FROM ?? WHERE ' + whereClause;
@@ -127,12 +146,12 @@ class MysqlModel extends Model {
             this.db.appModule.log('verbose', sql);
         }
 
-        let [rows] = await conn.query(sql);
+        let [rows] = await this.db.query_(sql);
 
         return rows.length > 0 ? rows[0] : undefined;
     }
 
-    static async _doFind(condition) {
+    static async _doFind_(condition) {
         let conn = await this.db.conn_();
 
         let values = [ this.meta.name ];
@@ -155,12 +174,12 @@ class MysqlModel extends Model {
             this.db.appModule.log('verbose', sql);
         }
 
-        let [ rows ] = await conn.query(sql);
+        let [ rows ] = await this.db.query_(sql);
 
         return rows;
     }
 
-    static async _doRemoveOne(condition) {
+    static async _doRemoveOne_(condition) {
         let conn = await this.db.conn_();
 
         let values = [ this.meta.name ];
@@ -185,10 +204,10 @@ class MysqlModel extends Model {
             this.db.appModule.log('verbose', sql);
         }
 
-        let [ result ] = await conn.query(sql);
+        let [ result ] = await this.db.query_(sql);
 
         if (result.affectedRows !== 1) {
-            throw new Errors.ModelResultError('Delete operation may fail. "affectedRows" is 0.');
+            throw new Errors.ModelOperationError('Delete operation may fail. "affectedRows" is 0.', result);
         }
 
         return true;

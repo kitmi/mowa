@@ -34,5 +34,10 @@ const FeatureLevels = module.exports = {
     /**
      * Routing configuration
      */
-    ROUTING: '60-routing'
+    ROUTING: '60-routing',
+
+    /**
+     * App Plugin
+     */
+    PLUGIN: '70-plugin'
 };

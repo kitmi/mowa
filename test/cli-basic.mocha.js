@@ -18,7 +18,6 @@ describe('mowa-cli', function () {
     describe('mowa -v', function () {
         it('Should return correct version', async function() {
             let output = await Mowa.Util.runCmd_(MOWA_CLI_CMD + '-v');
-            console.log(output);
             
             const pkg = require('../package.json');            
             output.stderr.should.be.empty();
@@ -28,8 +27,7 @@ describe('mowa-cli', function () {
 
     describe('mowa', function() {
         it('Should show usage', async function() {    
-            let output = await Mowa.Util.runCmd_(MOWA_CLI_CMD);        
-            console.log(output);
+            let output = await Mowa.Util.runCmd_(MOWA_CLI_CMD);     
             
             output.stderr.should.be.empty();
             output.stdout.should.containEql('Usage');
@@ -92,12 +90,12 @@ describe('mowa-cli', function () {
             });
 
             it('build folder exist', function () {       
-                const serverFile = path.join(TEST_CLI_BASIC_FOLDER, 'build', 'server.js');
+                const serverFile = path.join(TEST_CLI_BASIC_FOLDER, 'server', 'start.js');
                 Util.fs.existsSync(serverFile).should.ok();
             });
 
             it('should start successfully', function (done) {                         
-                let server = new Mowa('cli-test', {  backendPath: 'build/server' });
+                let server = new Mowa('cli-basic');
                 server.start_().then(() => {
                     request(server.httpServer)
                     .get('/')
@@ -135,7 +133,7 @@ describe('mowa-cli', function () {
             });
 
             it('should start successfully', async function () {
-                let server = new Mowa('cli-test', {  backendPath: 'build/server' });
+                let server = new Mowa('cli-basic');
                 await server.start_();
 
                 await request(server.httpServer)

@@ -15,13 +15,13 @@
                 "type": "console",
                 "options": {
                     "level": "verbose",
-                    "colorize": true
+                    "format": "#!jsv:winston.format.combine(winston.format.colorize(), winston.format.simple())"
                 }
             }, {
                 "type": "file",
                 "options": {
                     "level": "info",
-                    "filename": "#!es6:general-${now.format('YYYYMMDD')}.log"
+                    "filename": "#!jst:general-${now.format('YYYYMMDD')}.log"
                 }
             }]
         },
@@ -29,11 +29,9 @@
             "transports": [{
                 "type": "daily-rotate-file",
                 "options": {
-                    "level": "info",
-                    "json": false,
-                    "formatter": "#!es6:${options => options.message}",
-                    "filename": "access-",
-                    "datePattern": "yyyyMMdd.log"
+                    "level": "info",                    
+                    "filename": "access-%DATE%",
+                    "datePattern": "YYYYMMDD"
                 }
             }]
         }

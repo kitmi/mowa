@@ -2,6 +2,7 @@
 
 const path = require('path');
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const _ = Util._;
 const fs = Util.fs;
@@ -29,7 +30,7 @@ exports.startMowa_ = function (api) {
     }
 
     const mowaOpts = {
-        deaf: true, 
+        cliMode: true, 
         verbose: api.config['general'].verbose
     };
 
@@ -50,9 +51,7 @@ exports.startMowa_ = function (api) {
         }
 
         //override default config
-        api.config = _.defaultsDeep({}, _.pick(cliSettings,
-            ["consoleEnabled", "fileLogEnabled", "fileLogFilename", "fileLogOverwrite"]),
-            api.config);
+        api.config = _.defaultsDeep({}, cliSettings, api.config);
 
         mowa.options.verbose = api.config.general.verbose;
     });
@@ -85,7 +84,7 @@ exports.getAvailableAppNames = function (api) {
  * @returns {Array}
  */
 exports.getAvailablePassportStrategies = function (appModule) {
-    let strategiesPath = path.join(appModule.backendPath, 'passports');
+    let strategiesPath = appModule.toAbsolutePath(Mowa.Literal.BACKEND_SRC_PATH, 'passports');
 
     if (!fs.existsSync(strategiesPath)) {
         throw new Error('Passport strategy folder not exists. Please run "mowa passport install" first.');
@@ -133,7 +132,7 @@ exports.getAppModuleDependencies = function (appModule) {
  * @returns {Array}
  */
 exports.getAllDbmsFeatures = function (appModule) {
-    return _.filter(appModule.features, { type: Mowa.Feature.DBMS });
+    return _.filter(appModule.features, { type: Feature.DBMS });
 };
 
 /**

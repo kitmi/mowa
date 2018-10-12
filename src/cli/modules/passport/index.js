@@ -103,7 +103,7 @@ exports.install = async api => {
 
     let appModule = MowaHelper.getAppModuleToOperate(api);
 
-    let strategiesPath = path.join(appModule.backendPath, 'passports');
+    let strategiesPath = appModule.toAbsolutePath(Mowa.Literal.BACKEND_SRC_PATH, 'passports');
     fs.ensureDirSync(strategiesPath);
 
     let strategies = api.getOption('strategies');

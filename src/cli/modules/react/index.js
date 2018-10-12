@@ -171,7 +171,7 @@ exports.createApp = async api => {
 
     const swig  = require('swig-templates');
     let viewPageSource = path.resolve(api.getTemplatePath('react'), 'server', 'react.swig');
-    let viewPageDest = path.join(appModule.backendPath, Mowa.Literal.VIEWS_PATH, 'react.swig');
+    let viewPageDest = appModule.toAbsolutePath(Mowa.Literal.BACKEND_SRC_PATH, Mowa.Literal.VIEWS_PATH, 'react.swig');
 
     if (fs.existsSync(viewPageDest)) {
         api.log('info', 'React page exists. Skipped this step.');
@@ -296,9 +296,7 @@ exports.createPackage = api => {
 
         pkgJson.author = `${authorName} <${authorEmail}>`;
 
-        fs.writeJsonSync(pkgFile, pkgJson, {spaces: 4, EOL: '\n'});
-
-        const interpolate = /{{([\s\S]+?)}}/g;
+        fs.writeJsonSync(pkgFile, pkgJson, {spaces: 4, EOL: '\n'});        
 
         const webpackJsFile = path.join(targetPackage, 'webpack.config.js');
         let webpackJsTemplateContent = fs.readFileSync(webpackJsFile, 'utf8');

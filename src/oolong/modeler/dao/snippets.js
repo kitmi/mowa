@@ -3,78 +3,7 @@
 const Util = require('../../../util.js');
 const _ = Util._;
 
-const _preCreateHeader = [
-    {
-        "type": "VariableDeclaration",
-        "declarations": [
-            {
-                "type": "VariableDeclarator",
-                "id": {
-                    "type": "Identifier",
-                    "name": "context"
-                },
-                "init": {
-                    "type": "AwaitExpression",
-                    "argument": {
-                        "type": "CallExpression",
-                        "callee": {
-                            "type": "MemberExpression",
-                            "computed": false,
-                            "object": {
-                                "type": "Super"
-                            },
-                            "property": {
-                                "type": "Identifier",
-                                "name": "_preCreate"
-                            }
-                        },
-                        "arguments": []
-                    }
-                }
-            }
-        ],
-        "kind": "let"
-    },
-    {
-        "type": "IfStatement",
-        "test": {
-            "type": "BinaryExpression",
-            "operator": ">",
-            "left": {
-                "type": "MemberExpression",
-                "computed": false,
-                "object": {
-                    "type": "MemberExpression",
-                    "computed": false,
-                    "object": {
-                        "type": "Identifier",
-                        "name": "context"
-                    },
-                    "property": {
-                        "type": "Identifier",
-                        "name": "errors"
-                    }
-                },
-                "property": {
-                    "type": "Identifier",
-                    "name": "length"
-                }
-            },
-            "right": {
-                "type": "Literal",
-                "value": 0,
-                "raw": "0"
-            }
-        },
-        "consequent": {
-            "type": "ReturnStatement",
-            "argument": {
-                "type": "Identifier",
-                "name": "context"
-            }
-        },
-        "alternate": null
-    },
+const _doValidateAndFillHeader = [        
     {
         "type": "VariableDeclaration",
         "declarations": [
@@ -108,21 +37,6 @@ const _preCreateHeader = [
                             "value": {
                                 "type": "Identifier",
                                 "name": "latest"
-                            },
-                            "kind": "init",
-                            "method": false,
-                            "shorthand": true
-                        },
-                        {
-                            "type": "Property",
-                            "key": {
-                                "type": "Identifier",
-                                "name": "errors"
-                            },
-                            "computed": false,
-                            "value": {
-                                "type": "Identifier",
-                                "name": "errors"
                             },
                             "kind": "init",
                             "method": false,
@@ -139,51 +53,45 @@ const _preCreateHeader = [
         "kind": "let"
     }];
 
-const _preCreateValidateCheck = (stateVarName, fieldName) => ({
-    "type": "IfStatement",
-    "test": {
-        "type": "UnaryExpression",
-        "operator": "!",
-        "argument": {
-            "type": "Identifier",
-            "name": stateVarName
+const _validateCheck = (fieldName, validatingCall) => { 
+    let comment = `Validating "${fieldName}"`;
+
+    return {
+        "type": "IfStatement",
+        "test": {
+            "type": "UnaryExpression",
+            "operator": "!",
+            "argument": validatingCall,
+            "prefix": true
         },
-        "prefix": true
-    },
-    "consequent": {
-        "type": "BlockStatement",
-        "body": [
-            {
-                "type": "ExpressionStatement",
-                "expression": {
-                    "type": "CallExpression",
-                    "callee": {
-                        "type": "MemberExpression",
-                        "computed": false,
-                        "object": {
+        "consequent": {
+            "type": "BlockStatement",
+            "body": [
+                {
+                    "type": "ThrowStatement",
+                    "argument": {
+                        "type": "NewExpression",
+                        "callee": {
                             "type": "Identifier",
-                            "name": "errors"
+                            "name": "ModelValidationError"
                         },
-                        "property": {
-                            "type": "Identifier",
-                            "name": "push"
-                        }
-                    },
-                    "arguments": [
-                        {
-                            "type": "ObjectExpression",
-                            "properties": [
-                                {
-                                    "type": "Property",
-                                    "key": {
-                                        "type": "Identifier",
-                                        "name": "field"
-                                    },
-                                    "computed": false,
-                                    "value": {
-                                        "type": "MemberExpression",
-                                        "computed": true,
-                                        "object": {
+                        "arguments": [
+                            {
+                                "type": "Literal",
+                                "value": `Invalid "${fieldName}".`,
+                                "raw": `'Invalid "${fieldName}".'`
+                            },
+                            {
+                                "type": "ObjectExpression",
+                                "properties": [
+                                    {
+                                        "type": "Property",
+                                        "key": {
+                                            "type": "Identifier",
+                                            "name": "entity"
+                                        },
+                                        "computed": false,
+                                        "value": {
                                             "type": "MemberExpression",
                                             "computed": false,
                                             "object": {
@@ -199,411 +107,211 @@ const _preCreateValidateCheck = (stateVarName, fieldName) => ({
                                             },
                                             "property": {
                                                 "type": "Identifier",
-                                                "name": "fields"
+                                                "name": "name"
                                             }
                                         },
-                                        "property": {
+                                        "kind": "init",
+                                        "method": false,
+                                        "shorthand": false
+                                    },
+                                    {
+                                        "type": "Property",
+                                        "key": {
+                                            "type": "Identifier",
+                                            "name": "field"
+                                        },
+                                        "computed": false,
+                                        "value": {
                                             "type": "Literal",
                                             "value": fieldName,
-                                            "raw": `'${fieldName}'`
-                                        }
-                                    },
-                                    "kind": "init",
-                                    "method": false,
-                                    "shorthand": false
-                                }
-                            ]
-                        }
-                    ]
+                                            "raw": Util.quote(fieldName, "'")
+                                        },
+                                        "kind": "init",
+                                        "method": false,
+                                        "shorthand": false
+                                    }
+                                ]
+                            }
+                        ]
+                    }
                 }
-            },
+            ]
+        },
+        "alternate": null,
+        "leadingComments": [
             {
-                "type": "ReturnStatement",
-                "argument": {
-                    "type": "Identifier",
-                    "name": "context"
-                }
+                "type": "Line",
+                "value": comment,
+                "range": [
+                    1,
+                    comment.length+1
+                ]
             }
         ]
-    },
-    "alternate": null
-});
+    };
+};
 
-const _fieldExistenseCheck = (fieldName, content) => ({
-    "type": "IfStatement",
-    "test": {
-        "type": "BinaryExpression",
-        "operator": "in",
-        "left": {
-            "type": "Literal",
-            "value": fieldName,
-            "raw": `'${fieldName}'`
-        },
-        "right": {
-            "type": "Identifier",
-            "name": "latest"
-        }
-    },
-    "consequent": {
-        "type": "BlockStatement",
-        "body": content
-    },
-    "alternate": null
-});
+function buildTest(conditions) {
+    if (conditions.length === 0) return null;
 
-const _preUpdateHeader = [
-    {
-        "type": "VariableDeclaration",
-        "declarations": [
-            {
-                "type": "VariableDeclarator",
-                "id": {
-                    "type": "Identifier",
-                    "name": "context"
-                },
-                "init": {
-                    "type": "AwaitExpression",
-                    "argument": {
-                        "type": "CallExpression",
-                        "callee": {
-                            "type": "MemberExpression",
-                            "computed": false,
-                            "object": {
-                                "type": "Super"
-                            },
-                            "property": {
-                                "type": "Identifier",
-                                "name": "_preUpdate"
-                            }
-                        },
-                        "arguments": []
-                    }
-                }
-            }
-        ],
-        "kind": "let"
-    },
-    {
-        "type": "IfStatement",
-        "test": {
+    let c = conditions.pop();
+
+    if (conditions.length === 0) {
+        return {
             "type": "BinaryExpression",
-            "operator": ">",
+            "operator": "in",
             "left": {
-                "type": "MemberExpression",
-                "computed": false,
-                "object": {
-                    "type": "MemberExpression",
-                    "computed": false,
-                    "object": {
-                        "type": "Identifier",
-                        "name": "context"
-                    },
-                    "property": {
-                        "type": "Identifier",
-                        "name": "errors"
-                    }
-                },
-                "property": {
-                    "type": "Identifier",
-                    "name": "length"
-                }
+                "type": "Literal",
+                "value": c,
+                "raw": Util.quote(c, "'")
             },
             "right": {
-                "type": "Literal",
-                "value": 0,
-                "raw": "0"
-            }
-        },
-        "consequent": {
-            "type": "ReturnStatement",
-            "argument": {
                 "type": "Identifier",
-                "name": "context"
+                "name": "latest"
             }
-        },
-        "alternate": null
-    },
-    {
-        "type": "VariableDeclaration",
-        "declarations": [
-            {
-                "type": "VariableDeclarator",
-                "id": {
-                    "type": "Identifier",
-                    "name": "latest"
-                },
-                "init": {
-                    "type": "NewExpression",
-                    "callee": {
-                        "type": "Identifier",
-                        "name": "Proxy"
+        }
+    } 
+
+    return {
+        "type": "LogicalExpression",
+        "operator": "||",
+        "left": buildTest(conditions),
+        "right": {
+            "type": "BinaryExpression",
+            "operator": "in",
+            "left": {
+                "type": "Literal",
+                "value": c,
+                "raw": Util.quote(c, "'")
+            },
+            "right": {
+                "type": "Identifier",
+                "name": "latest"
+            }
+        }
+    }
+}
+
+/**
+ * Check existence of all required fields
+ * @param {string} fieldName - Target field name
+ * @param {*} references - All references to other fields 
+ * @param {*} content - Content code block
+ * @param {bool} requireTargetField - Whether the function requires target field as input
+ */
+const _fieldRequirementCheck = (fieldName, references, content, requireTargetField) => { 
+    if (!references) references = [];
+
+    let test = buildTest(_.reverse((requireTargetField ? [fieldName] : []).concat(references)));
+
+    let throwMessage = `"${fieldName}" is required due to change of its dependencies. (e.g: ${references.join(' or ')})`;
+
+    let checks = (requireTargetField && references.length > 0) ? [
+        {
+            "type": "IfStatement",
+            "test": {
+                "type": "UnaryExpression",
+                "operator": "!",
+                "argument": {
+                    "type": "BinaryExpression",
+                    "operator": "in",
+                    "left": {
+                        "type": "Literal",
+                        "value": fieldName,
+                        "raw": Util.quote(fieldName, "'")
                     },
-                    "arguments": [
-                        {
-                            "type": "MemberExpression",
-                            "computed": false,
-                            "object": {
+                    "right": {
+                        "type": "Identifier",
+                        "name": "latest"
+                    }
+                },
+                "prefix": true
+            },
+            "consequent": {
+                "type": "BlockStatement",
+                "body": [
+                    {
+                        "type": "ThrowStatement",
+                        "argument": {
+                            "type": "NewExpression",
+                            "callee": {
                                 "type": "Identifier",
-                                "name": "context"
+                                "name": "ModelUsageError"
                             },
-                            "property": {
-                                "type": "Identifier",
-                                "name": "latest"
-                            }
-                        },
-                        {
-                            "type": "ObjectExpression",
-                            "properties": [
+                            "arguments": [
                                 {
-                                    "type": "Property",
-                                    "key": {
-                                        "type": "Identifier",
-                                        "name": "get"
-                                    },
-                                    "computed": false,
-                                    "value": {
-                                        "type": "ArrowFunctionExpression",
-                                        "id": null,
-                                        "params": [
-                                            {
-                                                "type": "Identifier",
-                                                "name": "obj"
-                                            },
-                                            {
-                                                "type": "Identifier",
-                                                "name": "prop"
-                                            }
-                                        ],
-                                        "body": {
-                                            "type": "BlockStatement",
-                                            "body": [
-                                                {
-                                                    "type": "IfStatement",
-                                                    "test": {
-                                                        "type": "BinaryExpression",
-                                                        "operator": "in",
-                                                        "left": {
-                                                            "type": "Identifier",
-                                                            "name": "prop"
-                                                        },
-                                                        "right": {
-                                                            "type": "Identifier",
-                                                            "name": "obj"
-                                                        }
-                                                    },
-                                                    "consequent": {
-                                                        "type": "ReturnStatement",
-                                                        "argument": {
-                                                            "type": "MemberExpression",
-                                                            "computed": true,
-                                                            "object": {
-                                                                "type": "Identifier",
-                                                                "name": "obj"
-                                                            },
-                                                            "property": {
-                                                                "type": "Identifier",
-                                                                "name": "prop"
-                                                            }
-                                                        }
-                                                    },
-                                                    "alternate": null
-                                                },
-                                                {
-                                                    "type": "ReturnStatement",
-                                                    "argument": {
-                                                        "type": "MemberExpression",
-                                                        "computed": true,
-                                                        "object": {
-                                                            "type": "MemberExpression",
-                                                            "computed": false,
-                                                            "object": {
-                                                                "type": "Identifier",
-                                                                "name": "context"
-                                                            },
-                                                            "property": {
-                                                                "type": "Identifier",
-                                                                "name": "existing"
-                                                            }
-                                                        },
-                                                        "property": {
-                                                            "type": "Identifier",
-                                                            "name": "prop"
-                                                        }
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        "generator": false,
-                                        "expression": false,
-                                        "async": false
-                                    },
-                                    "kind": "init",
-                                    "method": false,
-                                    "shorthand": false
-                                },
-                                {
-                                    "type": "Property",
-                                    "key": {
-                                        "type": "Identifier",
-                                        "name": "set"
-                                    },
-                                    "computed": false,
-                                    "value": {
-                                        "type": "ArrowFunctionExpression",
-                                        "id": null,
-                                        "params": [
-                                            {
-                                                "type": "Identifier",
-                                                "name": "obj"
-                                            },
-                                            {
-                                                "type": "Identifier",
-                                                "name": "prop"
-                                            },
-                                            {
-                                                "type": "Identifier",
-                                                "name": "value"
-                                            }
-                                        ],
-                                        "body": {
-                                            "type": "BlockStatement",
-                                            "body": [
-                                                {
-                                                    "type": "ExpressionStatement",
-                                                    "expression": {
-                                                        "type": "AssignmentExpression",
-                                                        "operator": "=",
-                                                        "left": {
-                                                            "type": "MemberExpression",
-                                                            "computed": true,
-                                                            "object": {
-                                                                "type": "MemberExpression",
-                                                                "computed": false,
-                                                                "object": {
-                                                                    "type": "Identifier",
-                                                                    "name": "context"
-                                                                },
-                                                                "property": {
-                                                                    "type": "Identifier",
-                                                                    "name": "latest"
-                                                                }
-                                                            },
-                                                            "property": {
-                                                                "type": "Identifier",
-                                                                "name": "prop"
-                                                            }
-                                                        },
-                                                        "right": {
-                                                            "type": "Identifier",
-                                                            "name": "value"
-                                                        }
-                                                    }
-                                                },
-                                                {
-                                                    "type": "ReturnStatement",
-                                                    "argument": {
-                                                        "type": "Literal",
-                                                        "value": true,
-                                                        "raw": "true"
-                                                    }
-                                                }
-                                            ]
-                                        },
-                                        "generator": false,
-                                        "expression": false,
-                                        "async": false
-                                    },
-                                    "kind": "init",
-                                    "method": false,
-                                    "shorthand": false
+                                    "type": "Literal",
+                                    "value": throwMessage,
+                                    "raw": Util.quote(throwMessage, "'")
                                 }
                             ]
                         }
-                    ]
-                }
-            }
-        ],
-        "kind": "let"
-    },
-    {
-        "type": "VariableDeclaration",
-        "declarations": [
-            {
-                "type": "VariableDeclarator",
-                "id": {
-                    "type": "ObjectPattern",
-                    "properties": [
-                        {
-                            "type": "Property",
-                            "key": {
-                                "type": "Identifier",
-                                "name": "existing"
-                            },
-                            "computed": false,
-                            "value": {
-                                "type": "Identifier",
-                                "name": "existing"
-                            },
-                            "kind": "init",
-                            "method": false,
-                            "shorthand": true
-                        },
-                        {
-                            "type": "Property",
-                            "key": {
-                                "type": "Identifier",
-                                "name": "latest"
-                            },
-                            "computed": false,
-                            "value": {
-                                "type": "Identifier",
-                                "name": "latest"
-                            },
-                            "kind": "init",
-                            "method": false,
-                            "shorthand": true
-                        },
-                        {
-                            "type": "Property",
-                            "key": {
-                                "type": "Identifier",
-                                "name": "raw"
-                            },
-                            "computed": false,
-                            "value": {
-                                "type": "Identifier",
-                                "name": "raw"
-                            },
-                            "kind": "init",
-                            "method": false,
-                            "shorthand": true
-                        },
-                        {
-                            "type": "Property",
-                            "key": {
-                                "type": "Identifier",
-                                "name": "errors"
-                            },
-                            "computed": false,
-                            "value": {
-                                "type": "Identifier",
-                                "name": "errors"
-                            },
-                            "kind": "init",
-                            "method": false,
-                            "shorthand": true
-                        }
-                    ]
+                    }
+                ]
+            },
+            "alternate": null
+        }
+    ] : [];
+
+    references.forEach(ref => {
+        let refThrowMessage = `"${ref}" is required by the filter function of "${fieldName}".`;
+
+        checks.push({
+            "type": "IfStatement",
+            "test": {
+                "type": "UnaryExpression",
+                "operator": "!",
+                "argument": {
+                    "type": "BinaryExpression",
+                    "operator": "in",
+                    "left": {
+                        "type": "Literal",
+                        "value": ref,
+                        "raw": Util.quote(ref, "'")
+                    },
+                    "right": {
+                        "type": "Identifier",
+                        "name": "latest"
+                    }
                 },
-                "init": {
-                    "type": "Identifier",
-                    "name": "context"
-                }
-            }
-        ],
-        "kind": "let"
-    }
-];
+                "prefix": true
+            },
+            "consequent": {
+                "type": "BlockStatement",
+                "body": [
+                    {
+                        "type": "ThrowStatement",
+                        "argument": {
+                            "type": "NewExpression",
+                            "callee": {
+                                "type": "Identifier",
+                                "name": "ModelUsageError"
+                            },
+                            "arguments": [
+                                {
+                                    "type": "Literal",
+                                    "value": refThrowMessage,
+                                    "raw": Util.quote(refThrowMessage, "'")
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "alternate": null
+        });
+    });
+    
+    return {
+        "type": "IfStatement",
+        "test": test,
+        "consequent": {
+            "type": "BlockStatement",
+            "body": checks.concat(content)
+        },
+        "alternate": null
+    };
+};
 
 const restMethods = (serviceId, entityName, className) => ({
     "type": "Program",
@@ -1848,9 +1556,8 @@ const restMethods = (serviceId, entityName, className) => ({
 });
 
 module.exports = {
-    _preCreateHeader,
-    _preCreateValidateCheck,
-    _preUpdateHeader,
-    _fieldExistenseCheck,
+    _doValidateAndFillHeader,
+    _validateCheck,    
+    _fieldRequirementCheck,
     restMethods
 };

@@ -150,7 +150,7 @@ exports.enable = async api => {
 
     //copy feature
     let templateFeature = path.join(templatePath, `${dbms}.template.js`);
-    let targetPath = appModule.toAbsolutePath(Mowa.Literal.FEATURES_PATH, `${dbms}.js`);
+    let targetPath = appModule.toAbsolutePath(Mowa.Literal.BACKEND_SRC_PATH, Mowa.Literal.FEATURES_PATH, `${dbms}.js`);
     if (!fs.existsSync(targetPath)) {
         fs.copySync(templateFeature, targetPath);
     }

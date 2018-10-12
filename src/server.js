@@ -6,8 +6,6 @@ const _ = Util._;
 const Promise = Util.Promise;
 
 const AppModule = require('./appmodule.js');
-const pkg = require('../package.json');
-
 const Literal = require('./enum/literal.js');
 
 process.on('uncaughtException', e => {
@@ -31,13 +29,12 @@ class MowaServer extends AppModule {
      * @property {string} [options.modulePath] - The path of the server
      * @property {string} [options.childModulesPath='app_modules'] - Relative path of child modules
      * @property {string} [options.etcPath='etc'] - Relative path of configuration files
-     * @property {string} [options.etcPrefix='server'] - Configuration file basename
-     * @property {string} [options.backendPath='server'] - Relative path of back-end server files
+     * @property {string} [options.etcPrefix='server'] - Configuration file basename     
      * @property {string} [options.frontendPath='client'] - Relative path of front-end client source files
      * @property {string} [options.frontendStaticPath='public'] - Relative path of front-end static files
      * @property {string} [options.host] - Host of the server
      * @property {bool} [options.verbose=false] - Flag to output trivial information for diagnostics
-     * @property {bool} [options.deaf=false] - Start the server without enabling the web engine, specially for cli
+     * @property {bool} [options.cliMode=false] - Start the server without enabling the web engine, specially for cli
      * @property {bool} [options.logWithModuleName=false] - Flag to prepend module name before logging
      * @property {bool} [options.oneAppMode=false] - Flag to run an app in standalone mode
      */
@@ -164,12 +161,6 @@ class MowaServer extends AppModule {
 }
 
 /**
- * AppModule class
- * @memberof MowaServer
- */
-MowaServer.AppModule = AppModule;
-
-/**
  * Utilities shortcut
  * @memberof MowaServer
  */
@@ -180,24 +171,6 @@ MowaServer.Util = Util;
  * @memberof MowaServer
  */
 MowaServer.Error = require('./error.js');
-
-/**
- * Http status codes definitions.
- * @memberof MowaServer
- */
-MowaServer.HttpCode = require('./enum/httpcode.js');
-
-/**
-* Common regexp patterns.
-* @memberof MowaServer
-*/
-MowaServer.Pattern = require('./enum/pattern.js');
-
-/**
-* Feature levels definitions.
-* @memberof MowaServer
-*/
-MowaServer.Feature = require('./enum/feature.js');
 
 /**
 * Common constants.

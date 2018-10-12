@@ -16,9 +16,7 @@
                     }
                 }
             },
-            "modules": [
-                "test"
-            ]
+            "module": "test"
         }
     }
 }

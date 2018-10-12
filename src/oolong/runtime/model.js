@@ -6,62 +6,59 @@ const _ = Util._;
 const OolUtil = require('../lang/ool-utils.js');
 
 const { Errors, Validators, Generators, Features } = require('.');
-const { ModelValidationError, ModelOperationError } = Errors;
-
+const { ModelValidationError, ModelOperationError, ModelUsageError } = Errors;
 
 class Model {
-    /**
-     * Flag to mark as new Entity
-     * @type {boolean}
-     */
-    isNew = true;
-
     /**
      * Model operator, provide CRUD functions
      *      
      * @constructs Model
      * @param {Object} [rawData] - Mapped object
+     * @param {bool} [fromDb] - Flag showing the data is directed loaded from database
      */
-    constructor(rawData) {
-        if (rawData) {
-            this.data = this.constructor._filterCondition(rawData);
-        }
+    constructor(rawData, fromDb) {
+        if (fromDb) {
+            assert: !_.isEmpty(rawData);
 
-        this.appModule = this.db.appModule;
-    }
+            /**
+             * Flag to mark as new Entity
+             * @type {boolean}
+             */
+            this.isNew = false;
 
-    /**
-     * Populate data from database
-     * @param {*} data 
-     */
-    fromDb(data) {
-        this.isNew = false;
+            this.pendingUpdate = new Set();
 
-        this.pendingUpdate = new Set();
+            this.oldData = rawData;
 
-        this.oldData = data;
+            this.data = new Proxy(Object.assign({}, rawData), {
+                set: (obj, prop, value) => {
+                    // Check whether it is a field of this model, ignore if it's not
+                    if (!(prop in this.meta.fields)) return true;
 
-        this.data = new Proxy(Object.assign({}, data), {
-            set: (obj, prop, value) => {
-                // Check whether it is a field of this model
-                if (!(prop in this.meta.fields)) return true;
+                    obj[prop] = value;
 
-                obj[prop] = value;
+                    // The default behavior to store the value
+                    if (this.oldData[prop] != value) {
+                        this.pendingUpdate.add(prop);
+                    } else {
+                        this.pendingUpdate.delete(prop);
+                    }
 
-                // The default behavior to store the value
-                if (this.oldData[prop] != value) {
-                    this.pendingUpdate.add(prop);
-                } else {
-                    this.pendingUpdate.delete(prop);
+                    // Indicate success
+                    return true;
                 }
+            });
+        } else {
+            this.isNew = true;
 
-                // Indicate success
-                return true;
+            if (rawData) {
+                //only pick those that are fields of this entity
+                this.data = this.constructor._filterCondition(rawData);
+            } else {
+                this.data = {};
             }
-        });
-
-        return this;
-    }
+        }       
+    }    
 
     get db() {
         return this.constructor.db;
@@ -79,35 +76,28 @@ class Model {
         return this.data[this.keyName];
     }
 
-    async save({ ignoreDuplicate, retrieveSaved }) {
-        if (this.isNew) {
-            let context = await this.constructor._preCreate(this.data);
-            if (context.errors.length > 0) {
-                throw new ModelValidationError(context.errors);
-            }
-
-            OolUtil.applyFeature(OolUtil.RULE_POST_CREATE_CHECK, this.meta, context, this.db);
-            
-            return this._doCreate(context, ignoreDuplicate, retrieveSaved);
-        } else {
-            let context = await this.constructor._preUpdate(this.oldData, _.pick(this.data, Array.from(this.pendingUpdate)));
-            if (context.errors.length > 0) {
-                throw new ModelValidationError(context.errors);
-            }
-
-            OolUtil.applyFeature(OolUtil.RULE_POST_UPDATE_CHECK, this.meta, context, this.db);
-
-            return this._doUpdate(context, retrieveSaved);
-        }
+    async save_() {
+        return this.isNew ? 
+            this.constructor.create_(this.data, { retrieveFromDb: true }) : 
+            this.constructor.update_(_.pick(this.data, Array.from(this.pendingUpdate)), { retrieveFromDb: true });
     }    
+
+    /**
+     * Populate data from database
+     * @param {*} data 
+     */
+    static fromDb(data) {
+        let ModelClass = this;
+        return new ModelClass(data, true);
+    }
     
     /**
      * Find one record, returns a model object containing the record or undefined if nothing found.
      * @param {*} condition - Primary key value or query condition with unique key values.
      * @returns {*}
      */
-    static async findOne(condition) {     
-        pre: !_.isNil(condition), '"findOne()" requires condition to be not null.';
+    static async findOne_(condition) {     
+        pre: !_.isNil(condition), '"findOne_()" requires condition to be not null.';
 
         if (!_.isPlainObject(condition)) {
             //todo：combination key support 
@@ -118,13 +108,10 @@ class Model {
             condition = this._ensureContainsUniqueKey(condition);                   
         }
 
-        let record = await this._doFindOne(condition);
+        let record = await this._doFindOne_(condition);
         if (!record) return undefined;
 
-        let ModelClass = this;
-        let model = new ModelClass();
-
-        return model.fromDb(record);
+        return this.fromDb(record);
     }
 
     /**
@@ -133,60 +120,54 @@ class Model {
      * @param {boolean} [fetchArray=false] - When fetchArray = true, the result will be returned directly without creating model objects.
      * @returns {array}
      */
-    static async find(condition, fetchArray = false) {
+    static async find_(condition, fetchArray = false) {
         pre: _.isPlainObject(condition) || Array.isArray(condition), '"find()" requires condition to be a plain object or an array.';
 
-        let records = await this._doFind(this._filterCondition(condition));
+        let records = await this._doFind_(this._filterCondition(condition));
         if (!records) return undefined;
 
         if (fetchArray) return records;
 
-        let ModelClass = this;
-
-        return records.map(row => {
-            let model = new ModelClass();
-            return model.fromDb(row);
-        });
+        return records.map(row => this.fromDb(row));
     }
 
     /**
      * Create a new entity with given data
      * @param {object} data - Entity data 
      * @param {object} [options] - Create options
-     * @property {bool} options.ignoreDuplicate - Ignore duplicate error
-     * @property {bool} options.retrieveFromDb - Retrieve the created entity from database
+     * @property {bool} [options.ignoreDuplicate] - Ignore duplicate error
+     * @property {bool} [options.retrieveFromDb] - Retrieve the created entity from database
      * @returns {object}
      */
-    static async create(data, options) {
-        let context = await this._preCreate(data);
-        if (context.errors.length > 0) {
-            throw new ModelValidationError(context.errors);
-        }
+    static async create_(data, options) {
+        let context = await this._validateAndFill_(data, true);              
+
+        this._mergeOptionsInContext(context, options);
 
         OolUtil.applyFeature(OolUtil.RULE_POST_CREATE_CHECK, this.meta, context, this.db);
         
-        return this._doCreate(context, options);
+        let result = await this._doCreate_(context);
+        console.log(result);
+        return this.fromDb(result);
     }
 
     /**
-     * Update a new entity with given data
+     * Update an existing entity with given data
      * @param {object} data - Entity data with at least one unique key (pair) given
      * @param {object} [options] - Update options
      * @property {bool} [options.throwZeroUpdate=false] - Throw error if no row is updated
      * @property {bool} [options.retrieveFromDb=false] - Retrieve the updated entity from database
      * @returns {object}
      */
-    static async update(data, options) {
+    static async update_(data, options) {
+        let context = await this._validateAndFill_(data);      
+        
+        this._mergeOptionsInContext(context, options);
 
+        OolUtil.applyFeature(OolUtil.RULE_POST_UPDATE_CHECK, this.meta, context, this.db);
 
-        let context = await this.constructor._preUpdate(this.oldData, _.pick(this.data, Array.from(this.pendingUpdate)));
-            if (context.errors.length > 0) {
-                throw new ModelValidationError(context.errors);
-            }
-
-            OolUtil.applyFeature(OolUtil.RULE_POST_UPDATE_CHECK, this.meta, context, this.db);
-
-            return this._doUpdate(context, retrieveSaved);
+        let result = await this._doUpdate_(context);
+        return this.fromDb(result);
     }
 
     /**
@@ -195,8 +176,8 @@ class Model {
      * @param {object} data 
      * @returns {Model}
      */
-    static async findOrCreate(condition, data) {
-        let record = this.findOne(condition);
+    static async findOrCreate_(condition, data) {
+        let record = this.findOne_(condition);
         if (record) return record;
 
 
@@ -206,7 +187,7 @@ class Model {
      * Remove one record.
      * @param {*} condition 
      */
-    static async removeOne(condition) {
+    static async removeOne_(condition) {
         pre: !_.isNil(condition), '"removeOne()" requires condition to be not null.';
 
         if (!_.isPlainObject(condition)) {
@@ -218,7 +199,7 @@ class Model {
             condition = this._ensureContainsUniqueKey(condition);                   
         }        
         
-        return await this._doRemoveOne(condition);
+        return await this._doRemoveOne_(condition);
     }
 
     static _ensureContainsUniqueKey(condition) {
@@ -231,9 +212,16 @@ class Model {
             });
             return containsAll;
         });
+
         if (!containsUniqueKey) {
-            throw new Mowa.Error.InvalidArgument('Single record operation requires condition to be containing unique key.');
+            throw new ModelUsageError('Unexpected usage.', { 
+                    entity: this.meta.name, 
+                    reason: 'Single record operation requires condition to be containing unique key.',
+                    condition
+                }
+            );
         }
+
         return condition;
     }
 
@@ -248,22 +236,17 @@ class Model {
         });
     }
 
-    static async _preCreate(data) {
-        return this._rawDataPreProcess({ raw: data }, true);
-    }
-
-    static async _preUpdate(oldData, newData) {
-        return this._rawDataPreProcess({ existing: oldData, raw: newData });
-    }        
-
-    static async _rawDataPreProcess(context, isNew = false) {
+    static async _validateAndFill_(raw, isNew = false) {
         let meta = this.meta;
-        let fields = meta.fields;
-        let { raw } = context;
+        let fields = meta.fields;        
         let errors = [];
         let latest = {};
-        context.errors = errors;
-        context.latest = latest;
+
+        let context = {
+            raw,
+            latest,
+            errors
+        };
 
         for (let fieldName in fields) {
             let fieldMeta = fields[fieldName];
@@ -272,27 +255,22 @@ class Model {
                 //field value given in raw data
                 if (fieldMeta.readOnly) {
                     //read only, not allow to set by input value
-                    throw new ModelValidationError({
-                        field: fieldMeta,
-                        message: 'Read-only field is not allowed to be set by manual input.'
+                    throw new ModelValidationError('Read-only field is not allowed to be set by manual input.', {
+                        entity: this.meta.name,                        
+                        fieldInfo: fieldMeta 
                     });
                 } else if (!isNew && fieldMeta.fixedValue) {
                     //update a fixedValue field
                     if (!_.isNil(context.existing[fieldName])) {
-                        throw new ModelValidationError({
-                            field: fieldMeta,
-                            message: 'Write-once-only field is not allowed to be update once it was set.'
+                        throw new ModelValidationError('Write-once-only field is not allowed to be update once it was set.', {
+                            entity: this.meta.name,                            
+                            fieldInfo: fieldMeta 
                         });
                     }                                        
                 } 
                 
                 //sanitize first
                 let sanitizeState = Validators.$sanitize(fieldMeta, raw[fieldName]);
-                if (sanitizeState.error) {
-                    errors.push(sanitizeState.error);
-                    return context;
-                }
-
                 latest[fieldName] = sanitizeState.sanitized;                
                 continue;                
             }
@@ -304,7 +282,7 @@ class Model {
                         //has default setting in meta data
                         latest[fieldName] = fieldMeta.default;
                     } else if (fieldMeta.auto) {
-                        latest[fieldName] = Generators.$auto(fieldMeta, (this.db.ctx && this.db.ctx.__) || this.db.appModule.__);
+                        latest[fieldName] = await Generators.$auto(fieldMeta, (this.db.ctx && this.db.ctx.__) || this.db.appModule.__);
                     } else if (!fieldMeta.optional) {
                         errors.push({field: fieldMeta, message: 'Missing required field.'});
                         return context;
@@ -324,18 +302,23 @@ class Model {
 
                     //require generator to refresh auto generated value
                     if (fieldMeta.auto) {
-                        latest[fieldName] = Generators.$auto(fieldMeta, (this.db.ctx && this.db.ctx.__) || this.db.appModule.__);
+                        latest[fieldName] = await Generators.$auto(fieldMeta, (this.db.ctx && this.db.ctx.__) || this.db.appModule.__);
                         continue;
                     } 
 
-                    throw new ModelOperationError('Unknow force update rule.', fieldName);          
+                    throw new ModelUsageError(
+                        'Unknow force update rule.', {         
+                            entity: this.meta.name,                                               
+                            fieldInfo: fieldMeta
+                        }
+                    );          
                 }
             }
         }
 
-        OolUtil.applyFeature(OolUtil.RULE_POST_RAW_DATA_PRE_PROCESS, meta, context, this.db);
+        OolUtil.applyFeature(OolUtil.RULE_POST_RAW_DATA_PRE_PROCESS, meta, context, this.db);        
 
-        return context;
+        return this._doValidateAndFill_(context);
     }
 
     /**
@@ -353,11 +336,19 @@ class Model {
         }        
 
         if (nonEmpty && _.isEmpty(condition)) {
-            throw new ModelOperationError('Empty condition.', this.meta.name);
+            throw new ModelUsageError('Empty condition.', {
+                entity: this.meta.name
+            });
         }
 
         return condition;
     }    
+
+    static _mergeOptionsInContext(context, options) {
+        if (options) {
+            _.forOwn(options, (v, k) => { context['$'+k] = v });
+        }
+    }
 }
 
 module.exports = Model;

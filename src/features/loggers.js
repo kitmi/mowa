@@ -8,6 +8,7 @@
 const winston = require('winston');
 const winstonFlight = require('winstonflight');
 const Mowa = require('../server.js');
+const Feature = require('../enum/feature');
 const Util = Mowa.Util;
 const Promise = Util.Promise;
 
@@ -36,7 +37,7 @@ module.exports = {
      * This feature is loaded at service stage
      * @member {string}
      */
-    type: Mowa.Feature.SERVICE,
+    type: Feature.SERVICE,
 
     /**
      * Load the feature
@@ -57,7 +58,7 @@ module.exports = {
 
         Util._.forOwn(categories, (loggerConfig, name) => {
             if (loggerConfig.transports) {
-                loggerConfig.transports = winstonFlight(loggerConfig.transports);
+                loggerConfig.transports = winstonFlight(winston, loggerConfig.transports);
             }
 
             let logger = loggers.add(name, loggerConfig);

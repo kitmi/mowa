@@ -140,8 +140,9 @@ class MowaAPI {
             this._showUsage();
             process.exit(0);
         }
-
-        const normal = {
+        
+        //default config
+        this.config = {
             consoleEnabled: true,
             consoleLogLevel: 'info',
             consoleLogColorize: true,
@@ -151,18 +152,6 @@ class MowaAPI {
             fileLogOverwrite: true,
             verbose: false
         };
-
-        const debug = {
-            ...normal,
-            consoleLogLevel: 'debug',
-            fileLogLevel: 'debug',
-            verbose: true
-        };
-
-        //default config
-        this.config = {
-            general: normal
-        };
     }
 
     /**
@@ -171,9 +160,6 @@ class MowaAPI {
      * @returns {Promise}
      */
     init_() {
-        //init logger for cli
-        winston.cli();
-
         //install uncaughtException handler
         let handleErrors = e => {
             this.log('error', 'UncaughtException ' + e.stack);
@@ -192,7 +178,7 @@ class MowaAPI {
             if (this.config.general.consoleEnabled) {
                 transports.push(new (winston.transports.Console)({
                     level: this.config.general.consoleLogLevel,
-                    colorize: this.config.general.consoleLogColorize
+                    format: winston.format.combine(winston.format.colorize(), winston.format.simple())
                 }));
             }
 
@@ -206,12 +192,11 @@ class MowaAPI {
                 transports.push(new (winston.transports.File)({
                     level: this.config.general.fileLogLevel,
                     filename: this.config.general.fileLogFilename,
-                    options: fileLogOptions,
-                    json: false
+                    options: fileLogOptions
                 }));
             }
 
-            this.logger = new (winston.Logger)({
+            this.logger = winston.createLogger({
                 transports: transports
             });
 

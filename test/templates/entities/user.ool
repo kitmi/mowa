@@ -17,15 +17,15 @@ entity user
 
   has
     email
-    mobile : phone ~isMobilePhone(@latest.locale | stringDasherize) | normalizeMobile
+    mobile : phone ~isMobilePhone(@latest.locale |stringDasherize) |normalizeMobile
     # @existing (existing data in db), @latest (latest data in db, or new data ready to put in db), @raw (raw input)
-    password | hashPassword(@latest.passwordSalt) 
+    password |hashPassword(@latest.passwordSalt) 
     passwordSalt : text(32) fixedLength default(auto) readOnly fixedValue
     displayName : name optional
     locale : shortName default('en_AU')
     isEmailVerified : flag default(false)
     isMobileVerified : flag default(false)
-    status : userStatus default('inactive')
+    status : userStatus default('inactive')   
     tag optional
 
   index
@@ -34,10 +34,10 @@ entity user
 
   data [
     {
-      email: 'admin@anyemail.any',
+      email: 'test@somewhere.email',
       mobile: '0412345678',
       password: '123456',
-      displayName: 'Admin',
+      displayName: 'Test',
       isEmailVerified: true,
       isMobileVerified: true,
       status: 'active'
@@ -57,4 +57,5 @@ entity user
 
       return @user unless
         @user not exists => { error: { message: 'user_not_found' } }
-        @password | hashPassword(@user.passwordSalt) != @user.password => { error: { message: 'invalid_password' } }
+        @password |hashPassword(@user.passwordSalt) != @user.password => { error: { message: 'invalid_password' } }
+

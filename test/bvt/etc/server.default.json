@@ -19,7 +19,7 @@
                     "type": "file",
                     "options": {
                         "level": "info",
-                        "filename": "#!es6:../temp/bvt/logs/file-${now.format('YYYYMMDD')}.log"
+                        "filename": "#!jst:../temp/bvt/logs/file-${now.format('YYYYMMDD')}.log"
                     }
                 }
             ]
@@ -29,10 +29,8 @@
                 {
                     "type": "file",
                     "options": {
-                        "level": "verbose",
-                        "json": false,
-                        "formatter": "#!es6:${options => options.message}",
-                        "filename": "#!es6:../temp/bvt/logs/access-${now.format('YYYYMMDD')}.log"
+                        "level": "verbose",                        
+                        "filename": "#!jst:../temp/bvt/logs/access-${now.format('YYYYMMDD')}.log"
                     }
                 }
             ]
@@ -64,10 +62,7 @@
                 "rules": {
                     "get:/test": "test.index"
                 }
-            },
-            "modules": [
-                "modulesTest"
-            ]
+            }            
         },
         "/api": {
             "rest": {
@@ -77,6 +72,9 @@
             "app": {
                 "name": "test"
             }
+        },
+        "/module-test": {
+            "module": "modulesTest"
         }
     }
 }

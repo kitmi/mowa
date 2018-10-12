@@ -49,7 +49,7 @@ function prepareLinkerContext(context, schemaFile) {
 exports.build = function (context, schemaFile, restify) {
     let oolongConfig = prepareLinkerContext(context, schemaFile);
 
-    let buildPath = path.join(context.currentApp.backendPath, Mowa.Literal.DB_SCRIPTS_PATH);
+    let buildPath = context.currentApp.toAbsolutePath(Mowa.Literal.DB_SCRIPTS_PATH);
     
     let schemaDeployments = [];
 
@@ -80,7 +80,7 @@ exports.build = function (context, schemaFile, restify) {
     });
 
     const DaoModeler = require('./modeler/dao.js');
-    let daoModeler = new DaoModeler(context, path.resolve(context.currentApp.backendPath, Mowa.Literal.MODELS_PATH));
+    let daoModeler = new DaoModeler(context, context.currentApp.toAbsolutePath(Mowa.Literal.BACKEND_SRC_PATH, Mowa.Literal.MODELS_PATH));
 
     _.each(schemaDeployments, schema => {
         let schemaOolongConfig = oolongConfig.schemas[schema.name];
